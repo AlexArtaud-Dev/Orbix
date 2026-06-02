@@ -6,7 +6,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import type { Response } from 'express';
-import * as bcrypt from 'bcryptjs';
+import bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import { SetupDto } from './dto/setup.dto';
