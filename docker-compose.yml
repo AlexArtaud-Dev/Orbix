@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: orbix-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: orbix
+      POSTGRES_USER: orbix
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - orbix_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orbix"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  orbix_db:

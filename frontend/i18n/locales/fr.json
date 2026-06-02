@@ -1,0 +1,82 @@
+{
+  "common": {
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "loading": "Chargement...",
+    "error": "Une erreur est survenue",
+    "confirm": "Confirmer",
+    "actions": "Actions",
+    "back": "Retour",
+    "noResults": "Aucun résultat"
+  },
+  "auth": {
+    "login": "Connexion",
+    "logout": "Déconnexion",
+    "username": "Nom d'utilisateur",
+    "password": "Mot de passe",
+    "setup": "Créer le compte",
+    "setupTitle": "Créer votre compte administrateur",
+    "setupSubtitle": "Configuration initiale — créez votre compte administrateur pour commencer.",
+    "loginTitle": "Bon retour",
+    "loginSubtitle": "Connectez-vous à votre instance Orbix.",
+    "confirmPassword": "Confirmer le mot de passe",
+    "passwordsNoMatch": "Les mots de passe ne correspondent pas",
+    "setupSuccess": "Compte créé avec succès",
+    "loginSuccess": "Connecté",
+    "logoutSuccess": "Déconnecté"
+  },
+  "nav": {
+    "dashboard": "Tableau de bord",
+    "vault": "Coffre",
+    "emailConfigs": "Configs e-mail",
+    "files": "Fichiers",
+    "mail": "Courrier",
+    "mailSend": "Envoyer un mail",
+    "contacts": "Contacts",
+    "templates": "Modèles",
+    "backups": "Sauvegardes",
+    "logs": "Journaux",
+    "settings": "Paramètres",
+    "back": "Retour"
+  },
+  "dashboard": {
+    "title": "Tableau de bord",
+    "welcome": "Bienvenue sur Orbix"
+  },
+  "logs": {
+    "title": "Journaux",
+    "subtitle": "Journaux d'événements de l'application",
+    "category": "Catégorie",
+    "level": "Niveau",
+    "allCategories": "Toutes les catégories",
+    "allLevels": "Tous les niveaux",
+    "loadMore": "Charger plus",
+    "noLogs": "Aucun journal trouvé"
+  },
+  "settings": {
+    "title": "Paramètres système",
+    "subtitle": "Configurer les paramètres globaux de l'application",
+    "maxFileSizeMb": "Taille maximale des fichiers (Mo)",
+    "logRetentionDays": "Conservation des journaux (jours)",
+    "backupRetentionDays": "Conservation des sauvegardes (jours)",
+    "defaultTimezone": "Fuseau horaire par défaut",
+    "defaultLanguage": "Langue par défaut",
+    "defaultTheme": "Thème par défaut",
+    "saved": "Paramètres enregistrés",
+    "appearance": "Apparence",
+    "storage": "Stockage",
+    "localization": "Localisation"
+  },
+  "errors": {
+    "UNAUTHORIZED": "Vous n'êtes pas authentifié",
+    "FORBIDDEN": "Action non autorisée",
+    "NOT_FOUND": "Ressource introuvable",
+    "INVALID_INPUT": "Saisie invalide",
+    "CRYPTO_ERROR": "Erreur de chiffrement",
+    "SMTP_ERROR": "Échec connexion SMTP",
+    "UNHANDLED": "Erreur inattendue",
+    "CONFLICT": "Cette ressource existe déjà"
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "confirm": "Confirm",
+    "actions": "Actions",
+    "back": "Back",
+    "noResults": "No results found"
+  },
+  "auth": {
+    "login": "Sign In",
+    "logout": "Sign Out",
+    "username": "Username",
+    "password": "Password",
+    "setup": "Create account",
+    "setupTitle": "Create your admin account",
+    "setupSubtitle": "First-run setup — create your administrator account to get started.",
+    "loginTitle": "Welcome back",
+    "loginSubtitle": "Sign in to your Orbix instance.",
+    "confirmPassword": "Confirm Password",
+    "passwordsNoMatch": "Passwords do not match",
+    "setupSuccess": "Account created successfully",
+    "loginSuccess": "Signed in",
+    "logoutSuccess": "Signed out"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "vault": "Vault",
+    "emailConfigs": "Email configs",
+    "files": "Files",
+    "mail": "Mail",
+    "mailSend": "Send mail",
+    "contacts": "Contacts",
+    "templates": "Templates",
+    "backups": "Backups",
+    "logs": "Logs",
+    "settings": "Settings",
+    "back": "Back"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "welcome": "Welcome to Orbix"
+  },
+  "logs": {
+    "title": "Logs",
+    "subtitle": "Application event logs",
+    "category": "Category",
+    "level": "Level",
+    "allCategories": "All categories",
+    "allLevels": "All levels",
+    "loadMore": "Load more",
+    "noLogs": "No logs found"
+  },
+  "settings": {
+    "title": "System Settings",
+    "subtitle": "Configure global application settings",
+    "maxFileSizeMb": "Max file size (MB)",
+    "logRetentionDays": "Log retention (days)",
+    "backupRetentionDays": "Backup retention (days)",
+    "defaultTimezone": "Default timezone",
+    "defaultLanguage": "Default language",
+    "defaultTheme": "Default theme",
+    "saved": "Settings saved",
+    "appearance": "Appearance",
+    "storage": "Storage",
+    "localization": "Localization"
+  },
+  "errors": {
+    "UNAUTHORIZED": "You are not authenticated",
+    "FORBIDDEN": "You are not authorized",
+    "NOT_FOUND": "Resource not found",
+    "INVALID_INPUT": "Invalid input",
+    "CRYPTO_ERROR": "Encryption error",
+    "SMTP_ERROR": "SMTP connection failed",
+    "UNHANDLED": "An unexpected error occurred",
+    "CONFLICT": "This resource already exists"
+  }
+}
