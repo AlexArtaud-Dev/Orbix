@@ -1,11 +1,9 @@
 import 'dotenv/config';
-import { defineConfig } from 'prisma/config';
-import { PrismaPg } from '@prisma/adapter-pg';
+import { defineConfig, env } from 'prisma/config';
 
 export default defineConfig({
+  schema: './prisma/schema.prisma',
   datasource: {
-    url: process.env.DATABASE_URL!,
-    adapter: () =>
-      new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
+    url: env('DATABASE_URL'),
   },
 });
