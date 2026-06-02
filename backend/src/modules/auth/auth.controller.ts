@@ -1,17 +1,8 @@
-import {
-  Body,
-  Controller,
-  Get,
-  HttpCode,
-  Post,
-  Res,
-} from '@nestjs/common';
-import { Response } from 'express';
+import { Body, Controller, Get, HttpCode, Post, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { Public } from '../../common/decorators/public.decorator';
-import {
-  CurrentUser,
-  JwtPayload,
-} from '../../common/decorators/current-user.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import type { JwtPayload } from '../../common/decorators/current-user.decorator';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { SetupDto } from './dto/setup.dto';
