@@ -22,7 +22,7 @@ WORKDIR /app
 COPY --from=backend-builder /build/backend/dist ./dist
 COPY --from=backend-builder /build/backend/node_modules ./node_modules
 COPY --from=backend-builder /build/backend/package.json ./
-COPY --from=backend-builder /build/backend/src/prisma/schema.prisma ./prisma/schema.prisma
+COPY --from=backend-builder /build/backend/prisma/schema.prisma ./prisma/schema.prisma
 COPY --from=frontend-builder /build/frontend/out ./public
 
 RUN mkdir -p /app/logs /backups
