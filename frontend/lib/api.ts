@@ -8,8 +8,16 @@ export class ApiError extends Error {
   }
 }
 
+const API_BASE =
+  typeof window !== "undefined"
+    ? (process.env.NEXT_PUBLIC_API_URL ?? "")
+    : "";
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, { credentials: "include", ...init });
+  const res = await fetch(API_BASE + path, {
+    credentials: "include",
+    ...init,
+  });
   const json = (await res.json()) as
     | { data: T }
     | { error: { code: string; message: string } };
