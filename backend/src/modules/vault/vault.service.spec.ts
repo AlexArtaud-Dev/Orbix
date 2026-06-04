@@ -58,8 +58,14 @@ describe('VaultService', () => {
     it('creates entity and returns response without password field', async () => {
       mockPrisma.vaultEntity.findUnique.mockResolvedValue(null);
       mockPrisma.vaultEntity.create.mockImplementation(
-        async ({ data }: { data: Record<string, unknown> }) =>
-          makeRow('id-1', data.name as string, data.encryptedPayload as string),
+        ({ data }: { data: Record<string, unknown> }) =>
+          Promise.resolve(
+            makeRow(
+              'id-1',
+              data.name as string,
+              data.encryptedPayload as string,
+            ),
+          ),
       );
 
       const result = await service.createEmail({
@@ -104,9 +110,9 @@ describe('VaultService', () => {
       let encryptedPayload = '';
       mockPrisma.vaultEntity.findUnique.mockResolvedValueOnce(null);
       mockPrisma.vaultEntity.create.mockImplementationOnce(
-        async ({ data }: { data: Record<string, unknown> }) => {
+        ({ data }: { data: Record<string, unknown> }) => {
           encryptedPayload = data.encryptedPayload as string;
-          return makeRow('id-1', 'smtp-a', encryptedPayload);
+          return Promise.resolve(makeRow('id-1', 'smtp-a', encryptedPayload));
         },
       );
       await service.createEmail({
@@ -135,9 +141,11 @@ describe('VaultService', () => {
       for (let i = 0; i < 2; i++) {
         mockPrisma.vaultEntity.findUnique.mockResolvedValueOnce(null);
         mockPrisma.vaultEntity.create.mockImplementationOnce(
-          async ({ data }: { data: Record<string, unknown> }) => {
+          ({ data }: { data: Record<string, unknown> }) => {
             payloads.push(data.encryptedPayload as string);
-            return makeRow(`id-${i}`, `smtp-${i}`, data.encryptedPayload as string);
+            return Promise.resolve(
+              makeRow(`id-${i}`, `smtp-${i}`, data.encryptedPayload as string),
+            );
           },
         );
         await service.createEmail({
@@ -168,9 +176,11 @@ describe('VaultService', () => {
       let encryptedPayload = '';
       mockPrisma.vaultEntity.findUnique.mockResolvedValueOnce(null);
       mockPrisma.vaultEntity.create.mockImplementationOnce(
-        async ({ data }: { data: Record<string, unknown> }) => {
+        ({ data }: { data: Record<string, unknown> }) => {
           encryptedPayload = data.encryptedPayload as string;
-          return makeRow('id-1', 'smtp-orig', encryptedPayload);
+          return Promise.resolve(
+            makeRow('id-1', 'smtp-orig', encryptedPayload),
+          );
         },
       );
       await service.createEmail({
@@ -186,17 +196,27 @@ describe('VaultService', () => {
       const existingRow = makeRow('id-1', 'smtp-orig', encryptedPayload);
       mockPrisma.vaultEntity.findUnique.mockResolvedValue(existingRow);
       mockPrisma.vaultEntity.update.mockImplementation(
-        async ({ data }: { data: Record<string, unknown> }) =>
-          makeRow('id-1', data.name as string, data.encryptedPayload as string),
+        ({ data }: { data: Record<string, unknown> }) =>
+          Promise.resolve(
+            makeRow(
+              'id-1',
+              data.name as string,
+              data.encryptedPayload as string,
+            ),
+          ),
       );
 
-      const result = await service.updateEmail('id-1', { host: 'smtp.new.com' });
+      const result = await service.updateEmail('id-1', {
+        host: 'smtp.new.com',
+      });
 
       expect(result.host).toBe('smtp.new.com');
       expect('password' in result).toBe(false);
-      const updateArg = mockPrisma.vaultEntity.update.mock.calls[0][0] as {
-        data: Record<string, unknown>;
-      };
+      const updateArg = (
+        mockPrisma.vaultEntity.update.mock.calls[0] as [
+          { data: Record<string, unknown> },
+        ]
+      )[0];
       // Verify update was called with an encryptedPayload (password preserved)
       expect(typeof updateArg.data.encryptedPayload).toBe('string');
     });
@@ -237,9 +257,7 @@ describe('VaultService', () => {
         makeRow('id-2', 'b', 'p'),
       ]);
 
-      const spy = jest
-        .spyOn(service, 'testEmail')
-        .mockResolvedValue(undefined);
+      const spy = jest.spyOn(service, 'testEmail').mockResolvedValue(undefined);
 
       await service.checkAllEmail();
 

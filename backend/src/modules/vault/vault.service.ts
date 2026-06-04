@@ -27,7 +27,7 @@ export class VaultService {
 
   private getKey(): Buffer {
     const secret = this.config.getOrThrow<string>('VAULT_ENCRYPTION_KEY');
-    return scryptSync(secret, 'orbix-vault', 32) as Buffer;
+    return scryptSync(secret, 'orbix-vault', 32);
   }
 
   private encrypt(text: string): string {
@@ -61,7 +61,9 @@ export class VaultService {
   }
 
   private toResponse(entity: VaultRow): EmailVaultResponse {
-    const payload = JSON.parse(this.decrypt(entity.encryptedPayload)) as EmailPayload;
+    const payload = JSON.parse(
+      this.decrypt(entity.encryptedPayload),
+    ) as EmailPayload;
     return {
       id: entity.id,
       name: entity.name,
@@ -168,7 +170,7 @@ export class VaultService {
     return this.toResponse(result);
   }
 
-  async countEmail(): Promise<number> {
+  countEmail(): Promise<number> {
     return this.prisma.vaultEntity.count({ where: { type: 'email' } });
   }
 
@@ -182,7 +184,9 @@ export class VaultService {
     const entities = await this.prisma.vaultEntity.findMany({
       where: { type: 'email' },
     });
-    await Promise.allSettled(entities.map((e) => this.testEmail(e.id).catch(() => {})));
+    await Promise.allSettled(
+      entities.map((e) => this.testEmail(e.id).catch(() => {})),
+    );
   }
 
   async testEmail(id: string): Promise<void> {
@@ -208,13 +212,21 @@ export class VaultService {
       await transporter.verify();
       await this.prisma.vaultEntity.update({
         where: { id },
-        data: { smtpStatus: 'ok', smtpStatusMsg: null, smtpCheckedAt: new Date() },
+        data: {
+          smtpStatus: 'ok',
+          smtpStatusMsg: null,
+          smtpCheckedAt: new Date(),
+        },
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'SMTP connection failed';
       await this.prisma.vaultEntity.update({
         where: { id },
-        data: { smtpStatus: 'error', smtpStatusMsg: msg, smtpCheckedAt: new Date() },
+        data: {
+          smtpStatus: 'error',
+          smtpStatusMsg: msg,
+          smtpCheckedAt: new Date(),
+        },
       });
       throw new HttpException(
         { error: { code: 'SMTP_ERROR', message: msg } },

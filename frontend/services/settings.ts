@@ -8,6 +8,7 @@ export interface SystemSettings {
   defaultTimezone: string;
   defaultLanguage: string;
   defaultTheme: string;
+  filesRoot: string;
 }
 
 export type UpdateSettingsPayload = Partial<Omit<SystemSettings, "id">>;

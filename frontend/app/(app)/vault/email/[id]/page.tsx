@@ -60,8 +60,8 @@ export default function EditEmailVaultPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      const payload = { ...form };
-      if (!payload.password) delete payload.password;
+      const { password, ...rest } = form;
+      const payload = password ? { ...rest, password } : rest;
       await vaultService.updateEmail(id, payload);
       toast.success(t("vault.updateSuccess"));
       router.push("/vault/email");

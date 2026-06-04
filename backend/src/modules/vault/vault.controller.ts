@@ -18,10 +18,7 @@ export class VaultController {
   constructor(private readonly vaultService: VaultService) {}
 
   @Get()
-  async list(
-    @Query('cursor') cursor?: string,
-    @Query('limit') limit?: string,
-  ) {
+  async list(@Query('cursor') cursor?: string, @Query('limit') limit?: string) {
     const result = await this.vaultService.listEmail(
       cursor,
       limit ? parseInt(limit, 10) : undefined,

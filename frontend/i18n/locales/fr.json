@@ -69,7 +69,8 @@
     "saved": "Paramètres enregistrés",
     "appearance": "Apparence",
     "storage": "Stockage",
-    "localization": "Localisation"
+    "localization": "Localisation",
+    "filesRoot": "Racine de l'explorateur de fichiers"
   },
   "vault": {
     "emailTitle": "Comptes e-mail",
@@ -99,6 +100,32 @@
     "updateSuccess": "Configuration mise à jour",
     "deleteSuccess": "Configuration supprimée",
     "statusNever": "Jamais testé"
+  },
+  "files": {
+    "title": "Explorateur de fichiers",
+    "subtitle": "Parcourez le système de fichiers du serveur pour identifier les fichiers à sauvegarder",
+    "root": "Racine",
+    "empty": "Ce dossier est vide",
+    "colName": "Nom",
+    "colSize": "Taille",
+    "colModified": "Modifié",
+    "properties": "Propriétés",
+    "propTitle": "Propriétés",
+    "propFullPath": "Chemin complet",
+    "propType": "Type",
+    "propSize": "Taille",
+    "propCreated": "Créé le",
+    "propModified": "Modifié le",
+    "propMode": "Permissions",
+    "propOwner": "Propriétaire (UID / GID)",
+    "propExtension": "Extension",
+    "typeFile": "Fichier",
+    "typeFolder": "Dossier",
+    "propItems": "Éléments",
+    "filterByName": "Filtrer par nom…",
+    "clearFilter": "Effacer le filtre",
+    "copyPath": "Copier le chemin",
+    "copied": "Copié !"
   },
   "errors": {
     "UNAUTHORIZED": "Vous n'êtes pas authentifié",

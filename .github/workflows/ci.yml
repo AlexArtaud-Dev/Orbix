@@ -15,6 +15,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '22', cache: 'pnpm', cache-dependency-path: backend/pnpm-lock.yaml }
       - run: cd backend && pnpm install --frozen-lockfile
+      - run: cd backend && pnpm exec prisma generate
       - run: cd backend && pnpm run lint
       - run: cd backend && pnpm exec tsc --noEmit
 
@@ -40,6 +41,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '22', cache: 'pnpm', cache-dependency-path: backend/pnpm-lock.yaml }
       - run: cd backend && pnpm install --frozen-lockfile
+      - run: cd backend && pnpm exec prisma generate
       - run: cd backend && pnpm exec prisma migrate deploy
         env:
           DATABASE_URL: postgresql://orbix:test@localhost:5432/orbix_test

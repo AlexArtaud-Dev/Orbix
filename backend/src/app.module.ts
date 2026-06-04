@@ -11,6 +11,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { LogsModule } from './modules/logs/logs.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { VaultModule } from './modules/vault/vault.module';
+import { FilesModule } from './modules/files/files.module';
 
 const isProd = process.env.NODE_ENV === 'production';
 
@@ -23,6 +24,7 @@ const isProd = process.env.NODE_ENV === 'production';
     AuthModule,
     SettingsModule,
     VaultModule,
+    FilesModule,
     ...(isProd
       ? [
           ServeStaticModule.forRoot({
