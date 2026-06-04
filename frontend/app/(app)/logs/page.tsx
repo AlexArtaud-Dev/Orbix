@@ -3,6 +3,14 @@ import { useEffect, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { logsService, type LogEntry, type LogCategory, type LogLevel } from "@/services/logs";
 import { formatDate } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const LEVELS: LogLevel[] = ["DEBUG", "INFO", "WARN", "ERROR"];
 const CATEGORIES: LogCategory[] = ["auth", "backup", "mail", "scheduler", "system", "vault"];
@@ -13,9 +21,6 @@ const levelColors: Record<LogLevel, string> = {
   WARN: "bg-yellow-500/20 text-yellow-600 dark:text-yellow-400",
   ERROR: "bg-red-500/20 text-red-600 dark:text-red-400",
 };
-
-const selectCls =
-  "h-9 rounded-md border bg-transparent px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring";
 
 export default function LogsPage() {
   const { t } = useTranslation();
@@ -55,16 +60,29 @@ export default function LogsPage() {
       </div>
 
       <div className="flex gap-3">
-        <select className={selectCls} value={category}
-          onChange={(e) => setCategory(e.target.value as LogCategory | "all")}>
-          <option value="all">{t("logs.allCategories")}</option>
-          {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <select className={selectCls} value={level}
-          onChange={(e) => setLevel(e.target.value as LogLevel | "all")}>
-          <option value="all">{t("logs.allLevels")}</option>
-          {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
-        </select>
+        <Select value={category} onValueChange={(v) => setCategory(v as LogCategory | "all")}>
+          <SelectTrigger className="w-44">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{t("logs.allCategories")}</SelectItem>
+            {CATEGORIES.map((c) => (
+              <SelectItem key={c} value={c}>{c}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={level} onValueChange={(v) => setLevel(v as LogLevel | "all")}>
+          <SelectTrigger className="w-36">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{t("logs.allLevels")}</SelectItem>
+            {LEVELS.map((l) => (
+              <SelectItem key={l} value={l}>{l}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="space-y-1">
@@ -77,16 +95,19 @@ export default function LogsPage() {
       </div>
 
       {nextCursor && (
-        <button onClick={() => void load(false)} disabled={loading}
-          className="rounded-md border px-4 py-1.5 text-sm hover:bg-accent disabled:opacity-50">
+        <Button variant="outline" size="sm" onClick={() => void load(false)} disabled={loading}>
           {loading ? t("common.loading") : t("logs.loadMore")}
-        </button>
+        </Button>
       )}
     </div>
   );
 }
 
-function LogRow({ entry }: { entry: LogEntry }) {
+interface LogRowProps {
+  entry: LogEntry;
+}
+
+function LogRow({ entry }: LogRowProps) {
   const [open, setOpen] = useState(false);
   return (
     <div

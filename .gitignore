@@ -30,3 +30,7 @@ coverage/
 
 # pnpm
 .pnpm-debug.log
+
+# Claude / tooling
+.claude/
+documentation/

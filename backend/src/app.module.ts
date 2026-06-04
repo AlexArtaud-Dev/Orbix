@@ -3,17 +3,16 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ServeStaticModule } from '@nestjs/serve-static';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { PrismaModule } from './prisma/prisma.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { AuthModule } from './modules/auth/auth.module';
 import { LogsModule } from './modules/logs/logs.module';
 import { SettingsModule } from './modules/settings/settings.module';
+import { VaultModule } from './modules/vault/vault.module';
 
 const isProd = process.env.NODE_ENV === 'production';
-const __dirname = dirname(fileURLToPath(import.meta.url));
 
 @Module({
   imports: [
@@ -23,6 +22,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
     LogsModule,
     AuthModule,
     SettingsModule,
+    VaultModule,
     ...(isProd
       ? [
           ServeStaticModule.forRoot({

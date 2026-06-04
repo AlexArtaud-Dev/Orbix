@@ -8,28 +8,31 @@ export class ApiError extends Error {
   }
 }
 
-const API_BASE =
-  typeof window !== "undefined"
-    ? (process.env.NEXT_PUBLIC_API_URL ?? "")
-    : "";
-
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(API_BASE + path, {
+  const base = process.env.NEXT_PUBLIC_API_URL ?? "";
+  const res = await fetch(base + path, {
     credentials: "include",
+    cache: "no-store", // désactive le cache navigateur → jamais de 304 vide
     ...init,
   });
-  const json = (await res.json()) as
-    | { data: T }
-    | { error: { code: string; message: string } };
 
   if (!res.ok) {
-    const err = (json as { error: { code: string; message: string } }).error;
-    throw new ApiError(
-      err?.code ?? "UNHANDLED",
-      err?.message ?? "An error occurred",
-    );
+    let errorCode = "UNHANDLED";
+    let errorMessage = "An error occurred";
+    try {
+      const json = (await res.json()) as {
+        error: { code: string; message: string };
+      };
+      errorCode = json.error?.code ?? "UNHANDLED";
+      errorMessage = json.error?.message ?? "An error occurred";
+    } catch {
+      // corps vide ou JSON invalide
+    }
+    throw new ApiError(errorCode, errorMessage);
   }
-  return (json as { data: T }).data;
+
+  const json = (await res.json()) as { data: T };
+  return json.data;
 }
 
 export const api = {

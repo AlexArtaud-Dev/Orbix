@@ -62,10 +62,12 @@ export class AuthService {
   private setTokenCookie(res: Response, sub: string, username: string) {
     const token = this.jwtService.sign({ sub, username });
     const secure = this.config.get('ORBIX_SECURE') === 'true';
+    // lax en dev (cross-port localhost:3000→3001), strict en prod (HTTPS same-origin)
+    const sameSite = secure ? ('strict' as const) : ('lax' as const);
     res.cookie('orbix_token', token, {
       httpOnly: true,
       secure,
-      sameSite: 'strict',
+      sameSite,
       maxAge: 24 * 60 * 60 * 1000,
       path: '/',
     });

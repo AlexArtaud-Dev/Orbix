@@ -1,17 +1,19 @@
 import 'reflect-metadata';
-import { NestFactory, Reflector } from '@nestjs/core';
+import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
-import { JwtService } from '@nestjs/jwt';
-import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.use(cookieParser());
-  app.use(helmet());
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -20,10 +22,6 @@ async function bootstrap() {
       transform: true,
     }),
   );
-
-  const reflector = app.get(Reflector);
-  const jwtService = app.get(JwtService);
-  app.useGlobalGuards(new JwtAuthGuard(jwtService, reflector));
 
   if (process.env.NODE_ENV !== 'production') {
     app.enableCors({

@@ -43,7 +43,9 @@
   },
   "dashboard": {
     "title": "Dashboard",
-    "welcome": "Welcome to Orbix"
+    "welcome": "Welcome to Orbix",
+    "vaultEmailCount": "Email Configurations",
+    "logsToday": "Logs Today"
   },
   "logs": {
     "title": "Logs",
@@ -68,6 +70,35 @@
     "appearance": "Appearance",
     "storage": "Storage",
     "localization": "Localization"
+  },
+  "vault": {
+    "emailTitle": "Email Configurations",
+    "emailSubtitle": "SMTP accounts stored encrypted in the vault",
+    "addEmail": "Add configuration",
+    "noEmailConfigs": "No email configurations yet. Add one to get started.",
+    "newEmailTitle": "New email configuration",
+    "newEmailSubtitle": "SMTP credentials are encrypted with AES-256-GCM before storage.",
+    "editEmailTitle": "Edit email configuration",
+    "editEmailSubtitle": "Leave the password blank to keep the current one.",
+    "general": "General",
+    "smtpServer": "SMTP server",
+    "sender": "Sender",
+    "name": "Configuration name",
+    "host": "Host",
+    "port": "Port",
+    "user": "Username",
+    "password": "Password",
+    "fromAddr": "From address",
+    "fromName": "Display name",
+    "secure": "Connection security",
+    "secureTls": "SSL/TLS",
+    "secureStarttls": "STARTTLS / None",
+    "testSmtp": "Test SMTP",
+    "testSuccess": "SMTP connection successful",
+    "createSuccess": "Configuration created",
+    "updateSuccess": "Configuration updated",
+    "deleteSuccess": "Configuration deleted",
+    "statusNever": "Never tested"
   },
   "errors": {
     "UNAUTHORIZED": "You are not authenticated",

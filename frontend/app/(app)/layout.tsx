@@ -9,8 +9,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    void fetchMe();
-  }, [fetchMe]);
+    // Lit le state au moment de l'effet (pas la valeur réactive capturée au render)
+    // Si l'user est déjà là (vient du login) → pas de double-fetch
+    if (!useAuthStore.getState().user) {
+      void fetchMe();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");

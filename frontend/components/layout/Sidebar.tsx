@@ -4,9 +4,10 @@ import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
-import { toast } from "@/components/ui/sonner";
+import { toast } from "sonner";
 import { useAuthStore } from "@/stores/authStore";
 import { authService } from "@/services/auth";
+import { Button } from "@/components/ui/button";
 import {
   getActiveSidebarLevel,
   ROOT_NAV_ITEMS,
@@ -78,44 +79,53 @@ export default function Sidebar() {
       {/* Footer */}
       <div className="px-2 pb-3 space-y-1">
         {activeLevel && (
-          <button
+          <Button
+            variant="ghost"
             onClick={() => router.push(activeLevel.parentPath)}
-            className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors"
+            className="w-full justify-start text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
           >
             <ArrowLeft className="size-4" />
             {t("common.back")}
-          </button>
+          </Button>
         )}
 
         <div className="mx-1 h-px bg-sidebar-border" />
 
         <div className="flex items-center gap-1 px-1 pt-1">
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            className="rounded-md p-1.5 text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors"
+            className="text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+            aria-label="Toggle theme"
           >
             {theme === "dark" ? (
               <Sun className="size-4" />
             ) : (
               <Moon className="size-4" />
             )}
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={toggleLang}
-            title={i18n.language.toUpperCase()}
-            className="rounded-md p-1.5 text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors"
+            className="text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+            aria-label={i18n.language.toUpperCase()}
           >
             <Globe className="size-4" />
-          </button>
+          </Button>
           <span className="flex-1 truncate px-1 text-xs text-sidebar-foreground/50">
             {user?.username}
           </span>
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={() => void handleLogout()}
-            className="rounded-md p-1.5 text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors"
+            className="text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+            aria-label={t("auth.logout")}
           >
             <LogOut className="size-4" />
-          </button>
+          </Button>
         </div>
       </div>
     </aside>
