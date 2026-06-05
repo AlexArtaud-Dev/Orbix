@@ -7,7 +7,22 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { VaultService } from '../vault/vault.service';
 import { LogsWriter } from '../logs/logs.writer';
 import type { BackupSources } from './backup.types';
-import type { BackupOutputModel } from '../../generated/prisma/models';
+
+interface OutputRow {
+  id: string;
+  backupId: string;
+  type: string;
+  vaultId: string;
+  templateId: string | null;
+  recipientsTo: string[];
+  recipientsCc: string[];
+  recipientsBcc: string[];
+  overrideSubject: string | null;
+  overrideBody: string | null;
+  overrideBodyType: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 interface ArchiveResult {
   buffer: Buffer;
@@ -37,10 +52,10 @@ export class BackupRunner {
     this.logs.info('backup', 'BACKUP_RUN_START', `Backup run started: ${backup.name}`);
 
     try {
-      const sources = backup.sources as unknown as BackupSources;
+      const sources = backup.sources as BackupSources;
       const archive = await this.buildArchive(backup.name, sources, backup.compression);
 
-      for (const output of backup.outputs) {
+      for (const output of backup.outputs as OutputRow[]) {
         await this.sendOutput(backup.name, output, archive);
       }
 
@@ -145,7 +160,7 @@ export class BackupRunner {
 
   private async sendOutput(
     backupName: string,
-    output: BackupOutputModel,
+    output: OutputRow,
     archive: ArchiveResult,
   ): Promise<void> {
     if (output.type !== 'mail') return;

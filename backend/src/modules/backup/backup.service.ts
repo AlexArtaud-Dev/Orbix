@@ -8,9 +8,36 @@ import { LogsWriter } from '../logs/logs.writer';
 import type { CreateBackupDto } from './dto/create-backup.dto';
 import type { UpdateBackupDto } from './dto/update-backup.dto';
 import type { BackupData, BackupSources } from './backup.types';
-import type { BackupModel, BackupOutputModel } from '../../generated/prisma/models';
 
-type BackupWithOutputs = BackupModel & { outputs: BackupOutputModel[] };
+interface OutputRow {
+  id: string;
+  backupId: string;
+  type: string;
+  vaultId: string;
+  templateId: string | null;
+  recipientsTo: string[];
+  recipientsCc: string[];
+  recipientsBcc: string[];
+  overrideSubject: string | null;
+  overrideBody: string | null;
+  overrideBodyType: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface BackupRow {
+  id: string;
+  name: string;
+  sources: unknown;
+  compression: string;
+  schedule: string | null;
+  enabled: boolean;
+  lastRunAt: Date | null;
+  lastStatus: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  outputs: OutputRow[];
+}
 
 @Injectable()
 export class BackupService {
@@ -19,11 +46,11 @@ export class BackupService {
     private readonly logs: LogsWriter,
   ) {}
 
-  private toData(backup: BackupWithOutputs): BackupData {
+  private toData(backup: BackupRow): BackupData {
     return {
       id: backup.id,
       name: backup.name,
-      sources: backup.sources as unknown as BackupSources,
+      sources: backup.sources as BackupSources,
       compression: backup.compression,
       schedule: backup.schedule,
       enabled: backup.enabled,
@@ -54,7 +81,7 @@ export class BackupService {
       include: { outputs: true },
       orderBy: { name: 'asc' },
     });
-    return items.map((b) => this.toData(b));
+    return items.map((b) => this.toData(b as BackupRow));
   }
 
   async create(dto: CreateBackupDto): Promise<BackupData> {
@@ -63,7 +90,7 @@ export class BackupService {
     });
     if (existing) throw new ConflictException('Name already in use');
 
-    const sources: BackupSources = {
+    const sources = {
       paths: dto.sources.paths,
       exclude: dto.sources.exclude ?? [],
     };
@@ -71,7 +98,8 @@ export class BackupService {
     const backup = await this.prisma.backup.create({
       data: {
         name: dto.name,
-        sources,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        sources: sources as any,
         compression: dto.compression ?? 'auto',
         schedule: dto.schedule ?? null,
         enabled: dto.enabled ?? true,
@@ -95,7 +123,7 @@ export class BackupService {
     });
 
     this.logs.info('backup', 'BACKUP_CREATED', `Backup created: ${dto.name}`);
-    return this.toData(backup);
+    return this.toData(backup as BackupRow);
   }
 
   async getOne(id: string): Promise<BackupData> {
@@ -104,7 +132,7 @@ export class BackupService {
       include: { outputs: true },
     });
     if (!backup) throw new NotFoundException();
-    return this.toData(backup);
+    return this.toData(backup as BackupRow);
   }
 
   async update(id: string, dto: UpdateBackupDto): Promise<BackupData> {
@@ -118,13 +146,13 @@ export class BackupService {
       if (conflict) throw new ConflictException('Name already in use');
     }
 
-    const existingSources = existing.sources as unknown as BackupSources;
-    const sources: BackupSources | undefined = dto.sources
+    const existingSources = existing.sources as BackupSources;
+    const sources = dto.sources
       ? {
           paths: dto.sources.paths ?? existingSources.paths,
           exclude: dto.sources.exclude ?? existingSources.exclude ?? [],
         }
-      : undefined;
+      : null;
 
     const backup = await this.prisma.$transaction(async (tx) => {
       if (dto.outputs !== undefined) {
@@ -135,7 +163,8 @@ export class BackupService {
         where: { id },
         data: {
           name: dto.name ?? existing.name,
-          sources: sources ?? existing.sources,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          sources: (sources ?? existing.sources) as any,
           compression: dto.compression ?? existing.compression,
           schedule:
             dto.schedule !== undefined ? dto.schedule : existing.schedule,
@@ -162,7 +191,7 @@ export class BackupService {
     });
 
     this.logs.info('backup', 'BACKUP_UPDATED', `Backup updated: ${backup.name}`);
-    return this.toData(backup);
+    return this.toData(backup as BackupRow);
   }
 
   async delete(id: string): Promise<void> {

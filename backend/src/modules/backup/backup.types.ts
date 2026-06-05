@@ -1,7 +1,6 @@
 export interface BackupSources {
   paths: string[];
   exclude: string[];
-  [key: string]: unknown;
 }
 
 export interface BackupOutputData {
