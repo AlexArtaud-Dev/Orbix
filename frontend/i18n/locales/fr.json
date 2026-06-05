@@ -33,6 +33,7 @@
     "emailConfigs": "Comptes e-mail",
     "files": "Fichiers",
     "output": "Sorties",
+    "outputMail": "Mail",
     "contacts": "Contacts",
     "templates": "Modèles",
     "backups": "Sauvegardes",
@@ -125,6 +126,20 @@
     "clearFilter": "Effacer le filtre",
     "copyPath": "Copier le chemin",
     "copied": "Copié !"
+  },
+  "output": {
+    "title": "Sorties",
+    "subtitle": "Configurez où vos sauvegardes sont acheminées",
+    "comingSoon": "Bientôt disponible",
+    "soon": "Bientôt",
+    "type": {
+      "mail": "Mail",
+      "s3": "Amazon S3",
+      "webhook": "Webhook"
+    },
+    "typeDesc": {
+      "mail": "Envoi des sauvegardes et notifications par e-mail"
+    }
   },
   "mail": {
     "bodyText": "Texte brut",

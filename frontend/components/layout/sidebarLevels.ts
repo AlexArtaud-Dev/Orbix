@@ -29,7 +29,7 @@ export const ROOT_NAV_ITEMS: SidebarNavItem[] = [
   { to: "/", icon: LayoutDashboard, labelKey: "nav.dashboard", end: true },
   { to: "/vault/email", icon: KeyRound, labelKey: "nav.vault" },
   { to: "/files", icon: FolderOpen, labelKey: "nav.files" },
-  { to: "/output/mail/contacts", icon: Send, labelKey: "nav.output" },
+  { to: "/output", icon: Send, labelKey: "nav.output" },
   { to: "/backups", icon: HardDriveDownload, labelKey: "nav.backups" },
   { to: "/logs", icon: ScrollText, labelKey: "nav.logs" },
   { to: "/settings", icon: Settings, labelKey: "nav.settings" },
@@ -44,6 +44,13 @@ export const SIDEBAR_LEVELS: Record<string, SidebarLevel> = {
   "/output": {
     parentPath: "/",
     titleKey: "nav.output",
+    items: [
+      { to: "/output/mail/contacts", icon: Mail, labelKey: "nav.outputMail" },
+    ],
+  },
+  "/output/mail": {
+    parentPath: "/output",
+    titleKey: "nav.outputMail",
     items: [
       { to: "/output/mail/contacts", icon: Users, labelKey: "nav.contacts" },
       { to: "/output/mail/templates", icon: FileText, labelKey: "nav.templates" },

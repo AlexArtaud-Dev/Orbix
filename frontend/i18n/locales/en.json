@@ -33,6 +33,7 @@
     "emailConfigs": "Email configs",
     "files": "Files",
     "output": "Output",
+    "outputMail": "Mail",
     "contacts": "Contacts",
     "templates": "Templates",
     "backups": "Backups",
@@ -125,6 +126,20 @@
     "clearFilter": "Clear filter",
     "copyPath": "Copy path",
     "copied": "Copied!"
+  },
+  "output": {
+    "title": "Output",
+    "subtitle": "Configure where your backups are delivered",
+    "comingSoon": "Coming soon",
+    "soon": "Soon",
+    "type": {
+      "mail": "Mail",
+      "s3": "Amazon S3",
+      "webhook": "Webhook"
+    },
+    "typeDesc": {
+      "mail": "Send backups and notifications by email"
+    }
   },
   "mail": {
     "bodyText": "Plain text",
