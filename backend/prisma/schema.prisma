@@ -57,6 +57,37 @@ model MailLog {
   sentAt   DateTime @default(now())
 }
 
+model Backup {
+  id          String         @id @default(cuid())
+  name        String         @unique
+  sources     Json
+  compression String         @default("auto")
+  schedule    String?
+  enabled     Boolean        @default(true)
+  lastRunAt   DateTime?
+  lastStatus  String?
+  outputs     BackupOutput[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model BackupOutput {
+  id               String   @id @default(cuid())
+  backupId         String
+  backup           Backup   @relation(fields: [backupId], references: [id], onDelete: Cascade)
+  type             String
+  vaultId          String
+  templateId       String?
+  recipientsTo     String[]
+  recipientsCc     String[]
+  recipientsBcc    String[]
+  overrideSubject  String?
+  overrideBody     String?
+  overrideBodyType String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
 model SystemSettings {
   id                  String @id @default("singleton")
   maxFileSizeMb       Int    @default(500)
