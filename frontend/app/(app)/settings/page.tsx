@@ -22,8 +22,8 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    settingsService.get().then(setSettings);
-  }, []);
+    settingsService.get().then(setSettings).catch(() => toast.error(t("common.error")));
+  }, [t]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,6 +37,7 @@ export default function SettingsPage() {
         defaultTimezone: settings.defaultTimezone,
         defaultLanguage: settings.defaultLanguage,
         defaultTheme: settings.defaultTheme,
+        filesRoot: settings.filesRoot,
       });
       setSettings(updated);
       toast.success(t("settings.saved"));
@@ -74,6 +75,14 @@ export default function SettingsPage() {
                   min={1}
                   value={settings.maxFileSizeMb}
                   onChange={(e) => setSettings({ ...settings, maxFileSizeMb: +e.target.value })}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="filesRoot">{t("settings.filesRoot")}</FieldLabel>
+                <Input
+                  id="filesRoot"
+                  value={settings.filesRoot}
+                  onChange={(e) => setSettings({ ...settings, filesRoot: e.target.value })}
                 />
               </Field>
               <Field>

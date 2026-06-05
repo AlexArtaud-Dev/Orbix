@@ -6,7 +6,7 @@ import { UpdateSettingsDto } from './dto/update-settings.dto';
 export class SettingsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async get() {
+  get() {
     return this.prisma.systemSettings.upsert({
       where: { id: 'singleton' },
       create: { id: 'singleton' },
@@ -14,7 +14,7 @@ export class SettingsService {
     });
   }
 
-  async update(dto: UpdateSettingsDto) {
+  update(dto: UpdateSettingsDto) {
     return this.prisma.systemSettings.upsert({
       where: { id: 'singleton' },
       create: { id: 'singleton', ...dto },

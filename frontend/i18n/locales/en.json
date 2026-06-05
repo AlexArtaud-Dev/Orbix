@@ -69,7 +69,8 @@
     "saved": "Settings saved",
     "appearance": "Appearance",
     "storage": "Storage",
-    "localization": "Localization"
+    "localization": "Localization",
+    "filesRoot": "File explorer root path"
   },
   "vault": {
     "emailTitle": "Email Configurations",
@@ -99,6 +100,32 @@
     "updateSuccess": "Configuration updated",
     "deleteSuccess": "Configuration deleted",
     "statusNever": "Never tested"
+  },
+  "files": {
+    "title": "File Explorer",
+    "subtitle": "Browse the server filesystem to identify files available for backup",
+    "root": "Root",
+    "empty": "This folder is empty",
+    "colName": "Name",
+    "colSize": "Size",
+    "colModified": "Modified",
+    "properties": "Properties",
+    "propTitle": "Properties",
+    "propFullPath": "Full path",
+    "propType": "Type",
+    "propSize": "Size",
+    "propCreated": "Created",
+    "propModified": "Modified",
+    "propMode": "Permissions",
+    "propOwner": "Owner (UID / GID)",
+    "propExtension": "Extension",
+    "typeFile": "File",
+    "typeFolder": "Folder",
+    "propItems": "Items",
+    "filterByName": "Filter by name…",
+    "clearFilter": "Clear filter",
+    "copyPath": "Copy path",
+    "copied": "Copied!"
   },
   "errors": {
     "UNAUTHORIZED": "You are not authenticated",

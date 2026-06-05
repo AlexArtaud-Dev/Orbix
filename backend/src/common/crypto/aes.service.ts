@@ -16,7 +16,7 @@ export class AesService {
     if (raw.length < 32) {
       throw new Error('VAULT_ENCRYPTION_KEY must be at least 32 characters');
     }
-    this.key = scryptSync(raw, 'orbix-v2-salt', 32) as Buffer;
+    this.key = scryptSync(raw, 'orbix-v2-salt', 32);
   }
 
   encrypt(plaintext: string): string {

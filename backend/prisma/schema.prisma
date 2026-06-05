@@ -36,4 +36,5 @@ model SystemSettings {
   defaultTimezone     String @default("UTC")
   defaultLanguage     String @default("en")
   defaultTheme        String @default("dark")
+  filesRoot           String @default("/data/files")
 }

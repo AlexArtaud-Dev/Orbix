@@ -34,9 +34,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         const msg = body as { message: string | string[] };
         error = {
           code: this.statusToCode(status),
-          message: Array.isArray(msg.message)
-            ? msg.message[0]
-            : msg.message,
+          message: Array.isArray(msg.message) ? msg.message[0] : msg.message,
           details: Array.isArray(msg.message) ? msg.message : undefined,
         };
       } else {
