@@ -160,7 +160,13 @@
     "editTitle": "Edit template",
     "createSuccess": "Template created",
     "updateSuccess": "Template updated",
-    "deleteSuccess": "Template deleted"
+    "deleteSuccess": "Template deleted",
+    "backToList": "Templates",
+    "preview": "Preview",
+    "previewEmpty": "Start writing to see the preview…",
+    "errorNoName": "Please enter a template name",
+    "errorNoSubject": "Please enter a subject",
+    "errorNoBody": "Please enter a body"
   },
   "contacts": {
     "title": "Contacts",

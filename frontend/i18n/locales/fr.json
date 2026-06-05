@@ -160,7 +160,13 @@
     "editTitle": "Modifier le modèle",
     "createSuccess": "Modèle créé",
     "updateSuccess": "Modèle mis à jour",
-    "deleteSuccess": "Modèle supprimé"
+    "deleteSuccess": "Modèle supprimé",
+    "backToList": "Modèles",
+    "preview": "Aperçu",
+    "previewEmpty": "Commencez à écrire pour voir l'aperçu…",
+    "errorNoName": "Veuillez saisir un nom de modèle",
+    "errorNoSubject": "Veuillez saisir un objet",
+    "errorNoBody": "Veuillez saisir un corps"
   },
   "contacts": {
     "title": "Contacts",
