@@ -83,4 +83,5 @@ jobs:
     needs: [lint-backend, test-backend, lint-frontend, test-frontend]
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t orbix:ci -f Dockerfile .
+      - run: docker build -t orbix-backend:ci -f Dockerfile.backend .
+      - run: docker build -t orbix-frontend:ci -f Dockerfile.frontend --build-arg NEXT_PUBLIC_API_URL=http://localhost:3001 .
