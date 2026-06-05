@@ -216,47 +216,43 @@ export function TemplateEditor({ initial }: TemplateEditorProps) {
         </div>
 
         {/* Right — preview */}
-        <div className="flex w-1/2 flex-col overflow-hidden border-l bg-muted">
+        <div className="flex w-1/2 flex-col overflow-hidden border-l bg-muted/50">
           {/* Preview header */}
-          <div className="shrink-0 border-b px-4 py-2">
+          <div className="shrink-0 border-b bg-background px-4 py-2">
             <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {t("templates.preview")}
             </span>
           </div>
 
           {/* Subject bar */}
-          <div className="shrink-0 border-b bg-background/60 px-4 py-2.5">
-            <span className="mr-2 text-xs font-medium text-muted-foreground">{t("templates.subject")}:</span>
+          <div className="shrink-0 border-b bg-background px-4 py-2.5">
+            <span className="mr-2 text-xs text-muted-foreground">{t("templates.subject")}:</span>
             <span
               className="text-sm"
               dangerouslySetInnerHTML={{ __html: previewSubjectHtml }}
             />
           </div>
 
-          {/* Body preview — email card centered on muted bg */}
-          <div className="flex-1 overflow-auto p-6">
-            <div className="mx-auto overflow-hidden rounded-lg border bg-white shadow-lg" style={{ maxWidth: "620px" }}>
-              {bodyType === "html" ? (
-                <iframe
-                  title="mail-preview"
-                  className="block min-h-96 w-full border-0"
-                  srcDoc={buildPreviewDoc(body || "<p style='color:#9ca3af;font-family:sans-serif'>(empty)</p>")}
-                  sandbox="allow-same-origin"
+          {/* Body preview */}
+          {bodyType === "html" ? (
+            <iframe
+              title="mail-preview"
+              className="flex-1 border-0 bg-white"
+              srcDoc={buildPreviewDoc(body || "<p style='color:#9ca3af'>(empty)</p>")}
+              sandbox=""
+            />
+          ) : (
+            <div className="flex-1 overflow-auto bg-white p-6">
+              {body ? (
+                <pre
+                  className="whitespace-pre-wrap font-sans text-sm text-gray-800"
+                  dangerouslySetInnerHTML={{ __html: highlightVarsText(body) }}
                 />
               ) : (
-                <div className="p-6">
-                  {body ? (
-                    <pre
-                      className="whitespace-pre-wrap font-sans text-sm text-gray-800"
-                      dangerouslySetInnerHTML={{ __html: highlightVarsText(body) }}
-                    />
-                  ) : (
-                    <p className="text-sm italic text-gray-400">{t("templates.previewEmpty")}</p>
-                  )}
-                </div>
+                <p className="text-sm italic text-muted-foreground">{t("templates.previewEmpty")}</p>
               )}
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
