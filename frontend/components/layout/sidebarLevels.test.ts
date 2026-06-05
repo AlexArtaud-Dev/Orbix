@@ -18,17 +18,18 @@ describe("getActiveSidebarLevel", () => {
     expect(getActiveSidebarLevel("/backups")).toBeNull();
   });
 
-  // vault
+  // vault — /vault/email has its own sidebar level (longest-prefix wins)
   it("returns vault level for /vault/email", () => {
     const level = getActiveSidebarLevel("/vault/email");
     expect(level).not.toBeNull();
-    expect(level?.titleKey).toBe("nav.vault");
+    expect(level?.titleKey).toBe("nav.emailConfigs");
+    expect(level?.parentPath).toBe("/vault");
   });
 
   it("returns vault level for /vault/email/new", () => {
     const level = getActiveSidebarLevel("/vault/email/new");
     expect(level).not.toBeNull();
-    expect(level?.titleKey).toBe("nav.vault");
+    expect(level?.titleKey).toBe("nav.emailConfigs");
   });
 
   // output level 1 — output type selector
