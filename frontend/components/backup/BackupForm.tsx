@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { ContactPicker } from "@/components/mail/ContactPicker";
 import { VariableInserter } from "@/components/mail/VariableInserter";
@@ -55,7 +56,7 @@ interface FormState {
   exclude: string;
   compression: string;
   schedule: string;
-  enabled: string;
+  enabled: boolean;
   outputs: OutputForm[];
 }
 
@@ -67,7 +68,7 @@ function backupToForm(backup?: Backup): FormState {
       exclude: "",
       compression: "auto",
       schedule: "",
-      enabled: "true",
+      enabled: true,
       outputs: [],
     };
   }
@@ -77,7 +78,7 @@ function backupToForm(backup?: Backup): FormState {
     exclude: (backup.sources.exclude ?? []).join(", "),
     compression: backup.compression,
     schedule: backup.schedule ?? "",
-    enabled: backup.enabled ? "true" : "false",
+    enabled: backup.enabled,
     outputs: backup.outputs.map((o) => ({
       type: o.type,
       vaultId: o.vaultId,
@@ -169,7 +170,7 @@ export function BackupForm({ initial, saving, onSubmit, onCancel }: BackupFormPr
       },
       compression: form.compression,
       schedule: form.schedule.trim() || null,
-      enabled: form.enabled === "true",
+      enabled: form.enabled,
       outputs: form.outputs.map((o) => ({
         type: o.type,
         vaultId: o.vaultId,
@@ -209,17 +210,20 @@ export function BackupForm({ initial, saving, onSubmit, onCancel }: BackupFormPr
                   required
                 />
               </Field>
-              <Field>
-                <FieldLabel htmlFor="enabled">{t("backups.enabled")}</FieldLabel>
-                <Select value={form.enabled} onValueChange={(v) => set("enabled", v)}>
-                  <SelectTrigger id="enabled">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="true">{t("backups.enabledOn")}</SelectItem>
-                    <SelectItem value="false">{t("backups.enabledOff")}</SelectItem>
-                  </SelectContent>
-                </Select>
+              <Field orientation="horizontal" className="items-center rounded-lg border px-3 py-2.5">
+                <div className="flex-1 space-y-0.5">
+                  <FieldLabel htmlFor="enabled" className="text-sm font-medium cursor-pointer">
+                    {t("backups.enabled")}
+                  </FieldLabel>
+                  <p className="text-xs text-muted-foreground">
+                    {form.enabled ? t("backups.enabledOn") : t("backups.enabledOff")}
+                  </p>
+                </div>
+                <Switch
+                  id="enabled"
+                  checked={form.enabled}
+                  onCheckedChange={(checked) => set("enabled", checked)}
+                />
               </Field>
             </div>
 
