@@ -25,6 +25,13 @@ import {
 } from "@/components/ui/dialog";
 
 
+function SortIcon({ col, sortCol, sortDir }: { col: "name" | "size" | "modified"; sortCol: "name" | "size" | "modified"; sortDir: "asc" | "desc" }) {
+  if (sortCol !== col) return <ChevronsUpDown className="size-3 opacity-40" />;
+  return sortDir === "asc"
+    ? <ChevronUp className="size-3" />
+    : <ChevronDown className="size-3" />;
+}
+
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString(undefined, {
     dateStyle: "medium",
@@ -120,13 +127,6 @@ export default function FilesPage() {
 
   const filteredEntries = applyFilter(entries, filter);
   const sortedEntries = applySort(filteredEntries, sortCol, sortDir);
-
-  const SortIcon = ({ col }: { col: "name" | "size" | "modified" }) => {
-    if (sortCol !== col) return <ChevronsUpDown className="size-3 opacity-40" />;
-    return sortDir === "asc"
-      ? <ChevronUp className="size-3" />
-      : <ChevronDown className="size-3" />;
-  };
 
   const copyPath = (path: string) => {
     void navigator.clipboard.writeText(path).then(() => toast.success(t("files.copied")));
@@ -242,17 +242,17 @@ export default function FilesPage() {
                 <tr className="text-muted-foreground text-xs uppercase tracking-wide select-none">
                   <th className="py-2 pl-4 pr-2 text-left font-medium">
                     <button className="flex items-center gap-1 hover:text-foreground transition-colors" onClick={() => handleSort("name")}>
-                      {t("files.colName")}<SortIcon col="name" />
+                      {t("files.colName")}<SortIcon col="name" sortCol={sortCol} sortDir={sortDir} />
                     </button>
                   </th>
                   <th className="py-2 px-2 text-right font-medium w-28">
                     <button className="flex items-center gap-1 hover:text-foreground transition-colors ml-auto" onClick={() => handleSort("size")}>
-                      {t("files.colSize")}<SortIcon col="size" />
+                      {t("files.colSize")}<SortIcon col="size" sortCol={sortCol} sortDir={sortDir} />
                     </button>
                   </th>
                   <th className="py-2 pl-8 pr-4 text-left font-medium w-52">
                     <button className="flex items-center gap-1 hover:text-foreground transition-colors" onClick={() => handleSort("modified")}>
-                      {t("files.colModified")}<SortIcon col="modified" />
+                      {t("files.colModified")}<SortIcon col="modified" sortCol={sortCol} sortDir={sortDir} />
                     </button>
                   </th>
                 </tr>
