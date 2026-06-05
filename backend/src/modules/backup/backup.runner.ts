@@ -6,7 +6,7 @@ import archiver from 'archiver';
 import { PrismaService } from '../../prisma/prisma.service';
 import { VaultService } from '../vault/vault.service';
 import { LogsWriter } from '../logs/logs.writer';
-import { parseBackupSources } from './backup.types';
+import { parseBackupSources, type BackupSources } from './backup.types';
 
 interface OutputRow {
   id: string;
@@ -107,7 +107,7 @@ export class BackupRunner {
 
     const matchesExclude = (filePath: string): boolean => {
       const name = basename(filePath);
-      return excludePatterns.some((pattern) => {
+      return excludePatterns.some((pattern: string) => {
         if (pattern.startsWith('*.')) {
           return name.endsWith(pattern.slice(1));
         }
