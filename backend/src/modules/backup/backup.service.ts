@@ -8,7 +8,9 @@ import { LogsWriter } from '../logs/logs.writer';
 import type { CreateBackupDto } from './dto/create-backup.dto';
 import type { UpdateBackupDto } from './dto/update-backup.dto';
 import type { BackupData, BackupSources } from './backup.types';
-import type { Backup, BackupOutput } from '../../generated/prisma';
+import type { BackupModel, BackupOutputModel } from '../../generated/prisma/models';
+
+type BackupWithOutputs = BackupModel & { outputs: BackupOutputModel[] };
 
 @Injectable()
 export class BackupService {
@@ -17,13 +19,11 @@ export class BackupService {
     private readonly logs: LogsWriter,
   ) {}
 
-  private toData(
-    backup: Backup & { outputs: BackupOutput[] },
-  ): BackupData {
+  private toData(backup: BackupWithOutputs): BackupData {
     return {
       id: backup.id,
       name: backup.name,
-      sources: backup.sources as BackupSources,
+      sources: backup.sources as unknown as BackupSources,
       compression: backup.compression,
       schedule: backup.schedule,
       enabled: backup.enabled,
@@ -118,14 +118,11 @@ export class BackupService {
       if (conflict) throw new ConflictException('Name already in use');
     }
 
-    const sources = dto.sources
+    const existingSources = existing.sources as unknown as BackupSources;
+    const sources: BackupSources | undefined = dto.sources
       ? {
-          paths:
-            dto.sources.paths ?? (existing.sources as BackupSources).paths,
-          exclude:
-            dto.sources.exclude ??
-            (existing.sources as BackupSources).exclude ??
-            [],
+          paths: dto.sources.paths ?? existingSources.paths,
+          exclude: dto.sources.exclude ?? existingSources.exclude ?? [],
         }
       : undefined;
 
@@ -173,16 +170,6 @@ export class BackupService {
     if (!existing) throw new NotFoundException();
     await this.prisma.backup.delete({ where: { id } });
     this.logs.info('backup', 'BACKUP_DELETED', `Backup deleted: ${existing.name}`);
-  }
-
-  async setStatus(
-    id: string,
-    status: 'success' | 'error',
-  ): Promise<void> {
-    await this.prisma.backup.update({
-      where: { id },
-      data: { lastRunAt: new Date(), lastStatus: status },
-    });
   }
 
   async findEnabledWithSchedule(): Promise<

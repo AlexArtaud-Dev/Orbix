@@ -7,7 +7,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { VaultService } from '../vault/vault.service';
 import { LogsWriter } from '../logs/logs.writer';
 import type { BackupSources } from './backup.types';
-import type { BackupOutput } from '../../generated/prisma';
+import type { BackupOutputModel } from '../../generated/prisma/models';
 
 interface ArchiveResult {
   buffer: Buffer;
@@ -37,7 +37,7 @@ export class BackupRunner {
     this.logs.info('backup', 'BACKUP_RUN_START', `Backup run started: ${backup.name}`);
 
     try {
-      const sources = backup.sources as BackupSources;
+      const sources = backup.sources as unknown as BackupSources;
       const archive = await this.buildArchive(backup.name, sources, backup.compression);
 
       for (const output of backup.outputs) {
@@ -145,7 +145,7 @@ export class BackupRunner {
 
   private async sendOutput(
     backupName: string,
-    output: BackupOutput,
+    output: BackupOutputModel,
     archive: ArchiveResult,
   ): Promise<void> {
     if (output.type !== 'mail') return;

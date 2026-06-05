@@ -1,9 +1,16 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { SchedulerRegistry } from '@nestjs/schedule';
-import { CronJob } from 'cron';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LogsWriter } from '../logs/logs.writer';
 import { BackupRunner } from './backup.runner';
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { CronJob } = require('cron') as {
+  CronJob: new (
+    cronTime: string,
+    onTick: () => void,
+  ) => { start(): void };
+};
 
 @Injectable()
 export class BackupScheduler implements OnModuleInit {
@@ -41,8 +48,7 @@ export class BackupScheduler implements OnModuleInit {
       this.schedulerRegistry.deleteCronJob(jobName);
     } catch {}
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment
-    const job: CronJob = new CronJob(cronExpression, () => {
+    const job = new CronJob(cronExpression, () => {
       this.runner.run(backupId).catch((err: unknown) => {
         const msg = err instanceof Error ? err.message : 'Unknown error';
         this.logs.error(
@@ -54,8 +60,8 @@ export class BackupScheduler implements OnModuleInit {
       });
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-    this.schedulerRegistry.addCronJob(jobName, job as Parameters<SchedulerRegistry['addCronJob']>[1]);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
+    this.schedulerRegistry.addCronJob(jobName, job as any);
     job.start();
 
     this.logs.info(
