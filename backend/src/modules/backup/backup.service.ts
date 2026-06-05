@@ -7,6 +7,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { LogsWriter } from '../logs/logs.writer';
 import type { CreateBackupDto } from './dto/create-backup.dto';
 import type { UpdateBackupDto } from './dto/update-backup.dto';
+import { parseBackupSources } from './backup.types';
 import type { BackupData, BackupSources } from './backup.types';
 
 interface OutputRow {
@@ -50,7 +51,7 @@ export class BackupService {
     return {
       id: backup.id,
       name: backup.name,
-      sources: backup.sources as BackupSources,
+      sources: parseBackupSources(backup.sources),
       compression: backup.compression,
       schedule: backup.schedule,
       enabled: backup.enabled,
@@ -146,7 +147,7 @@ export class BackupService {
       if (conflict) throw new ConflictException('Name already in use');
     }
 
-    const existingSources = existing.sources as unknown as BackupSources;
+    const existingSources = parseBackupSources(existing.sources);
     const sources = dto.sources
       ? {
           paths: dto.sources.paths ?? existingSources.paths,

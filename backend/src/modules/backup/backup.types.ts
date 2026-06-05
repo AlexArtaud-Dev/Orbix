@@ -3,6 +3,17 @@ export interface BackupSources {
   exclude: string[];
 }
 
+export function parseBackupSources(json: unknown): BackupSources {
+  if (typeof json !== 'object' || json === null || Array.isArray(json)) {
+    return { paths: [], exclude: [] };
+  }
+  const obj = json as Record<string, unknown>;
+  return {
+    paths: Array.isArray(obj['paths']) ? (obj['paths'] as string[]) : [],
+    exclude: Array.isArray(obj['exclude']) ? (obj['exclude'] as string[]) : [],
+  };
+}
+
 export interface BackupOutputData {
   id: string;
   backupId: string;

@@ -6,7 +6,7 @@ import archiver from 'archiver';
 import { PrismaService } from '../../prisma/prisma.service';
 import { VaultService } from '../vault/vault.service';
 import { LogsWriter } from '../logs/logs.writer';
-import type { BackupSources } from './backup.types';
+import { parseBackupSources } from './backup.types';
 
 interface OutputRow {
   id: string;
@@ -52,7 +52,7 @@ export class BackupRunner {
     this.logs.info('backup', 'BACKUP_RUN_START', `Backup run started: ${backup.name}`);
 
     try {
-      const sources = backup.sources as unknown as BackupSources;
+      const sources = parseBackupSources(backup.sources);
       const archive = await this.buildArchive(backup.name, sources, backup.compression);
 
       for (const output of backup.outputs as OutputRow[]) {
