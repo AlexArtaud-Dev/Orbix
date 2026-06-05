@@ -8,6 +8,7 @@ import { JwtService } from '@nestjs/jwt';
 import type { Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
+import { LogsWriter } from '../logs/logs.writer';
 import { LoginDto } from './dto/login.dto';
 import { SetupDto } from './dto/setup.dto';
 
@@ -17,6 +18,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
+    private readonly logs: LogsWriter,
   ) {}
 
   async setup(dto: SetupDto, res: Response) {
@@ -35,6 +37,7 @@ export class AuthService {
     });
 
     this.setTokenCookie(res, user.id, user.username);
+    this.logs.info('auth', 'AUTH_SETUP', `Admin account created: ${user.username}`);
     return { id: user.id, username: user.username };
   }
 
@@ -42,17 +45,25 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({
       where: { username: dto.username },
     });
-    if (!user) throw new UnauthorizedException('Invalid credentials');
+    if (!user) {
+      this.logs.warn('auth', 'AUTH_LOGIN_FAILED', `Login failed — unknown user: ${dto.username}`);
+      throw new UnauthorizedException('Invalid credentials');
+    }
 
     const valid = await bcrypt.compare(dto.password, user.passwordHash);
-    if (!valid) throw new UnauthorizedException('Invalid credentials');
+    if (!valid) {
+      this.logs.warn('auth', 'AUTH_LOGIN_FAILED', `Login failed — wrong password: ${dto.username}`);
+      throw new UnauthorizedException('Invalid credentials');
+    }
 
     this.setTokenCookie(res, user.id, user.username);
+    this.logs.info('auth', 'AUTH_LOGIN', `Login: ${user.username}`);
     return { id: user.id, username: user.username };
   }
 
   logout(res: Response) {
     res.clearCookie('orbix_token', { path: '/' });
+    this.logs.info('auth', 'AUTH_LOGOUT', 'User logged out');
   }
 
   async isSetupRequired(): Promise<boolean> {

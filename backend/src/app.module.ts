@@ -10,6 +10,8 @@ import { LogsModule } from './modules/logs/logs.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { VaultModule } from './modules/vault/vault.module';
 import { FilesModule } from './modules/files/files.module';
+import { MailModule } from './modules/mail/mail.module';
+import { ContactsModule } from './modules/contacts/contacts.module';
 
 @Module({
   imports: [
@@ -21,6 +23,8 @@ import { FilesModule } from './modules/files/files.module';
     SettingsModule,
     VaultModule,
     FilesModule,
+    MailModule,
+    ContactsModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: HttpExceptionFilter },
