@@ -1,8 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
   LayoutDashboard,
-  Mail,
-  Send,
   Users,
   FileText,
   FolderOpen,
@@ -10,7 +8,9 @@ import {
   Settings,
   ScrollText,
   KeyRound,
+  Send,
 } from "lucide-react";
+import { Mail } from "lucide-react";
 
 export type SidebarNavItem = {
   to: string;
@@ -29,8 +29,7 @@ export const ROOT_NAV_ITEMS: SidebarNavItem[] = [
   { to: "/", icon: LayoutDashboard, labelKey: "nav.dashboard", end: true },
   { to: "/vault/email", icon: KeyRound, labelKey: "nav.vault" },
   { to: "/files", icon: FolderOpen, labelKey: "nav.files" },
-  { to: "/mail", icon: Send, labelKey: "nav.mail" },
-  { to: "/templates", icon: FileText, labelKey: "nav.templates" },
+  { to: "/output/mail/contacts", icon: Send, labelKey: "nav.output" },
   { to: "/backups", icon: HardDriveDownload, labelKey: "nav.backups" },
   { to: "/logs", icon: ScrollText, labelKey: "nav.logs" },
   { to: "/settings", icon: Settings, labelKey: "nav.settings" },
@@ -42,12 +41,12 @@ export const SIDEBAR_LEVELS: Record<string, SidebarLevel> = {
     titleKey: "nav.vault",
     items: [{ to: "/vault/email", icon: Mail, labelKey: "nav.emailConfigs" }],
   },
-  "/mail": {
+  "/output": {
     parentPath: "/",
-    titleKey: "nav.mail",
+    titleKey: "nav.output",
     items: [
-      { to: "/mail", icon: Send, labelKey: "nav.mailSend", end: true },
-      { to: "/mail/contacts", icon: Users, labelKey: "nav.contacts" },
+      { to: "/output/mail/contacts", icon: Users, labelKey: "nav.contacts" },
+      { to: "/output/mail/templates", icon: FileText, labelKey: "nav.templates" },
     ],
   },
 };

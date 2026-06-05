@@ -32,8 +32,7 @@
     "vault": "Vault",
     "emailConfigs": "Email configs",
     "files": "Files",
-    "mail": "Mail",
-    "mailSend": "Send mail",
+    "output": "Output",
     "contacts": "Contacts",
     "templates": "Templates",
     "backups": "Backups",
@@ -126,6 +125,42 @@
     "clearFilter": "Clear filter",
     "copyPath": "Copy path",
     "copied": "Copied!"
+  },
+  "mail": {
+    "bodyText": "Plain text",
+    "bodyHtml": "HTML",
+    "bodyTextPlaceholder": "Write your message here…",
+    "bodyHtmlPlaceholder": "<p>Write your HTML message here…</p>"
+  },
+  "templates": {
+    "title": "Mail Templates",
+    "subtitle": "Reusable email templates with variable support",
+    "add": "New template",
+    "empty": "No templates yet. Create one to get started.",
+    "name": "Template name",
+    "subject": "Subject",
+    "subjectPlaceholder": "e.g. Backup completed — {{backup.name}}",
+    "body": "Body",
+    "newTitle": "New template",
+    "editTitle": "Edit template",
+    "createSuccess": "Template created",
+    "updateSuccess": "Template updated",
+    "deleteSuccess": "Template deleted"
+  },
+  "contacts": {
+    "title": "Contacts",
+    "subtitle": "Manage your email contacts",
+    "add": "New contact",
+    "empty": "No contacts yet. Add one to get started.",
+    "name": "Name",
+    "email": "Email",
+    "tags": "Tags",
+    "tagsPlaceholder": "work, client, vip…",
+    "newTitle": "New contact",
+    "editTitle": "Edit contact",
+    "createSuccess": "Contact created",
+    "updateSuccess": "Contact updated",
+    "deleteSuccess": "Contact deleted"
   },
   "errors": {
     "UNAUTHORIZED": "You are not authenticated",

@@ -32,8 +32,7 @@
     "vault": "Coffre",
     "emailConfigs": "Comptes e-mail",
     "files": "Fichiers",
-    "mail": "Messagerie",
-    "mailSend": "Nouveau message",
+    "output": "Sorties",
     "contacts": "Contacts",
     "templates": "Modèles",
     "backups": "Sauvegardes",
@@ -126,6 +125,42 @@
     "clearFilter": "Effacer le filtre",
     "copyPath": "Copier le chemin",
     "copied": "Copié !"
+  },
+  "mail": {
+    "bodyText": "Texte brut",
+    "bodyHtml": "HTML",
+    "bodyTextPlaceholder": "Rédigez votre message ici…",
+    "bodyHtmlPlaceholder": "<p>Rédigez votre message HTML ici…</p>"
+  },
+  "templates": {
+    "title": "Modèles de mail",
+    "subtitle": "Modèles d'e-mail réutilisables avec support des variables",
+    "add": "Nouveau modèle",
+    "empty": "Aucun modèle. Créez-en un pour commencer.",
+    "name": "Nom du modèle",
+    "subject": "Objet",
+    "subjectPlaceholder": "ex. Sauvegarde terminée — {{backup.name}}",
+    "body": "Corps",
+    "newTitle": "Nouveau modèle",
+    "editTitle": "Modifier le modèle",
+    "createSuccess": "Modèle créé",
+    "updateSuccess": "Modèle mis à jour",
+    "deleteSuccess": "Modèle supprimé"
+  },
+  "contacts": {
+    "title": "Contacts",
+    "subtitle": "Gérez vos contacts e-mail",
+    "add": "Nouveau contact",
+    "empty": "Aucun contact. Ajoutez-en un pour commencer.",
+    "name": "Nom",
+    "email": "E-mail",
+    "tags": "Étiquettes",
+    "tagsPlaceholder": "travail, client, vip…",
+    "newTitle": "Nouveau contact",
+    "editTitle": "Modifier le contact",
+    "createSuccess": "Contact créé",
+    "updateSuccess": "Contact mis à jour",
+    "deleteSuccess": "Contact supprimé"
   },
   "errors": {
     "UNAUTHORIZED": "Vous n'êtes pas authentifié",
