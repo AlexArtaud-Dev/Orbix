@@ -37,6 +37,16 @@ model Contact {
   updatedAt DateTime @updatedAt
 }
 
+model MailTemplate {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  subject   String
+  body      String
+  bodyType  String   @default("text")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model MailLog {
   id       String   @id @default(cuid())
   vaultId  String
