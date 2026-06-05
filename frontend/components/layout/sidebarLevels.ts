@@ -27,7 +27,7 @@ export type SidebarLevel = {
 
 export const ROOT_NAV_ITEMS: SidebarNavItem[] = [
   { to: "/", icon: LayoutDashboard, labelKey: "nav.dashboard", end: true },
-  { to: "/vault/email", icon: KeyRound, labelKey: "nav.vault" },
+  { to: "/vault", icon: KeyRound, labelKey: "nav.vault" },
   { to: "/files", icon: FolderOpen, labelKey: "nav.files" },
   { to: "/output", icon: Send, labelKey: "nav.output" },
   { to: "/backups", icon: HardDriveDownload, labelKey: "nav.backups" },
@@ -39,6 +39,11 @@ export const SIDEBAR_LEVELS: Record<string, SidebarLevel> = {
   "/vault": {
     parentPath: "/",
     titleKey: "nav.vault",
+    items: [{ to: "/vault/email", icon: Mail, labelKey: "nav.emailConfigs" }],
+  },
+  "/vault/email": {
+    parentPath: "/vault",
+    titleKey: "nav.emailConfigs",
     items: [{ to: "/vault/email", icon: Mail, labelKey: "nav.emailConfigs" }],
   },
   "/output": {

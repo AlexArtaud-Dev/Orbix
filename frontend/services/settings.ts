@@ -3,7 +3,7 @@ import { api } from "@/lib/api";
 export interface SystemSettings {
   id: string;
   maxFileSizeMb: number;
-  logRetentionDays: number;
+  logRetentionHours: number;
   backupRetentionDays: number;
   defaultTimezone: string;
   defaultLanguage: string;

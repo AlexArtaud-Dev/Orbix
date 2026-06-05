@@ -2,12 +2,15 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { CheckCircle2, XCircle, Loader2, FlaskConical } from "lucide-react";
 import { settingsService, type SystemSettings } from "@/services/settings";
+import { backupsService, type ZipInfo, type ZipTestResult } from "@/services/backups";
 import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -20,9 +23,13 @@ export default function SettingsPage() {
   const { t } = useTranslation();
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [saving, setSaving] = useState(false);
+  const [zipInfo, setZipInfo] = useState<ZipInfo | null>(null);
+  const [zipTestResult, setZipTestResult] = useState<ZipTestResult | null>(null);
+  const [testingZip, setTestingZip] = useState(false);
 
   useEffect(() => {
     settingsService.get().then(setSettings).catch(() => toast.error(t("common.error")));
+    backupsService.getZipInfo().then(setZipInfo).catch(() => null);
   }, [t]);
 
   const handleSave = async (e: React.FormEvent) => {
@@ -32,7 +39,7 @@ export default function SettingsPage() {
     try {
       const updated = await settingsService.update({
         maxFileSizeMb: settings.maxFileSizeMb,
-        logRetentionDays: settings.logRetentionDays,
+        logRetentionHours: settings.logRetentionHours,
         backupRetentionDays: settings.backupRetentionDays,
         defaultTimezone: settings.defaultTimezone,
         defaultLanguage: settings.defaultLanguage,
@@ -42,11 +49,24 @@ export default function SettingsPage() {
       setSettings(updated);
       toast.success(t("settings.saved"));
     } catch (err) {
-      toast.error(
-        err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"),
-      );
+      toast.error(err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleZipTest = async () => {
+    setTestingZip(true);
+    setZipTestResult(null);
+    try {
+      const result = await backupsService.testZip();
+      setZipTestResult(result);
+      if (result.success) toast.success(t("settings.zipTestSuccess"));
+      else toast.error(t("settings.zipTestFailed"));
+    } catch {
+      toast.error(t("common.error"));
+    } finally {
+      setTestingZip(false);
     }
   };
 
@@ -86,13 +106,13 @@ export default function SettingsPage() {
                 />
               </Field>
               <Field>
-                <FieldLabel htmlFor="logRetentionDays">{t("settings.logRetentionDays")}</FieldLabel>
+                <FieldLabel htmlFor="logRetentionHours">{t("settings.logRetentionHours")}</FieldLabel>
                 <Input
-                  id="logRetentionDays"
+                  id="logRetentionHours"
                   type="number"
                   min={1}
-                  value={settings.logRetentionDays}
-                  onChange={(e) => setSettings({ ...settings, logRetentionDays: +e.target.value })}
+                  value={settings.logRetentionHours}
+                  onChange={(e) => setSettings({ ...settings, logRetentionHours: +e.target.value })}
                 />
               </Field>
               <Field>
@@ -129,9 +149,7 @@ export default function SettingsPage() {
                   value={settings.defaultLanguage}
                   onValueChange={(v) => setSettings({ ...settings, defaultLanguage: v })}
                 >
-                  <SelectTrigger id="defaultLanguage">
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger id="defaultLanguage"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="en">English</SelectItem>
                     <SelectItem value="fr">Français</SelectItem>
@@ -154,9 +172,7 @@ export default function SettingsPage() {
                   value={settings.defaultTheme}
                   onValueChange={(v) => setSettings({ ...settings, defaultTheme: v })}
                 >
-                  <SelectTrigger id="defaultTheme">
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger id="defaultTheme"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="dark">Dark</SelectItem>
                     <SelectItem value="light">Light</SelectItem>
@@ -168,10 +184,112 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
+        {/* ── Zip capabilities ── */}
+        <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">{t("settings.zipTitle")}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {!zipInfo ? (
+            <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
+          ) : (
+            <>
+              {/* Info row */}
+              <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                <span>{t("settings.zipPlatform")}: <span className="font-mono text-foreground">{zipInfo.platform}</span></span>
+                <span>Node: <span className="font-mono text-foreground">{zipInfo.node}</span></span>
+              </div>
+
+              <Separator />
+
+              {/* Capabilities */}
+              <div className="space-y-2">
+                <ZipCapabilityRow
+                  label={t("settings.zipBasic")}
+                  desc={t("settings.zipBasicDesc")}
+                  available={zipInfo.basic}
+                />
+                <ZipCapabilityRow
+                  label={t("settings.zipEncrypted")}
+                  desc={t("settings.zipEncryptedDesc")}
+                  available={zipInfo.encrypted}
+                />
+                <ZipCapabilityRow
+                  label={t("settings.zipTarBz2")}
+                  desc={t("settings.zipTarBz2Desc")}
+                  available={zipInfo.tarBz2}
+                />
+              </div>
+
+              <Separator />
+
+              {/* Test */}
+              <div className="flex items-center gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void handleZipTest()}
+                  disabled={testingZip}
+                >
+                  {testingZip ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <FlaskConical className="size-3.5" />
+                  )}
+                  {t("settings.zipTest")}
+                </Button>
+
+                {zipTestResult && (
+                  <div className="flex items-center gap-2 text-xs">
+                    {zipTestResult.success ? (
+                      <CheckCircle2 className="size-3.5 text-green-500" />
+                    ) : (
+                      <XCircle className="size-3.5 text-destructive" />
+                    )}
+                    {zipTestResult.success ? (
+                      <span className="text-muted-foreground">
+                        {zipTestResult.sizeBytes} B — {zipTestResult.durationMs} ms
+                      </span>
+                    ) : (
+                      <span className="text-destructive">{zipTestResult.error}</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
         <Button type="submit" disabled={saving}>
           {saving ? t("common.loading") : t("common.save")}
         </Button>
       </form>
+    </div>
+  );
+}
+
+function ZipCapabilityRow({
+  label,
+  desc,
+  available,
+}: {
+  label: string;
+  desc: string;
+  available: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      {available ? (
+        <CheckCircle2 className="size-4 shrink-0 text-green-500" />
+      ) : (
+        <XCircle className="size-4 shrink-0 text-muted-foreground" />
+      )}
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium">{label}</p>
+        <p className="text-xs text-muted-foreground">{desc}</p>
+      </div>
     </div>
   );
 }

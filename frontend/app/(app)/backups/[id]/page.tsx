@@ -3,9 +3,8 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { backupsService, type Backup, type CreateBackupPayload } from "@/services/backups";
-import { ApiError } from "@/lib/api";
-import { BackupForm } from "@/components/backup/BackupForm";
+import { backupsService, type Backup } from "@/services/backups";
+import { BackupWizard } from "@/components/backup/wizard/BackupWizard";
 
 export default function EditBackupPage() {
   const { t } = useTranslation();
@@ -13,7 +12,6 @@ export default function EditBackupPage() {
   const { id } = useParams<{ id: string }>();
   const [backup, setBackup] = useState<Backup | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -30,30 +28,9 @@ export default function EditBackupPage() {
     void load();
   }, [id]); // eslint-disable-line
 
-  const handleSubmit = async (payload: CreateBackupPayload) => {
-    if (!payload.name) {
-      toast.error(t("backups.errorNoName"));
-      return;
-    }
-    if (payload.sources.paths.length === 0) {
-      toast.error(t("backups.errorNoSources"));
-      return;
-    }
-    setSaving(true);
-    try {
-      await backupsService.update(id, payload);
-      toast.success(t("backups.updateSuccess"));
-      router.push("/backups");
-    } catch (err) {
-      toast.error(err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"));
-    } finally {
-      setSaving(false);
-    }
-  };
-
   if (loading) {
     return (
-      <div className="max-w-3xl">
+      <div className="max-w-4xl">
         <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
       </div>
     );
@@ -62,17 +39,12 @@ export default function EditBackupPage() {
   if (!backup) return null;
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="max-w-4xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">{t("backups.editTitle")}</h1>
-        <p className="text-muted-foreground font-mono text-sm">{backup.name}</p>
+        <p className="font-mono text-sm text-muted-foreground">{backup.name}</p>
       </div>
-      <BackupForm
-        initial={backup}
-        saving={saving}
-        onSubmit={(payload) => void handleSubmit(payload)}
-        onCancel={() => router.back()}
-      />
+      <BackupWizard initial={backup} />
     </div>
   );
 }

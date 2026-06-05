@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { statSync, existsSync, readFileSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
-import { join, basename } from 'node:path';
-import archiver from 'archiver';
+import { join, basename, resolve, relative, dirname, isAbsolute, sep } from 'node:path';
+import archiver, { type Archiver } from 'archiver';
 import { PrismaService } from '../../prisma/prisma.service';
 import { VaultService } from '../vault/vault.service';
+import { SettingsService } from '../settings/settings.service';
 import { LogsWriter } from '../logs/logs.writer';
 import { parseBackupSources, type BackupSources } from './backup.types';
 
@@ -20,6 +21,7 @@ interface OutputRow {
   overrideSubject: string | null;
   overrideBody: string | null;
   overrideBodyType: string | null;
+  order: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -31,11 +33,44 @@ interface ArchiveResult {
   filesCount: number;
 }
 
+interface FileToArchive {
+  abs: string;  // absolute path on the filesystem
+  arc: string;  // path inside the zip (forward-slash, structure preserved)
+}
+
+export interface ZipInfo {
+  basic: boolean;       // zip + tar + tar-gz always available
+  encrypted: boolean;   // archiver-zip-encrypted
+  tarBz2: boolean;      // archiver-tar-bzip2
+  platform: string;
+  node: string;
+}
+
+const ARCHIVE_EXTENSIONS: Record<string, string> = {
+  'zip':     '.zip',
+  'tar':     '.tar',
+  'tar-gz':  '.tar.gz',
+  'tar-bz2': '.tar.bz2',
+};
+
+function compressionLevelOf(c: string): number {
+  switch (c) {
+    case 'store': return 0;
+    case 'fast':  return 1;
+    case 'best':  return 9;
+    default:      return 6; // 'default'
+  }
+}
+
 @Injectable()
 export class BackupRunner {
+  private static encryptedFormatRegistered = false;
+  private static bzip2FormatRegistered = false;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly vault: VaultService,
+    private readonly settings: SettingsService,
     private readonly logs: LogsWriter,
   ) {}
 
@@ -45,121 +80,368 @@ export class BackupRunner {
       include: { outputs: true },
     });
     if (!backup) {
-      this.logs.error('backup', 'BACKUP_RUN_NOT_FOUND', `Backup ${backupId} not found`);
+      this.logs.error('backup', 'BACKUP_RUN_NOT_FOUND', `Backup ${backupId} not found`, undefined, { backupId });
       return;
     }
 
-    this.logs.info('backup', 'BACKUP_RUN_START', `Backup run started: ${backup.name}`);
+    this.logs.info('backup', 'BACKUP_RUN_START', `Backup run started: ${backup.name}`, undefined, { backupId });
 
     try {
       const sources = parseBackupSources(backup.sources);
-      const archive = await this.buildArchive(backup.name, sources, backup.compression);
+      const archive = await this.buildArchive(
+        backup.name,
+        sources,
+        (backup as { archiveFormat: string }).archiveFormat ?? 'zip',
+        (backup as { zipCompression: string }).zipCompression,
+        (backup as { zipPassword: string | null }).zipPassword,
+        (backup as { zipFilename: string | null }).zipFilename,
+      );
 
-      for (const output of backup.outputs as OutputRow[]) {
-        await this.sendOutput(backup.name, output, archive);
+      for (const output of (backup.outputs as OutputRow[]).sort((a, b) => a.order - b.order)) {
+        await this.sendOutput(backup.name, backupId, output, archive);
       }
 
       await this.prisma.backup.update({
         where: { id: backupId },
         data: { lastRunAt: new Date(), lastStatus: 'success' },
       });
-      this.logs.info('backup', 'BACKUP_RUN_SUCCESS', `Backup completed: ${backup.name}`);
+
+      // One-shot: auto-disable after running
+      if ((backup as { scheduleType: string }).scheduleType === 'oneshoot') {
+        await this.prisma.backup.update({
+          where: { id: backupId },
+          data: { enabled: false },
+        });
+      }
+
+      this.logs.info('backup', 'BACKUP_RUN_SUCCESS', `Backup completed: ${backup.name}`, undefined, { backupId });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
       await this.prisma.backup.update({
         where: { id: backupId },
         data: { lastRunAt: new Date(), lastStatus: 'error' },
       });
-      this.logs.error('backup', 'BACKUP_RUN_ERROR', `Backup failed: ${backup.name}`, msg);
+      this.logs.error('backup', 'BACKUP_RUN_ERROR', `Backup failed: ${backup.name}`, msg, { backupId });
       throw err;
     }
   }
 
+  async runValidation(backupId: string): Promise<void> {
+    const backup = await this.prisma.backup.findUnique({
+      where: { id: backupId },
+      include: { outputs: true },
+    });
+    if (!backup) {
+      this.logs.error('backup', 'BACKUP_VALIDATE_NOT_FOUND', `Backup ${backupId} not found`, undefined, { backupId });
+      return;
+    }
+
+    this.logs.info('backup', 'BACKUP_VALIDATE_START', `Validation started: ${backup.name}`, undefined, { backupId });
+
+    try {
+      const sources = parseBackupSources(backup.sources);
+      const archive = await this.buildArchive(
+        backup.name,
+        sources,
+        (backup as { archiveFormat: string }).archiveFormat ?? 'zip',
+        (backup as { zipCompression: string }).zipCompression,
+        (backup as { zipPassword: string | null }).zipPassword,
+        (backup as { zipFilename: string | null }).zipFilename,
+      );
+
+      for (const output of (backup.outputs as OutputRow[]).sort((a, b) => a.order - b.order)) {
+        await this.sendOutput(backup.name, backupId, output, archive);
+      }
+
+      await this.prisma.backup.update({
+        where: { id: backupId },
+        data: {
+          validationStatus: 'success',
+          isValidated: true,
+          validatedAt: new Date(),
+          validationError: null,
+          lastRunAt: new Date(),
+          lastStatus: 'success',
+        },
+      });
+      this.logs.info('backup', 'BACKUP_VALIDATE_SUCCESS', `Validation passed: ${backup.name}`, undefined, { backupId });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      await this.prisma.backup.update({
+        where: { id: backupId },
+        data: {
+          validationStatus: 'error',
+          validationError: msg,
+          isValidated: false,
+          lastRunAt: new Date(),
+          lastStatus: 'error',
+        },
+      });
+      this.logs.error('backup', 'BACKUP_VALIDATE_ERROR', `Validation failed: ${backup.name}`, msg, { backupId });
+    }
+  }
+
+  // ─── Zip capabilities ───────────────────────────────────────────────────────
+
+  getZipInfo(): ZipInfo {
+    return {
+      basic: true,
+      encrypted: this.isEncryptedAvailable(),
+      tarBz2: this.isBzip2Available(),
+      platform: process.platform,
+      node: process.version,
+    };
+  }
+
+  async testZip(): Promise<{ success: boolean; durationMs: number; sizeBytes: number; error?: string }> {
+    const start = Date.now();
+    try {
+      const buffer = await this.createTestZip();
+      return { success: true, durationMs: Date.now() - start, sizeBytes: buffer.byteLength };
+    } catch (err) {
+      return {
+        success: false,
+        durationMs: Date.now() - start,
+        sizeBytes: 0,
+        error: err instanceof Error ? err.message : 'Unknown error',
+      };
+    }
+  }
+
+  private isEncryptedAvailable(): boolean {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require('archiver-zip-encrypted');
+      return true;
+    } catch { return false; }
+  }
+
+  private isBzip2Available(): boolean {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require('archiver-tar-bzip2');
+      return true;
+    } catch { return false; }
+  }
+
+  private createTestZip(): Promise<Buffer> {
+    return new Promise((res, rej) => {
+      const chunks: Buffer[] = [];
+      const arc = archiver('zip', { zlib: { level: 6 } });
+      arc.on('data', (c: Buffer) => chunks.push(c));
+      arc.on('end', () => res(Buffer.concat(chunks)));
+      arc.on('error', rej);
+      arc.append(Buffer.from(`Orbix zip test ${new Date().toISOString()}`), { name: 'test.txt' });
+      void arc.finalize();
+    });
+  }
+
+  // ─── Archive building ────────────────────────────────────────────────────────
+
   private async buildArchive(
     name: string,
     sources: BackupSources,
+    archiveFormat: string,
     compression: string,
+    zipPassword: string | null,
+    filenameTemplate: string | null,
   ): Promise<ArchiveResult> {
     const allFiles = await this.collectFiles(sources);
-    const shouldZip =
-      compression === 'forced' ||
-      (compression === 'auto' && allFiles.length !== 1);
+    const now = new Date();
+    const slug = name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    const ext = ARCHIVE_EXTENSIONS[archiveFormat] ?? '.zip';
+    const level = compressionLevelOf(compression);
 
-    if (!shouldZip && allFiles.length === 1) {
-      const filePath = allFiles[0];
-      const buffer = readFileSync(filePath);
-      return { buffer, filename: basename(filePath), size: buffer.byteLength, filesCount: 1 };
-    }
+    const baseVars: Record<string, string> = {
+      'backup.name': name,
+      date: now.toISOString().slice(0, 10),
+      datetime: now.toISOString().slice(0, 16).replace('T', '_').replace(/:/g, '-'),
+      year: String(now.getFullYear()),
+      month: String(now.getMonth() + 1).padStart(2, '0'),
+      day: String(now.getDate()).padStart(2, '0'),
+    };
+
+    const resolveBase = (tpl: string): string =>
+      tpl.replace(/\{\{([^}]+)\}\}/g, (_, key: string) => baseVars[key] ?? `{{${key}}}`);
+
+    // Filename: resolve template (base name), append correct extension
+    const base = filenameTemplate
+      ? resolveBase(filenameTemplate).replace(/\.(zip|tar\.gz|tar\.bz2|tar)$/i, '')
+      : `${slug}_${now.toISOString().slice(0, 10)}`;
+    const filename = base + ext;
 
     if (allFiles.length === 0) {
-      return { buffer: Buffer.alloc(0), filename: `${name}.zip`, size: 0, filesCount: 0 };
+      return { buffer: Buffer.alloc(0), filename, size: 0, filesCount: 0 };
     }
 
-    const buffer = await this.createZip(allFiles);
-    const slug = name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-    const filename = `${slug}_${new Date().toISOString().slice(0, 10)}.zip`;
+    // Single file with no password and non-compressed format → send raw
+    if (allFiles.length === 1 && !zipPassword && archiveFormat === 'zip' && compression === 'store') {
+      const { abs, arc } = allFiles[0];
+      const buffer = readFileSync(abs);
+      return { buffer, filename: arc.split('/').pop() ?? basename(abs), size: buffer.byteLength, filesCount: 1 };
+    }
+
+    const buffer = await this.createArchive(allFiles, archiveFormat, level, zipPassword);
     return { buffer, filename, size: buffer.byteLength, filesCount: allFiles.length };
   }
 
-  private async collectFiles(sources: BackupSources): Promise<string[]> {
-    const results: string[] = [];
-    const excludePatterns = sources.exclude ?? [];
+  private async resolveSourcePath(sourcePath: string): Promise<string> {
+    if (isAbsolute(sourcePath)) return sourcePath;
+    const s = await this.settings.get();
+    return resolve(s.filesRoot, sourcePath);
+  }
 
-    const matchesExclude = (filePath: string): boolean => {
+  /** Collect all files with their archive paths, preserving folder structure. */
+  private async collectFiles(sources: BackupSources): Promise<FileToArchive[]> {
+    const results: FileToArchive[] = [];
+
+    const matchesPatterns = (filePath: string, patterns: string[]): boolean => {
+      if (patterns.length === 0) return false;
       const name = basename(filePath);
-      return excludePatterns.some((pattern: string) => {
-        if (pattern.startsWith('*.')) {
-          return name.endsWith(pattern.slice(1));
-        }
+      return patterns.some((pattern) => {
+        if (pattern.startsWith('*.')) return name.endsWith(pattern.slice(1));
         return name === pattern || filePath.includes(pattern);
       });
     };
 
-    const walk = async (p: string) => {
-      if (!existsSync(p) || matchesExclude(p)) return;
-      let stat: ReturnType<typeof statSync>;
-      try {
-        stat = statSync(p);
-      } catch {
-        return;
-      }
+    // Cross-platform: normalize OS path separators to forward slashes for zip
+    const toArcPath = (p: string): string => p.split(sep).join('/');
 
-      if (stat.isDirectory()) {
-        const entries = await readdir(p);
-        for (const entry of entries) {
-          await walk(join(p, entry));
+    for (const source of sources.sources) {
+      const absPath = await this.resolveSourcePath(source.path);
+      const excludePatterns = source.exclude ?? [];
+
+      if (source.type === 'file') {
+        if (existsSync(absPath) && !matchesPatterns(absPath, excludePatterns)) {
+          results.push({ abs: absPath, arc: basename(absPath) });
         }
-      } else {
-        results.push(p);
+        continue;
       }
-    };
 
-    for (const path of sources.paths) {
-      await walk(path);
+      // Folder: preserve structure relative to the folder's PARENT
+      // e.g., source = /data/files/toto, file = /data/files/toto/sub/f.txt
+      //       arc = toto/sub/f.txt
+      const sourceParent = dirname(absPath);
+
+      const walk = async (p: string) => {
+        if (!existsSync(p) || matchesPatterns(p, excludePatterns)) return;
+        let stat: ReturnType<typeof statSync>;
+        try { stat = statSync(p); } catch { return; }
+        if (stat.isDirectory()) {
+          const entries = await readdir(p);
+          for (const entry of entries) await walk(join(p, entry));
+        } else {
+          const arcPath = toArcPath(relative(sourceParent, p));
+          results.push({ abs: p, arc: arcPath });
+        }
+      };
+
+      await walk(absPath);
     }
 
     return results;
   }
 
-  private createZip(files: string[]): Promise<Buffer> {
+  private createArchive(
+    files: FileToArchive[],
+    format: string,
+    level: number,
+    password: string | null,
+  ): Promise<Buffer> {
+    // Encrypted ZIP (password only supported for zip format)
+    if (format === 'zip' && password && this.isEncryptedAvailable()) {
+      return this.createEncryptedZip(files, level, password);
+    }
+
+    switch (format) {
+      case 'tar':
+        return this.buildArchiverBuffer(archiver('tar'), files);
+      case 'tar-gz':
+        return this.buildArchiverBuffer(
+          archiver('tar', { gzip: true, gzipOptions: { level } } as Parameters<typeof archiver>[1]),
+          files,
+        );
+      case 'tar-bz2':
+        if (this.isBzip2Available()) {
+          return this.createTarBz2(files, level);
+        }
+        // Fallback to tar-gz if bzip2 unavailable
+        return this.buildArchiverBuffer(
+          archiver('tar', { gzip: true, gzipOptions: { level } } as Parameters<typeof archiver>[1]),
+          files,
+        );
+      default: // zip
+        return this.buildArchiverBuffer(archiver('zip', { zlib: { level } }), files);
+    }
+  }
+
+  private buildArchiverBuffer(arc: Archiver, files: FileToArchive[]): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       const chunks: Buffer[] = [];
-      const archive = archiver('zip', { zlib: { level: 6 } });
+      arc.on('data', (chunk: Buffer) => chunks.push(chunk));
+      arc.on('end', () => resolve(Buffer.concat(chunks)));
+      arc.on('error', reject);
+      for (const { abs, arc: arcPath } of files) arc.file(abs, { name: arcPath });
+      void arc.finalize();
+    });
+  }
 
-      archive.on('data', (chunk: Buffer) => chunks.push(chunk));
-      archive.on('end', () => resolve(Buffer.concat(chunks)));
-      archive.on('error', reject);
-
-      for (const file of files) {
-        archive.file(file, { name: basename(file) });
+  private createEncryptedZip(files: FileToArchive[], level: number, password: string): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
+        const plugin = require('archiver-zip-encrypted') as any;
+        if (!BackupRunner.encryptedFormatRegistered) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument
+          (archiver as any).registerFormat('zip-encrypted', plugin);
+          BackupRunner.encryptedFormatRegistered = true;
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call
+        const arc = (archiver as any).create('zip-encrypted', {
+          zlib: { level },
+          encryptionMethod: 'aes256',
+          password,
+        }) as Archiver;
+        arc.on('data', (chunk: Buffer) => chunks.push(chunk));
+        arc.on('end', () => resolve(Buffer.concat(chunks)));
+        arc.on('error', reject);
+        for (const { abs, arc: arcPath } of files) arc.file(abs, { name: arcPath });
+        void arc.finalize();
+      } catch {
+        // Fallback to standard zip if plugin fails at runtime
+        resolve(this.buildArchiverBuffer(archiver('zip', { zlib: { level } }), files));
       }
+    });
+  }
 
-      void archive.finalize();
+  private createTarBz2(files: FileToArchive[], level: number): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
+        const plugin = require('archiver-tar-bzip2') as any;
+        if (!BackupRunner.bzip2FormatRegistered) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument
+          (archiver as any).registerFormat('tar-bz2', plugin);
+          BackupRunner.bzip2FormatRegistered = true;
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call
+        const arc = (archiver as any).create('tar-bz2', { bzip2Options: { level } }) as Archiver;
+        arc.on('data', (chunk: Buffer) => chunks.push(chunk));
+        arc.on('end', () => resolve(Buffer.concat(chunks)));
+        arc.on('error', reject);
+        for (const { abs, arc: arcPath } of files) arc.file(abs, { name: arcPath });
+        void arc.finalize();
+      } catch {
+        reject(new Error('archiver-tar-bzip2 not installed'));
+      }
     });
   }
 
   private async sendOutput(
     backupName: string,
+    backupId: string,
     output: OutputRow,
     archive: ArchiveResult,
   ): Promise<void> {
@@ -169,17 +451,13 @@ export class BackupRunner {
     const toContacts = await this.resolveContacts(output.recipientsTo);
     const ccContacts = await this.resolveContacts(output.recipientsCc);
     const bccContacts = await this.resolveContacts(output.recipientsBcc);
-    const ccEmails = ccContacts.map((c) => c.email);
-    const bccEmails = bccContacts.map((c) => c.email);
 
     let subject = '{{backup.name}} backup completed';
     let body = 'Backup {{backup.name}} completed successfully.';
     let bodyType: 'text' | 'html' = 'text';
 
     if (output.templateId) {
-      const template = await this.prisma.mailTemplate.findUnique({
-        where: { id: output.templateId },
-      });
+      const template = await this.prisma.mailTemplate.findUnique({ where: { id: output.templateId } });
       if (template) {
         subject = template.subject;
         body = template.body;
@@ -221,15 +499,12 @@ export class BackupRunner {
       ? [{ filename: archive.filename, content: archive.buffer }]
       : [];
 
-    const recipients = toContacts.length > 0
-      ? toContacts
-      : [{ name: '', email: '' }];
+    const recipients = toContacts.length > 0 ? toContacts : [{ name: '', email: '' }];
+    const ccEmails = ccContacts.map((c) => c.email);
+    const bccEmails = bccContacts.map((c) => c.email);
 
     for (const contact of recipients) {
-      const contactVars = {
-        'recipient.name': contact.name,
-        'recipient.email': contact.email,
-      };
+      const contactVars = { 'recipient.name': contact.name, 'recipient.email': contact.email };
       const resolvedSubject = resolveVars(subject, contactVars);
       const resolvedBody = resolveVars(body, contactVars);
 
@@ -262,14 +537,12 @@ export class BackupRunner {
             errorMsg: msg,
           },
         });
-        this.logs.error('backup', 'BACKUP_MAIL_ERROR', `Mail send failed for backup ${backupName}`, msg);
+        this.logs.error('backup', 'BACKUP_MAIL_ERROR', `Mail send failed for backup ${backupName}`, msg, { backupId });
       }
     }
   }
 
-  private async resolveContacts(
-    ids: string[],
-  ): Promise<{ name: string; email: string }[]> {
+  private async resolveContacts(ids: string[]): Promise<{ name: string; email: string }[]> {
     if (ids.length === 0) return [];
     const contacts = await this.prisma.contact.findMany({
       where: { id: { in: ids } },

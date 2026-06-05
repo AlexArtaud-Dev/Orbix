@@ -1,4 +1,5 @@
 "use client";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
@@ -7,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/authStore";
 import { authService } from "@/services/auth";
+import { logsService } from "@/services/logs";
 import { Button } from "@/components/ui/button";
 import {
   getActiveSidebarLevel,
@@ -22,7 +24,26 @@ export default function Sidebar() {
   const router = useRouter();
   const { user, clear } = useAuthStore();
 
+  const [backupErrors, setBackupErrors] = useState(0);
+
   const activeLevel = getActiveSidebarLevel(pathname);
+
+  // Fetch backup error count on mount + when navigating away from /backups
+  useEffect(() => {
+    const load = () => {
+      logsService.getBackupErrorSummary().then((r) => setBackupErrors(r.totalErrors)).catch(() => null);
+    };
+    load();
+    const interval = setInterval(load, 60_000); // refresh every minute
+    return () => clearInterval(interval);
+  }, []);
+
+  // Reset badge when user visits /backups
+  useEffect(() => {
+    if (pathname.startsWith("/backups")) {
+      logsService.getBackupErrorSummary().then((r) => setBackupErrors(r.totalErrors)).catch(() => null);
+    }
+  }, [pathname]);
 
   const handleLogout = async () => {
     try {
@@ -58,6 +79,8 @@ export default function Sidebar() {
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = isActive(item);
+          const isBackups = item.to === "/backups";
+          const showBadge = isBackups && backupErrors > 0;
           return (
             <Link
               key={item.to}
@@ -70,7 +93,12 @@ export default function Sidebar() {
               )}
             >
               <Icon className="size-4 shrink-0" />
-              {t(item.labelKey)}
+              <span className="flex-1">{t(item.labelKey)}</span>
+              {showBadge && (
+                <span className="inline-flex min-w-[20px] items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white shadow-sm ring-1 ring-red-700">
+                  {backupErrors > 99 ? "99+" : backupErrors}
+                </span>
+              )}
             </Link>
           );
         })}
@@ -99,11 +127,7 @@ export default function Sidebar() {
             className="text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
             aria-label="Toggle theme"
           >
-            {theme === "dark" ? (
-              <Sun className="size-4" />
-            ) : (
-              <Moon className="size-4" />
-            )}
+            {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
           </Button>
           <Button
             variant="ghost"

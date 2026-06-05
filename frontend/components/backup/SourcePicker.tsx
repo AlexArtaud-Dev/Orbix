@@ -14,11 +14,21 @@ import {
 interface SourcePickerProps {
   open: boolean;
   onClose: () => void;
-  selected: string[];
+  /** Already selected paths (for multi-select mode) */
+  selected?: string[];
+  /** Called with all selected paths (multi) or a single path (single) */
   onSelect: (paths: string[]) => void;
+  /** Single-select mode: picking one item immediately confirms */
+  singleSelect?: boolean;
 }
 
-export function SourcePicker({ open, onClose, selected, onSelect }: SourcePickerProps) {
+export function SourcePicker({
+  open,
+  onClose,
+  selected = [],
+  onSelect,
+  singleSelect = false,
+}: SourcePickerProps) {
   const [currentPath, setCurrentPath] = useState("");
   const [entries, setEntries] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -45,9 +55,13 @@ export function SourcePicker({ open, onClose, selected, onSelect }: SourcePicker
   const navigate = (path: string) => void load(path);
 
   const toggle = (path: string) => {
-    setLocalSelected((prev) =>
-      prev.includes(path) ? prev.filter((p) => p !== path) : [...prev, path]
-    );
+    if (singleSelect) {
+      setLocalSelected((prev) => (prev.includes(path) ? [] : [path]));
+    } else {
+      setLocalSelected((prev) =>
+        prev.includes(path) ? prev.filter((p) => p !== path) : [...prev, path],
+      );
+    }
   };
 
   const confirm = () => {
@@ -58,10 +72,7 @@ export function SourcePicker({ open, onClose, selected, onSelect }: SourcePicker
   const breadcrumbs = currentPath ? currentPath.split("/").filter(Boolean) : [];
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(o) => { if (!o) onClose(); }}
-    >
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent
         className="sm:max-w-2xl"
         aria-describedby={undefined}
@@ -70,7 +81,7 @@ export function SourcePicker({ open, onClose, selected, onSelect }: SourcePicker
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FolderOpen className="size-4" />
-            Select sources
+            {singleSelect ? "Select a path" : "Select sources"}
           </DialogTitle>
         </DialogHeader>
 
@@ -132,7 +143,13 @@ export function SourcePicker({ open, onClose, selected, onSelect }: SourcePicker
                     <button
                       type="button"
                       className="flex flex-1 items-center gap-2 min-w-0 text-left"
-                      onClick={() => entry.isDir ? navigate(entry.path) : toggle(entry.path)}
+                      onClick={() => {
+                        if (entry.isDir) {
+                          navigate(entry.path);
+                        } else {
+                          toggle(entry.path);
+                        }
+                      }}
                     >
                       {entry.isDir ? (
                         <Folder className="size-4 shrink-0 text-primary" />
@@ -146,6 +163,20 @@ export function SourcePicker({ open, onClose, selected, onSelect }: SourcePicker
                         <ChevronRight className="size-3 ml-auto text-muted-foreground" />
                       )}
                     </button>
+
+                    {/* In single-select: clicking folder name also adds it as a source */}
+                    {singleSelect && entry.isDir && (
+                      <button
+                        type="button"
+                        className="ml-auto text-xs text-muted-foreground hover:text-foreground shrink-0"
+                        onClick={() => {
+                          toggle(entry.path);
+                        }}
+                        aria-label="Select folder"
+                      >
+                        Select
+                      </button>
+                    )}
                   </li>
                 );
               })}
@@ -183,7 +214,7 @@ export function SourcePicker({ open, onClose, selected, onSelect }: SourcePicker
           <Button type="button" variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="button" onClick={confirm}>
+          <Button type="button" onClick={confirm} disabled={localSelected.length === 0}>
             <Plus className="size-4" />
             Add {localSelected.length > 0 ? `(${localSelected.length})` : ""}
           </Button>

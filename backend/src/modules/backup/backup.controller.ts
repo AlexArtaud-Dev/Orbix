@@ -31,11 +31,27 @@ export class BackupController {
   @Post()
   async create(@Body() dto: CreateBackupDto) {
     const data = await this.backupService.create(dto);
-    if (data.enabled && data.schedule) {
-      this.scheduler.register(data.id, data.name, data.schedule);
+    if (data.enabled) {
+      this.scheduler.register(data.id, data.name, data.scheduleType, data.schedule, data.scheduleConfig);
     }
     return { data };
   }
+
+  // ── Literal routes BEFORE :id to avoid route conflicts ───────────────────
+
+  @Get('zip-info')
+  getZipInfo() {
+    return { data: this.runner.getZipInfo() };
+  }
+
+  @Post('zip-test')
+  @HttpCode(200)
+  async zipTest() {
+    const data = await this.runner.testZip();
+    return { data };
+  }
+
+  // ── Parameterized routes ──────────────────────────────────────────────────
 
   @Get(':id')
   async getOne(@Param('id') id: string) {
@@ -47,8 +63,8 @@ export class BackupController {
   async update(@Param('id') id: string, @Body() dto: UpdateBackupDto) {
     const data = await this.backupService.update(id, dto);
     this.scheduler.remove(data.id);
-    if (data.enabled && data.schedule) {
-      this.scheduler.register(data.id, data.name, data.schedule);
+    if (data.enabled) {
+      this.scheduler.register(data.id, data.name, data.scheduleType, data.schedule, data.scheduleConfig);
     }
     return { data };
   }
@@ -64,6 +80,14 @@ export class BackupController {
   @HttpCode(202)
   run(@Param('id') id: string) {
     void this.runner.run(id);
+    return { data: { accepted: true } };
+  }
+
+  @Post(':id/validate')
+  @HttpCode(202)
+  async validate(@Param('id') id: string) {
+    await this.backupService.startValidation(id);
+    void this.runner.runValidation(id);
     return { data: { accepted: true } };
   }
 }

@@ -1,30 +1,36 @@
 "use client";
 import { useEffect, useState } from "react";
+import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
-  Plus,
-  Play,
-  Pencil,
-  Trash2,
-  Check,
-  X,
-  CheckCircle2,
-  XCircle,
-  Clock,
+  Plus, Play, Pencil, Trash2, Check, X,
+  CheckCircle2, XCircle, Clock, Loader2, Power, PowerOff,
+  AlertTriangle, TriangleAlert,
 } from "lucide-react";
-import { backupsService, describeCron, type Backup } from "@/services/backups";
+import { backupsService, describeSchedule, type Backup } from "@/services/backups";
+import { logsService, type LogEntry } from "@/services/logs";
 import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export default function BackupsPage() {
   const { t } = useTranslation();
   const [items, setItems] = useState<Backup[]>([]);
   const [loading, setLoading] = useState(true);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [runningId, setRunningId] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -38,104 +44,175 @@ export default function BackupsPage() {
 
   useEffect(() => { void load(); }, []); // eslint-disable-line
 
-  const handleDelete = async (id: string) => {
-    setDeletingId(id);
-    try {
-      await backupsService.delete(id);
-      toast.success(t("backups.deleteSuccess"));
-      setItems((prev) => prev.filter((b) => b.id !== id));
-    } catch (err) {
-      toast.error(err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"));
-    } finally {
-      setDeletingId(null);
-    }
-  };
+  const updateItem = (updated: Backup) =>
+    setItems((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
 
-  const handleRun = async (id: string) => {
-    setRunningId(id);
-    try {
-      await backupsService.run(id);
-      toast.success(t("backups.runSuccess"));
-    } catch (err) {
-      toast.error(err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"));
-    } finally {
-      setRunningId(null);
-    }
-  };
+  const removeItem = (id: string) =>
+    setItems((prev) => prev.filter((b) => b.id !== id));
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">{t("backups.title")}</h1>
-          <p className="text-muted-foreground">{t("backups.subtitle")}</p>
+    <TooltipProvider>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">{t("backups.title")}</h1>
+            <p className="text-muted-foreground">{t("backups.subtitle")}</p>
+          </div>
+          <Button asChild>
+            <Link href="/backups/new">
+              <Plus className="size-4" />
+              {t("backups.add")}
+            </Link>
+          </Button>
         </div>
-        <Button asChild>
-          <Link href="/backups/new">
-            <Plus className="size-4" />
-            {t("backups.add")}
-          </Link>
-        </Button>
+
+        {loading && items.length === 0 && (
+          <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
+        )}
+
+        {!loading && items.length === 0 && (
+          <Card>
+            <CardContent className="py-12 text-center text-sm text-muted-foreground">
+              {t("backups.empty")}
+            </CardContent>
+          </Card>
+        )}
+
+        <div className="grid gap-3">
+          {items.map((item) => (
+            <BackupCard
+              key={item.id}
+              item={item}
+              onUpdated={updateItem}
+              onRemoved={() => removeItem(item.id)}
+            />
+          ))}
+        </div>
       </div>
-
-      {loading && items.length === 0 && (
-        <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
-      )}
-
-      {!loading && items.length === 0 && (
-        <Card>
-          <CardContent className="py-12 text-center text-sm text-muted-foreground">
-            {t("backups.empty")}
-          </CardContent>
-        </Card>
-      )}
-
-      <div className="grid gap-3">
-        {items.map((item) => (
-          <BackupCard
-            key={item.id}
-            item={item}
-            deleting={deletingId === item.id}
-            running={runningId === item.id}
-            onDelete={() => void handleDelete(item.id)}
-            onRun={() => void handleRun(item.id)}
-          />
-        ))}
-      </div>
-    </div>
+    </TooltipProvider>
   );
 }
 
 interface BackupCardProps {
   item: Backup;
-  deleting: boolean;
-  running: boolean;
-  onDelete: () => void;
-  onRun: () => void;
+  onUpdated: (b: Backup) => void;
+  onRemoved: () => void;
 }
 
-function BackupCard({ item, deleting, running, onDelete, onRun }: BackupCardProps) {
+function BackupCard({ item, onUpdated, onRemoved }: BackupCardProps) {
   const { t } = useTranslation();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [busy, setBusy] = useState<"run" | "toggle" | "delete" | null>(null);
+  const [errorLogs, setErrorLogs] = useState<LogEntry[] | null>(null);
+  const [errorCount, setErrorCount] = useState<number | null>(null);
+  const [loadingLogs, setLoadingLogs] = useState(false);
+  const [clearingLogs, setClearingLogs] = useState(false);
 
-  const scheduleLabel = item.schedule
-    ? describeCron(item.schedule)
-    : t("backups.manual");
+  // Load error count for this backup
+  useEffect(() => {
+    logsService.getBackupLogs(item.id, 1).then((logs) => {
+      // Use full list to count errors
+      logsService.getBackupLogs(item.id, 200).then((all) => {
+        setErrorCount(all.filter((l) => l.level === "ERROR").length);
+      }).catch(() => null);
+    }).catch(() => null);
+    // Actually, just get all logs and count
+    logsService.getBackupLogs(item.id, 200).then((all) => {
+      setErrorCount(all.filter((l) => l.level === "ERROR").length);
+    }).catch(() => null);
+  }, [item.id]); // eslint-disable-line
 
+  const handleOpenLogs = async () => {
+    setLoadingLogs(true);
+    try {
+      const logs = await logsService.getBackupLogs(item.id, 100);
+      setErrorLogs(logs);
+    } catch {
+      // ignore
+    } finally {
+      setLoadingLogs(false);
+    }
+  };
+
+  const handleClearLogs = async () => {
+    setClearingLogs(true);
+    try {
+      await logsService.clearBackupLogs(item.id);
+      setErrorLogs([]);
+      setErrorCount(0);
+      toast.success(t("backups.logsClearedSuccess"));
+    } catch {
+      toast.error(t("common.error"));
+    } finally {
+      setClearingLogs(false);
+    }
+  };
+
+  const scheduleLabel = describeSchedule(item);
   const lastRunLabel = item.lastRunAt
     ? new Date(item.lastRunAt).toLocaleString()
     : t("backups.never");
 
+  const canRun = item.isValidated;
+  const canEnable = item.isValidated && !item.enabled;
+
+  const handleRun = async () => {
+    if (!canRun) return;
+    setBusy("run");
+    try {
+      await backupsService.run(item.id);
+      toast.success(t("backups.runSuccess"));
+    } catch (err) {
+      toast.error(err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleToggleEnabled = async () => {
+    if (!item.isValidated && !item.enabled) return;
+    setBusy("toggle");
+    try {
+      const updated = await backupsService.update(item.id, { enabled: !item.enabled });
+      onUpdated(updated);
+      toast.success(item.enabled ? t("backups.disabledSuccess") : t("backups.enabledSuccess"));
+    } catch (err) {
+      toast.error(err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleDelete = async () => {
+    setBusy("delete");
+    try {
+      await backupsService.delete(item.id);
+      toast.success(t("backups.deleteSuccess"));
+      onRemoved();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"));
+    } finally {
+      setBusy(null);
+      setConfirmDelete(false);
+    }
+  };
+
   return (
+    <>
     <Card>
       <CardContent className="flex items-center gap-4 py-4">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="font-medium">{item.name}</span>
-            <StatusBadge status={item.lastStatus} />
+            <StatusBadge status={item.lastStatus} validationStatus={item.validationStatus} />
             {!item.enabled && (
               <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
                 {t("backups.enabledOff")}
+              </span>
+            )}
+            {!item.isValidated && (
+              <span className="inline-flex items-center rounded-full bg-yellow-500/10 px-2 py-0.5 text-xs font-medium text-yellow-600 dark:text-yellow-400">
+                {t("backups.notValidated")}
               </span>
             )}
           </div>
@@ -144,85 +221,252 @@ function BackupCard({ item, deleting, running, onDelete, onRun }: BackupCardProp
             {" · "}
             {t("backups.lastRun")}: {lastRunLabel}
             {" · "}
-            {item.sources.paths.length} source(s)
+            {item.sources.sources.length} source(s)
             {" · "}
             {item.outputs.length} output(s)
           </p>
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={onRun}
-            disabled={running}
-            aria-label={t("backups.runNow")}
-          >
-            {running ? (
-              <Clock className="size-3.5 animate-spin" />
-            ) : (
-              <Play className="size-3.5" />
-            )}
-          </Button>
+          {/* Error logs button */}
+          {(errorCount ?? 0) > 0 && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => void handleOpenLogs()}
+                  disabled={loadingLogs}
+                  aria-label={t("backups.viewErrors")}
+                  className="relative"
+                >
+                  {loadingLogs ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <>
+                      <TriangleAlert className="size-3.5 text-destructive" />
+                      <span className="absolute -right-0.5 -top-0.5 flex min-w-[16px] items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-bold leading-none text-white ring-1 ring-red-700 py-0.5">
+                        {(errorCount ?? 0) > 9 ? "9+" : errorCount}
+                      </span>
+                    </>
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t("backups.viewErrors")} ({errorCount})</TooltipContent>
+            </Tooltip>
+          )}
 
-          <Button variant="ghost" size="icon-sm" asChild aria-label={t("common.edit")}>
-            <Link href={`/backups/${item.id}`}>
-              <Pencil className="size-3.5" />
-            </Link>
-          </Button>
+          {/* Run now */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => void handleRun()}
+                  disabled={busy !== null || !canRun}
+                  aria-label={t("backups.runNow")}
+                >
+                  {busy === "run" ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <Play className="size-3.5" />
+                  )}
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              {canRun ? t("backups.runNow") : t("backups.tooltips.runDisabled")}
+            </TooltipContent>
+          </Tooltip>
 
+          {/* Toggle enabled */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => void handleToggleEnabled()}
+                  disabled={busy !== null || (!item.isValidated && !item.enabled)}
+                  aria-label={item.enabled ? t("backups.disable") : t("backups.enable")}
+                >
+                  {busy === "toggle" ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : item.enabled ? (
+                    <Power className="size-3.5 text-green-500" />
+                  ) : (
+                    <PowerOff className="size-3.5 text-muted-foreground" />
+                  )}
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              {item.enabled
+                ? t("backups.disable")
+                : canEnable
+                ? t("backups.enable")
+                : t("backups.tooltips.enableDisabled")}
+            </TooltipContent>
+          </Tooltip>
+
+          {/* Edit */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon-sm" asChild aria-label={t("common.edit")}>
+                <Link href={`/backups/${item.id}`}>
+                  <Pencil className="size-3.5" />
+                </Link>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t("common.edit")}</TooltipContent>
+          </Tooltip>
+
+          {/* Delete */}
           {!confirmDelete ? (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="text-destructive hover:bg-destructive/10"
-              onClick={() => setConfirmDelete(true)}
-              aria-label={t("common.delete")}
-            >
-              <Trash2 className="size-3.5" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-destructive hover:bg-destructive/10"
+                  onClick={() => setConfirmDelete(true)}
+                  disabled={busy !== null}
+                  aria-label={t("common.delete")}
+                >
+                  <Trash2 className="size-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t("common.delete")}</TooltipContent>
+            </Tooltip>
           ) : (
             <>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => setConfirmDelete(false)}
-                aria-label={t("common.cancel")}
-              >
-                <X className="size-3.5" />
-              </Button>
-              <Button
-                variant="destructive"
-                size="icon-sm"
-                disabled={deleting}
-                onClick={() => { setConfirmDelete(false); onDelete(); }}
-                aria-label={t("common.confirm")}
-              >
-                <Check className="size-3.5" />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => setConfirmDelete(false)}
+                    aria-label={t("common.cancel")}
+                  >
+                    <X className="size-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t("common.cancel")}</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="destructive"
+                    size="icon-sm"
+                    disabled={busy === "delete"}
+                    onClick={() => void handleDelete()}
+                    aria-label={t("common.confirm")}
+                  >
+                    {busy === "delete" ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Check className="size-3.5" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t("backups.tooltips.confirmDelete")}</TooltipContent>
+              </Tooltip>
             </>
           )}
         </div>
       </CardContent>
     </Card>
+      {/* Error logs dialog */}
+      <Dialog open={errorLogs !== null} onOpenChange={(open) => { if (!open) setErrorLogs(null); }}>
+        <DialogContent className="sm:max-w-2xl" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="size-4 text-destructive" />
+              {t("backups.logsDialogTitle")} — {item.name}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="max-h-[60vh] overflow-y-auto space-y-1.5 pr-1">
+            {errorLogs?.length === 0 && (
+              <p className="py-6 text-center text-sm text-muted-foreground">{t("backups.logsEmpty")}</p>
+            )}
+            {errorLogs?.map((log, i) => (
+              <div
+                key={i}
+                className={cn(
+                  "rounded-md border px-3 py-2 text-xs font-mono",
+                  log.level === "ERROR"
+                    ? "border-destructive/30 bg-destructive/5 text-destructive"
+                    : "border-border bg-muted/30",
+                )}
+              >
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="font-bold">{log.level}</span>
+                  <span className="text-muted-foreground">{new Date(log.ts).toLocaleString()}</span>
+                  <span className="text-muted-foreground">{log.code}</span>
+                </div>
+                <p>{log.msg}</p>
+                {log.detail && <p className="mt-0.5 text-muted-foreground">{log.detail}</p>}
+              </div>
+            ))}
+          </div>
+
+          <div className="flex justify-between pt-2">
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => void handleClearLogs()}
+              disabled={clearingLogs || !errorLogs?.length}
+            >
+              {clearingLogs ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+              {t("backups.clearLogs")}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setErrorLogs(null)}>
+              {t("common.cancel")}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
-function StatusBadge({ status }: { status: string | null }) {
+function StatusBadge({
+  status,
+  validationStatus,
+}: {
+  status: string | null;
+  validationStatus: string | null;
+}) {
   const { t } = useTranslation();
-  if (status === "success")
+
+  if (validationStatus === "running") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/15 px-2 py-0.5 text-xs font-medium text-blue-600 dark:text-blue-400">
+        <Clock className="size-3 animate-spin" />
+        {t("backups.validating")}
+      </span>
+    );
+  }
+
+  if (status === "success") {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-green-500/15 px-2 py-0.5 text-xs font-medium text-green-600 dark:text-green-400">
         <CheckCircle2 className="size-3" />
         {t("backups.statusSuccess")}
       </span>
     );
-  if (status === "error")
+  }
+
+  if (status === "error") {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-medium text-red-600 dark:text-red-400">
         <XCircle className="size-3" />
         {t("backups.statusError")}
       </span>
     );
+  }
+
   return null;
 }

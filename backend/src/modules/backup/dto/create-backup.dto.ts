@@ -3,21 +3,33 @@ import {
   IsBoolean,
   IsIn,
   IsNotEmpty,
+  IsNumber,
+  IsObject,
   IsOptional,
   IsString,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
-class BackupSourcesDto {
-  @IsArray()
-  @IsString({ each: true })
-  paths!: string[];
+class BackupSourceDto {
+  @IsString()
+  @IsNotEmpty()
+  path!: string;
+
+  @IsIn(['file', 'folder'])
+  type!: 'file' | 'folder';
 
   @IsArray()
   @IsString({ each: true })
   @IsOptional()
   exclude?: string[];
+}
+
+class BackupSourcesDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => BackupSourceDto)
+  sources!: BackupSourceDto[];
 }
 
 export class CreateBackupOutputDto {
@@ -35,7 +47,8 @@ export class CreateBackupOutputDto {
 
   @IsArray()
   @IsString({ each: true })
-  recipientsTo!: string[];
+  @IsOptional()
+  recipientsTo?: string[];
 
   @IsArray()
   @IsString({ each: true })
@@ -58,6 +71,10 @@ export class CreateBackupOutputDto {
   @IsString()
   @IsOptional()
   overrideBodyType?: string;
+
+  @IsNumber()
+  @IsOptional()
+  order?: number;
 }
 
 export class CreateBackupDto {
@@ -65,21 +82,42 @@ export class CreateBackupDto {
   @IsNotEmpty()
   name!: string;
 
-  @ValidateNested()
-  @Type(() => BackupSourcesDto)
-  sources!: BackupSourcesDto;
-
-  @IsIn(['none', 'auto', 'forced'])
+  @IsBoolean()
   @IsOptional()
-  compression?: string;
+  enabled?: boolean;
+
+  @IsIn(['manual', 'oneshoot', 'recurring', 'interval'])
+  @IsOptional()
+  scheduleType?: string;
+
+  @IsObject()
+  @IsOptional()
+  scheduleConfig?: Record<string, unknown>;
 
   @IsString()
   @IsOptional()
   schedule?: string | null;
 
-  @IsBoolean()
+  @ValidateNested()
+  @Type(() => BackupSourcesDto)
   @IsOptional()
-  enabled?: boolean;
+  sources?: BackupSourcesDto;
+
+  @IsIn(['zip', 'tar', 'tar-gz', 'tar-bz2'])
+  @IsOptional()
+  archiveFormat?: string;
+
+  @IsIn(['store', 'fast', 'default', 'best'])
+  @IsOptional()
+  zipCompression?: string;
+
+  @IsString()
+  @IsOptional()
+  zipPassword?: string | null;
+
+  @IsString()
+  @IsOptional()
+  zipFilename?: string | null;
 
   @IsArray()
   @ValidateNested({ each: true })

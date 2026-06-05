@@ -1,9 +1,30 @@
 import { api } from "@/lib/api";
 
-export interface BackupSources {
-  paths: string[];
+export interface BackupSource {
+  path: string;
+  type: "file" | "folder";
   exclude: string[];
 }
+
+export interface BackupSourcesPayload {
+  sources: BackupSource[];
+}
+
+export interface OneshotConfig {
+  datetime: string;
+  timezone: string;
+}
+export interface RecurringConfig {
+  days: number[];
+  hour: number;
+  minute: number;
+  timezone: string;
+}
+export interface IntervalConfig {
+  every: number;
+  unit: "minutes" | "hours";
+}
+export type ScheduleConfigPayload = OneshotConfig | RecurringConfig | IntervalConfig | null;
 
 export interface BackupOutput {
   id: string;
@@ -17,6 +38,7 @@ export interface BackupOutput {
   overrideSubject: string | null;
   overrideBody: string | null;
   overrideBodyType: string | null;
+  order: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -24,10 +46,19 @@ export interface BackupOutput {
 export interface Backup {
   id: string;
   name: string;
-  sources: BackupSources;
-  compression: string;
+  sources: BackupSourcesPayload;
+  scheduleType: string;
+  scheduleConfig: ScheduleConfigPayload;
   schedule: string | null;
   enabled: boolean;
+  archiveFormat: string;
+  zipCompression: string;
+  zipPassword: string | null;
+  zipFilename: string | null;
+  isValidated: boolean;
+  validationStatus: string | null;
+  validationError: string | null;
+  validatedAt: string | null;
   lastRunAt: string | null;
   lastStatus: string | null;
   outputs: BackupOutput[];
@@ -35,28 +66,49 @@ export interface Backup {
   updatedAt: string;
 }
 
-export interface CreateBackupOutputPayload {
+export interface BackupOutputPayload {
   type: string;
   vaultId: string;
   templateId?: string;
-  recipientsTo: string[];
+  recipientsTo?: string[];
   recipientsCc?: string[];
   recipientsBcc?: string[];
   overrideSubject?: string;
   overrideBody?: string;
   overrideBodyType?: string;
+  order?: number;
 }
 
 export interface CreateBackupPayload {
   name: string;
-  sources: BackupSources;
-  compression?: string;
-  schedule?: string | null;
   enabled?: boolean;
-  outputs?: CreateBackupOutputPayload[];
+  scheduleType?: string;
+  scheduleConfig?: ScheduleConfigPayload;
+  schedule?: string | null;
+  sources?: BackupSourcesPayload;
+  archiveFormat?: string;
+  zipCompression?: string;
+  zipPassword?: string | null;
+  zipFilename?: string | null;
+  outputs?: BackupOutputPayload[];
 }
 
 export type UpdateBackupPayload = Partial<CreateBackupPayload>;
+
+export interface ZipInfo {
+  basic: boolean;
+  encrypted: boolean;
+  tarBz2: boolean;
+  platform: string;
+  node: string;
+}
+
+export interface ZipTestResult {
+  success: boolean;
+  durationMs: number;
+  sizeBytes: number;
+  error?: string;
+}
 
 export const backupsService = {
   list: () => api.get<Backup[]>("/api/backups"),
@@ -66,37 +118,39 @@ export const backupsService = {
     api.patch<Backup>(`/api/backups/${id}`, data),
   delete: (id: string) => api.delete<null>(`/api/backups/${id}`),
   run: (id: string) => api.post<{ accepted: boolean }>(`/api/backups/${id}/run`),
+  validate: (id: string) => api.post<{ accepted: boolean }>(`/api/backups/${id}/validate`),
+  getZipInfo: () => api.get<ZipInfo>("/api/backups/zip-info"),
+  testZip: () => api.post<ZipTestResult>("/api/backups/zip-test"),
 };
 
-export function describeCron(expr: string): string {
-  const parts = expr.trim().split(/\s+/);
-  if (parts.length !== 5) return expr;
-  const [min, hour, dom, month, dow] = parts;
-
-  const hourNum = parseInt(hour);
-  const minNum = parseInt(min);
-  const isFixedTime = !isNaN(hourNum) && !isNaN(minNum);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const time = isFixedTime ? `${pad(hourNum)}:${pad(minNum)}` : null;
-
-  if (hour === "*" && min === "0" && dom === "*" && month === "*" && dow === "*")
-    return "Every hour";
-
-  if (dom === "*" && month === "*" && dow === "*" && time)
-    return `Every day at ${time}`;
-
-  if (dom === "*" && month === "*" && dow !== "*" && time) {
-    const days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-    const dayIndex = parseInt(dow);
-    const dayName = !isNaN(dayIndex) ? days[dayIndex] : null;
-    if (dayName) return `Every ${dayName} at ${time}`;
+export function describeSchedule(backup: Pick<Backup, "scheduleType" | "scheduleConfig" | "schedule">): string {
+  const cfg = backup.scheduleConfig as Record<string, unknown> | null;
+  switch (backup.scheduleType) {
+    case "manual": return "Manual only";
+    case "oneshoot": {
+      const dt = cfg && "datetime" in cfg ? String(cfg.datetime) : backup.schedule;
+      if (!dt) return "One-shot";
+      try {
+        return `Once — ${new Date(dt).toLocaleString()}`;
+      } catch {
+        return "One-shot";
+      }
+    }
+    case "recurring": {
+      const days = cfg && "days" in cfg && Array.isArray(cfg.days) ? (cfg.days as number[]) : [];
+      const hour = cfg && "hour" in cfg ? Number(cfg.hour) : 0;
+      const minute = cfg && "minute" in cfg ? Number(cfg.minute) : 0;
+      const tz = cfg && "timezone" in cfg ? ` (${String(cfg.timezone)})` : "";
+      const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const daysStr = days.length === 7 ? "Every day" : days.map((d) => dayNames[d] ?? d).join(", ");
+      const time = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+      return `${daysStr} at ${time}${tz}`;
+    }
+    case "interval": {
+      const every = cfg && "every" in cfg ? Number(cfg.every) : 1;
+      const unit = cfg && "unit" in cfg ? String(cfg.unit) : "hours";
+      return `Every ${every} ${unit}`;
+    }
+    default: return backup.schedule ?? "Manual only";
   }
-
-  if (dom !== "*" && month === "*" && dow === "*" && time)
-    return `Monthly on day ${dom} at ${time}`;
-
-  if (dom === "1" && month === "*" && dow === "*" && time)
-    return `1st of each month at ${time}`;
-
-  return expr;
 }
