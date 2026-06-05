@@ -29,6 +29,7 @@ export class MailController {
 
   @Get('logs')
   async logs(@Query('cursor') cursor?: string, @Query('limit') limit?: string) {
-    return this.mailService.getLogs(cursor, limit ? parseInt(limit, 10) : undefined);
+    const result = await this.mailService.getLogs(cursor, limit ? parseInt(limit, 10) : undefined);
+    return { data: result };
   }
 }
