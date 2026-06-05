@@ -1,5 +1,5 @@
 services:
-  db:
+  postgres:
     image: postgres:17-alpine
     container_name: orbix-db
     restart: unless-stopped
@@ -17,5 +17,42 @@ services:
       timeout: 5s
       retries: 5
 
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: orbix-backend
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      DATABASE_URL: postgresql://orbix:${DB_PASSWORD}@postgres:5432/orbix
+      JWT_SECRET: ${JWT_SECRET}
+      VAULT_ENCRYPTION_KEY: ${VAULT_ENCRYPTION_KEY}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      NODE_ENV: production
+      PORT: 3001
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - orbix_backups:/backups
+      - orbix_logs:/app/logs
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+    container_name: orbix-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+
 volumes:
   orbix_db:
+  orbix_backups:
+  orbix_logs:

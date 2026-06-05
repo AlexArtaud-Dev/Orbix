@@ -23,12 +23,10 @@ async function bootstrap() {
     }),
   );
 
-  if (process.env.NODE_ENV !== 'production') {
-    app.enableCors({
-      origin: 'http://localhost:3000',
-      credentials: true,
-    });
-  }
+  app.enableCors({
+    origin: process.env.FRONTEND_URL ?? 'http://localhost:3000',
+    credentials: true,
+  });
 
   const port = parseInt(process.env.PORT ?? '3001', 10);
   await app.listen(port);
