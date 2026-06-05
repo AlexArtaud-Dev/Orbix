@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
@@ -78,16 +78,6 @@ export function TemplateEditor({ initial }: TemplateEditorProps) {
 
   const subjectRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    if (!initial) return;
-    setForm({
-      name: initial.name,
-      subject: initial.subject,
-      body: initial.body,
-      bodyType: (initial.bodyType as "text" | "html") ?? "html",
-    });
-  }, [initial]);
 
   const insertSubjectVar = useCallback((variable: string) => {
     const el = subjectRef.current;

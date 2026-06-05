@@ -109,6 +109,7 @@ export default function ContactsPage() {
       )}
 
       <ContactDialog
+        key={`${editing?.id ?? "new"}-${String(dialogOpen)}`}
         open={dialogOpen}
         contact={editing}
         onOpenChange={setDialogOpen}
@@ -186,16 +187,12 @@ interface ContactDialogProps {
 
 function ContactDialog({ open, contact, onOpenChange, onSaved }: ContactDialogProps) {
   const { t } = useTranslation();
-  const [form, setForm] = useState({ name: "", email: "", tagsRaw: "" });
+  const [form, setForm] = useState({
+    name: contact?.name ?? "",
+    email: contact?.email ?? "",
+    tagsRaw: contact?.tags.join(", ") ?? "",
+  });
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    setForm({
-      name: contact?.name ?? "",
-      email: contact?.email ?? "",
-      tagsRaw: contact?.tags.join(", ") ?? "",
-    });
-  }, [contact, open]);
 
   const parseTags = () =>
     form.tagsRaw.split(/[,;]+/).map((s) => s.trim()).filter(Boolean);
