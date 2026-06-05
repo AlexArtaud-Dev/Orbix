@@ -3,6 +3,9 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { VaultService } from './vault.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { LogsWriter } from '../logs/logs.writer';
+
+const mockLogs = { info: jest.fn(), warn: jest.fn(), error: jest.fn() };
 
 const TEST_KEY = 'test-vault-key-must-be-32-chars!!';
 
@@ -44,10 +47,8 @@ describe('VaultService', () => {
       providers: [
         VaultService,
         { provide: PrismaService, useValue: mockPrisma },
-        {
-          provide: ConfigService,
-          useValue: { getOrThrow: jest.fn().mockReturnValue(TEST_KEY) },
-        },
+        { provide: ConfigService, useValue: { getOrThrow: jest.fn().mockReturnValue(TEST_KEY) } },
+        { provide: LogsWriter, useValue: mockLogs },
       ],
     }).compile();
 
