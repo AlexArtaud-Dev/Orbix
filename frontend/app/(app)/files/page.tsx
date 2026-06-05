@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/dialog";
 
 
-function SortIcon({ col, sortCol, sortDir }: { col: "name" | "size" | "modified"; sortCol: "name" | "size" | "modified"; sortDir: "asc" | "desc" }) {
+function SortIcon({ col, sortCol, sortDir }: { col: "name" | "size" | "modified"; sortCol: SortCol; sortDir: SortDir }) {
   if (sortCol !== col) return <ChevronsUpDown className="size-3 opacity-40" />;
   return sortDir === "asc"
     ? <ChevronUp className="size-3" />
