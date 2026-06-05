@@ -74,8 +74,8 @@ function makeMockPrisma() {
       update: jest.fn(),
       delete: jest.fn(),
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    $transaction: jest.fn().mockImplementation(async (fn: any) => fn(tx) as unknown),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call
+    $transaction: jest.fn().mockImplementation((fn: any) => fn(tx) as unknown),
     _tx: tx,
     _txBackupUpdate: txBackupUpdate,
     _txOutputDeleteMany: txOutputDeleteMany,
@@ -141,6 +141,7 @@ describe('BackupService', () => {
 
       expect(result.name).toBe('New Backup');
       expect(result.enabled).toBe(false);
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const createArg = (mockPrisma.backup.create.mock.calls[0] as [{ data: Record<string, unknown> }])[0];
       expect(createArg.data.enabled).toBe(false);
     });
@@ -161,6 +162,7 @@ describe('BackupService', () => {
     it('defaults archiveFormat to zip and zipCompression to default', async () => {
       mockPrisma.backup.create.mockResolvedValue(makeBackupRow({ archiveFormat: 'zip', zipCompression: 'default' }));
       await service.create({ name: 'Backup' });
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const createArg = (mockPrisma.backup.create.mock.calls[0] as [{ data: Record<string, unknown> }])[0];
       expect(createArg.data.archiveFormat).toBe('zip');
       expect(createArg.data.zipCompression).toBe('default');
@@ -224,6 +226,7 @@ describe('BackupService', () => {
 
       await service.update('backup-1', { name: 'New Name' }); // zipPassword absent du DTO
 
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const updateArg = (mockPrisma._txBackupUpdate.mock.calls[0] as [{ data: Record<string, unknown> }])[0];
       // dto.zipPassword is undefined → should fall back to existing value
       expect(updateArg.data.zipPassword).toBe('existing-secret');
@@ -237,6 +240,7 @@ describe('BackupService', () => {
 
       await service.update('backup-1', { zipPassword: null });
 
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const updateArg = (mockPrisma._txBackupUpdate.mock.calls[0] as [{ data: Record<string, unknown> }])[0];
       expect(updateArg.data.zipPassword).toBeNull();
     });
@@ -249,6 +253,7 @@ describe('BackupService', () => {
 
       await service.update('backup-1', { zipPassword: 'new-password' });
 
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const updateArg = (mockPrisma._txBackupUpdate.mock.calls[0] as [{ data: Record<string, unknown> }])[0];
       expect(updateArg.data.zipPassword).toBe('new-password');
     });
@@ -261,6 +266,7 @@ describe('BackupService', () => {
 
       await service.update('backup-1', { archiveFormat: 'tar' });
 
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const updateArg = (mockPrisma._txBackupUpdate.mock.calls[0] as [{ data: Record<string, unknown> }])[0];
       expect(updateArg.data.isValidated).toBe(false);
       expect(updateArg.data.enabled).toBe(false);
@@ -276,6 +282,7 @@ describe('BackupService', () => {
 
       await service.update('backup-1', { name: 'New Name' });
 
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const updateArg = (mockPrisma._txBackupUpdate.mock.calls[0] as [{ data: Record<string, unknown> }])[0];
       expect(updateArg.data.isValidated).toBeUndefined();
     });

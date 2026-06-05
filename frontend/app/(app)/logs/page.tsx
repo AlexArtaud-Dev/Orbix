@@ -53,7 +53,6 @@ export default function LogsPage() {
         setLoading(false);
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [category, level, nextCursor],
   );
 

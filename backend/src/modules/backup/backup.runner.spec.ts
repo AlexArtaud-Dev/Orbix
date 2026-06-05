@@ -68,7 +68,7 @@ describe('BackupRunner', () => {
       const isAvailable = (runner as unknown as Record<string, () => boolean>)['isEncryptedAvailable']();
       if (!isAvailable) return;
 
-      // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
       const archiverModule = require('archiver') as any;
       const registerSpy = jest.spyOn(archiverModule, 'registerFormat').mockImplementation(() => undefined);
 
@@ -87,26 +87,26 @@ describe('BackupRunner', () => {
   });
 
   describe('getZipInfo', () => {
-    it('returns platform and node version', async () => {
-      const info = await runner.getZipInfo();
+    it('returns platform and node version', () => {
+      const info = runner.getZipInfo();
       expect(info.platform).toBe(process.platform);
       expect(info.node).toBe(process.version);
     });
 
-    it('returns basic as true (archiver is always available)', async () => {
-      const info = await runner.getZipInfo();
+    it('returns basic as true (archiver is always available)', () => {
+      const info = runner.getZipInfo();
       expect(info.basic).toBe(true);
     });
 
-    it('reflects archiver-zip-encrypted availability', async () => {
+    it('reflects archiver-zip-encrypted availability', () => {
       const isAvailable = (runner as unknown as Record<string, () => boolean>)['isEncryptedAvailable']();
-      const info = await runner.getZipInfo();
+      const info = runner.getZipInfo();
       expect(info.encrypted).toBe(isAvailable);
     });
 
-    it('reflects archiver-tar-bzip2 availability', async () => {
+    it('reflects archiver-tar-bzip2 availability', () => {
       const isAvailable = (runner as unknown as Record<string, () => boolean>)['isBzip2Available']();
-      const info = await runner.getZipInfo();
+      const info = runner.getZipInfo();
       expect(info.tarBz2).toBe(isAvailable);
     });
   });

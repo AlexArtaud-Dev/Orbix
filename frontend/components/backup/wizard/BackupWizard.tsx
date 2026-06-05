@@ -17,7 +17,7 @@ import { StepBasic } from "./StepBasic";
 import { StepSchedule } from "./StepSchedule";
 import { StepSources } from "./StepSources";
 import { StepZip } from "./StepZip";
-import { StepOutputs, emptyOutput } from "./StepOutputs";
+import { StepOutputs } from "./StepOutputs";
 import { StepValidate } from "./StepValidate";
 import {
   type WizardForm,
@@ -46,7 +46,7 @@ export function BackupWizard({ initial }: BackupWizardProps) {
   const [step, setStep] = useState(0);
   const [backupId, setBackupId] = useState<string | null>(initial?.id ?? null);
   const [backup, setBackup] = useState<Backup | null>(initial ?? null);
-  const [form, setForm] = useState<WizardForm>(defaultForm());
+  const [form, setForm] = useState<WizardForm>(() => initial ? backupToForm(initial) : defaultForm());
   const [isSaving, setIsSaving] = useState(false);
 
   // Lazy-loaded data for step 4 (outputs)
@@ -90,13 +90,6 @@ export function BackupWizard({ initial }: BackupWizardProps) {
     };
     void load();
   }, [step]); // eslint-disable-line
-
-  // Initialize form from initial backup
-  useEffect(() => {
-    if (!initial) return;
-    // contacts will be hydrated once outputDataLoaded above
-    setForm(backupToForm(initial));
-  }, []); // eslint-disable-line
 
   const handleSave = useCallback(async () => {
     if (!form.basic.name.trim()) {

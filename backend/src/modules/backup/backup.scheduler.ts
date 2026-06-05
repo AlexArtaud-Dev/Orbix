@@ -93,7 +93,7 @@ export class BackupScheduler implements OnModuleInit, OnModuleDestroy {
         : 'UTC';
 
     const jobName = `backup:${backupId}`;
-    try { this.schedulerRegistry.deleteCronJob(jobName); } catch {}
+    try { this.schedulerRegistry.deleteCronJob(jobName); } catch { /* job may not exist yet */ }
 
     const job = new CronJob(
       schedule,
@@ -123,7 +123,7 @@ export class BackupScheduler implements OnModuleInit, OnModuleDestroy {
   remove(backupId: string): void {
     try {
       this.schedulerRegistry.deleteCronJob(`backup:${backupId}`);
-    } catch {}
+    } catch { /* job may not exist */ }
 
     const timeout = this.timeouts.get(backupId);
     if (timeout) {

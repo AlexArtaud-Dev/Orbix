@@ -120,6 +120,7 @@ export class BackupService {
   }
 
   async list(): Promise<BackupData[]> {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const items = await this.prisma.backup.findMany({
       include: { outputs: true },
       orderBy: { name: 'asc' },
@@ -135,6 +136,7 @@ export class BackupService {
       ? { sources: dto.sources.sources.map((s) => ({ path: s.path, type: s.type, exclude: s.exclude ?? [] })) }
       : { sources: [] };
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const backup = await this.prisma.backup.create({
       data: {
         name: dto.name,
@@ -198,6 +200,7 @@ export class BackupService {
       ? { sources: dto.sources.sources.map((s) => ({ path: s.path, type: s.type, exclude: s.exclude ?? [] })) }
       : null;
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const backup = await this.prisma.$transaction(async (tx) => {
       if (dto.outputs !== undefined) {
         await tx.backupOutput.deleteMany({ where: { backupId: id } });

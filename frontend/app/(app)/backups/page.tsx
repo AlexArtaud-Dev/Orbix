@@ -110,13 +110,6 @@ function BackupCard({ item, onUpdated, onRemoved }: BackupCardProps) {
 
   // Load error count for this backup
   useEffect(() => {
-    logsService.getBackupLogs(item.id, 1).then((logs) => {
-      // Use full list to count errors
-      logsService.getBackupLogs(item.id, 200).then((all) => {
-        setErrorCount(all.filter((l) => l.level === "ERROR").length);
-      }).catch(() => null);
-    }).catch(() => null);
-    // Actually, just get all logs and count
     logsService.getBackupLogs(item.id, 200).then((all) => {
       setErrorCount(all.filter((l) => l.level === "ERROR").length);
     }).catch(() => null);
