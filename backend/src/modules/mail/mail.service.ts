@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { LogsWriter } from '../logs/logs.writer';
 import { VaultService } from '../vault/vault.service';
 import type { SendMailDto } from './dto/send-mail.dto';
 
@@ -8,6 +9,7 @@ export class MailService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly vault: VaultService,
+    private readonly logs: LogsWriter,
   ) {}
 
   async send(dto: SendMailDto, files: Express.Multer.File[]): Promise<void> {
@@ -41,6 +43,12 @@ export class MailService {
       await this.prisma.mailLog.create({
         data: { vaultId: dto.vaultId, toAddrs: dto.to, subject: dto.subject, status: 'sent' },
       });
+      this.logs.info(
+        'mail',
+        'MAIL_SENT',
+        `Email sent: "${dto.subject}"`,
+        `to=${dto.to.join(', ')} attachments=${files.length}`,
+      );
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Send failed';
       await this.prisma.mailLog.create({
@@ -52,6 +60,7 @@ export class MailService {
           errorMsg: msg,
         },
       });
+      this.logs.error('mail', 'MAIL_SEND_FAILED', `Email send failed: "${dto.subject}"`, msg);
       throw err;
     }
   }

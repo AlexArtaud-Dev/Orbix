@@ -13,6 +13,7 @@ import {
   scryptSync,
 } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { LogsWriter } from '../logs/logs.writer';
 import type { CreateEmailVaultDto } from './dto/create-email-vault.dto';
 import type { UpdateEmailVaultDto } from './dto/update-email-vault.dto';
 import type { EmailPayload, EmailVaultResponse, VaultRow } from './vault.types';
@@ -23,6 +24,7 @@ export class VaultService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly logs: LogsWriter,
   ) {}
 
   private getKey(): Buffer {
@@ -123,6 +125,7 @@ export class VaultService {
         encryptedPayload: this.encrypt(JSON.stringify(payload)),
       },
     });
+    this.logs.info('vault', 'VAULT_SMTP_CREATED', `SMTP config created: ${dto.name}`);
     return this.toResponse(entity);
   }
 
@@ -178,6 +181,7 @@ export class VaultService {
     const entity = await this.prisma.vaultEntity.findUnique({ where: { id } });
     if (!entity || entity.type !== 'email') throw new NotFoundException();
     await this.prisma.vaultEntity.delete({ where: { id } });
+    this.logs.info('vault', 'VAULT_SMTP_DELETED', `SMTP config deleted: ${entity.name}`);
   }
 
   async getEmailPayload(id: string): Promise<EmailPayload> {
@@ -224,6 +228,7 @@ export class VaultService {
           smtpCheckedAt: new Date(),
         },
       });
+      this.logs.info('vault', 'VAULT_SMTP_TEST_OK', `SMTP test OK: ${entity.name}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'SMTP connection failed';
       await this.prisma.vaultEntity.update({
@@ -234,6 +239,7 @@ export class VaultService {
           smtpCheckedAt: new Date(),
         },
       });
+      this.logs.warn('vault', 'VAULT_SMTP_TEST_FAIL', `SMTP test failed: ${entity.name}`, msg);
       throw new HttpException(
         { error: { code: 'SMTP_ERROR', message: msg } },
         HttpStatus.BAD_GATEWAY,
