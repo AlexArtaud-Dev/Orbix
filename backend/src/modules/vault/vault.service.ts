@@ -180,6 +180,12 @@ export class VaultService {
     await this.prisma.vaultEntity.delete({ where: { id } });
   }
 
+  async getEmailPayload(id: string): Promise<EmailPayload> {
+    const entity = await this.prisma.vaultEntity.findUnique({ where: { id } });
+    if (!entity || entity.type !== 'email') throw new NotFoundException();
+    return JSON.parse(this.decrypt(entity.encryptedPayload)) as EmailPayload;
+  }
+
   async checkAllEmail(): Promise<void> {
     const entities = await this.prisma.vaultEntity.findMany({
       where: { type: 'email' },

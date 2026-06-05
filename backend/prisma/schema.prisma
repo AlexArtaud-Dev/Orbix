@@ -28,6 +28,25 @@ model VaultEntity {
   updatedAt        DateTime  @updatedAt
 }
 
+model Contact {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  tags      String[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MailLog {
+  id       String   @id @default(cuid())
+  vaultId  String
+  toAddrs  String[]
+  subject  String
+  status   String
+  errorMsg String?
+  sentAt   DateTime @default(now())
+}
+
 model SystemSettings {
   id                  String @id @default("singleton")
   maxFileSizeMb       Int    @default(500)
