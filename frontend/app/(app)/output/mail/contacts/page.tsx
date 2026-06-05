@@ -186,25 +186,25 @@ interface ContactDialogProps {
 
 function ContactDialog({ open, contact, onOpenChange, onSaved }: ContactDialogProps) {
   const { t } = useTranslation();
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [tagsRaw, setTagsRaw] = useState("");
+  const [form, setForm] = useState({ name: "", email: "", tagsRaw: "" });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    setName(contact?.name ?? "");
-    setEmail(contact?.email ?? "");
-    setTagsRaw(contact?.tags.join(", ") ?? "");
+    setForm({
+      name: contact?.name ?? "",
+      email: contact?.email ?? "",
+      tagsRaw: contact?.tags.join(", ") ?? "",
+    });
   }, [contact, open]);
 
   const parseTags = () =>
-    tagsRaw.split(/[,;]+/).map((s) => s.trim()).filter(Boolean);
+    form.tagsRaw.split(/[,;]+/).map((s) => s.trim()).filter(Boolean);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     try {
-      const payload = { name, email, tags: parseTags() };
+      const payload = { name: form.name, email: form.email, tags: parseTags() };
       const saved = contact
         ? await contactsService.update(contact.id, payload)
         : await contactsService.create(payload);
@@ -229,17 +229,17 @@ function ContactDialog({ open, contact, onOpenChange, onSaved }: ContactDialogPr
         <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
           <div className="space-y-1.5">
             <Label>{t("contacts.name")}</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} required />
+            <Input value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} required />
           </div>
           <div className="space-y-1.5">
             <Label>{t("contacts.email")}</Label>
-            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            <Input type="email" value={form.email} onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))} required />
           </div>
           <div className="space-y-1.5">
             <Label>{t("contacts.tags")}</Label>
             <Input
-              value={tagsRaw}
-              onChange={(e) => setTagsRaw(e.target.value)}
+              value={form.tagsRaw}
+              onChange={(e) => setForm(f => ({ ...f, tagsRaw: e.target.value }))}
               placeholder={t("contacts.tagsPlaceholder")}
             />
           </div>

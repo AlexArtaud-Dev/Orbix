@@ -68,54 +68,61 @@ export function TemplateEditor({ initial }: TemplateEditorProps) {
   const { t } = useTranslation();
   const router = useRouter();
 
-  const [name, setName] = useState(initial?.name ?? "");
-  const [subject, setSubject] = useState(initial?.subject ?? "");
-  const [body, setBody] = useState(initial?.body ?? "");
-  const [bodyType, setBodyType] = useState<"text" | "html">(
-    (initial?.bodyType as "text" | "html") ?? "html",
-  );
+  const [form, setForm] = useState({
+    name: initial?.name ?? "",
+    subject: initial?.subject ?? "",
+    body: initial?.body ?? "",
+    bodyType: (initial?.bodyType as "text" | "html") ?? "html",
+  });
   const [saving, setSaving] = useState(false);
 
   const subjectRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
 
-  // keep state in sync if initial changes (edit page re-fetches)
   useEffect(() => {
     if (!initial) return;
-    setName(initial.name);
-    setSubject(initial.subject);
-    setBody(initial.body);
-    setBodyType((initial.bodyType as "text" | "html") ?? "html");
+    setForm({
+      name: initial.name,
+      subject: initial.subject,
+      body: initial.body,
+      bodyType: (initial.bodyType as "text" | "html") ?? "html",
+    });
   }, [initial]);
 
-  const makeInserter = useCallback(
-    (
-      value: string,
-      setValue: (v: string) => void,
-      ref: React.RefObject<HTMLInputElement | HTMLTextAreaElement | null>,
-    ) =>
-      (variable: string) => {
-        const el = ref.current;
-        if (!el) { setValue(value + variable); return; }
-        const start = el.selectionStart ?? value.length;
-        const end = el.selectionEnd ?? value.length;
-        setValue(value.slice(0, start) + variable + value.slice(end));
-        requestAnimationFrame(() => {
-          el.focus();
-          el.setSelectionRange(start + variable.length, start + variable.length);
-        });
-      },
-    [],
-  );
+  const insertSubjectVar = useCallback((variable: string) => {
+    const el = subjectRef.current;
+    const cur = form.subject;
+    if (!el) { setForm(f => ({ ...f, subject: cur + variable })); return; }
+    const start = el.selectionStart ?? cur.length;
+    const end = el.selectionEnd ?? cur.length;
+    setForm(f => ({ ...f, subject: cur.slice(0, start) + variable + cur.slice(end) }));
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(start + variable.length, start + variable.length);
+    });
+  }, [form.subject]);
+
+  const insertBodyVar = useCallback((variable: string) => {
+    const el = bodyRef.current;
+    const cur = form.body;
+    if (!el) { setForm(f => ({ ...f, body: cur + variable })); return; }
+    const start = el.selectionStart ?? cur.length;
+    const end = el.selectionEnd ?? cur.length;
+    setForm(f => ({ ...f, body: cur.slice(0, start) + variable + cur.slice(end) }));
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(start + variable.length, start + variable.length);
+    });
+  }, [form.body]);
 
   const handleSave = async () => {
-    if (!name.trim()) { toast.error(t("templates.errorNoName")); return; }
-    if (!subject.trim()) { toast.error(t("templates.errorNoSubject")); return; }
-    if (!body.trim()) { toast.error(t("templates.errorNoBody")); return; }
+    if (!form.name.trim()) { toast.error(t("templates.errorNoName")); return; }
+    if (!form.subject.trim()) { toast.error(t("templates.errorNoSubject")); return; }
+    if (!form.body.trim()) { toast.error(t("templates.errorNoBody")); return; }
 
     setSaving(true);
     try {
-      const payload = { name, subject, body, bodyType };
+      const payload = { name: form.name, subject: form.subject, body: form.body, bodyType: form.bodyType };
       if (initial) {
         await templatesService.update(initial.id, payload);
       } else {
@@ -130,7 +137,7 @@ export function TemplateEditor({ initial }: TemplateEditorProps) {
     }
   };
 
-  const previewSubjectHtml = highlightVarsText(subject || t("templates.subjectPlaceholder"));
+  const previewSubjectHtml = highlightVarsText(form.subject || t("templates.subjectPlaceholder"));
 
   return (
     <div
@@ -150,13 +157,13 @@ export function TemplateEditor({ initial }: TemplateEditorProps) {
 
         <Input
           className="h-8 max-w-xs text-sm"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
+          value={form.name}
+          onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))}
           placeholder={t("templates.name")}
         />
 
         <div className="ml-auto flex items-center gap-2">
-          <Select value={bodyType} onValueChange={(v) => setBodyType(v as "text" | "html")}>
+          <Select value={form.bodyType} onValueChange={(v) => setForm(f => ({ ...f, bodyType: v as "text" | "html" }))}>
             <SelectTrigger className="h-8 w-28 text-xs">
               <SelectValue />
             </SelectTrigger>
@@ -183,12 +190,12 @@ export function TemplateEditor({ initial }: TemplateEditorProps) {
               <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 {t("templates.subject")}
               </Label>
-              <VariableInserter onInsert={makeInserter(subject, setSubject, subjectRef)} />
+              <VariableInserter onInsert={insertSubjectVar} />
             </div>
             <Input
               ref={subjectRef}
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
+              value={form.subject}
+              onChange={(e) => setForm(f => ({ ...f, subject: e.target.value }))}
               placeholder={t("templates.subjectPlaceholder")}
             />
           </div>
@@ -198,14 +205,14 @@ export function TemplateEditor({ initial }: TemplateEditorProps) {
               <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 {t("templates.body")}
               </Label>
-              <VariableInserter onInsert={makeInserter(body, setBody, bodyRef)} />
+              <VariableInserter onInsert={insertBodyVar} />
             </div>
             <Textarea
               ref={bodyRef}
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
+              value={form.body}
+              onChange={(e) => setForm(f => ({ ...f, body: e.target.value }))}
               placeholder={
-                bodyType === "html"
+                form.bodyType === "html"
                   ? t("mail.bodyHtmlPlaceholder")
                   : t("mail.bodyTextPlaceholder")
               }
@@ -234,19 +241,19 @@ export function TemplateEditor({ initial }: TemplateEditorProps) {
           </div>
 
           {/* Body preview */}
-          {bodyType === "html" ? (
+          {form.bodyType === "html" ? (
             <iframe
               title="mail-preview"
               className="flex-1 border-0 bg-white"
-              srcDoc={buildPreviewDoc(body || "<p style='color:#9ca3af'>(empty)</p>")}
+              srcDoc={buildPreviewDoc(form.body || "<p style='color:#9ca3af'>(empty)</p>")}
               sandbox=""
             />
           ) : (
             <div className="flex-1 overflow-auto bg-white p-6">
-              {body ? (
+              {form.body ? (
                 <pre
                   className="whitespace-pre-wrap font-sans text-sm text-gray-800"
-                  dangerouslySetInnerHTML={{ __html: highlightVarsText(body) }}
+                  dangerouslySetInnerHTML={{ __html: highlightVarsText(form.body) }}
                 />
               ) : (
                 <p className="text-sm italic text-muted-foreground">{t("templates.previewEmpty")}</p>

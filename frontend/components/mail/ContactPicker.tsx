@@ -40,8 +40,6 @@ export function ContactPicker({ contacts, selected, onChange, placeholder }: Con
       <PopoverTrigger asChild>
         <button
           type="button"
-          role="combobox"
-          aria-expanded={open}
           className={cn(
             "flex min-h-9 w-full flex-wrap items-center gap-1.5 rounded-md border border-input bg-background px-3 py-1.5 text-sm ring-offset-background",
             "focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
