@@ -52,7 +52,7 @@ export class BackupRunner {
     this.logs.info('backup', 'BACKUP_RUN_START', `Backup run started: ${backup.name}`);
 
     try {
-      const sources = backup.sources as BackupSources;
+      const sources = backup.sources as unknown as BackupSources;
       const archive = await this.buildArchive(backup.name, sources, backup.compression);
 
       for (const output of backup.outputs as OutputRow[]) {

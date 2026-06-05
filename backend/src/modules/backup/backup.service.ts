@@ -146,7 +146,7 @@ export class BackupService {
       if (conflict) throw new ConflictException('Name already in use');
     }
 
-    const existingSources = existing.sources as BackupSources;
+    const existingSources = existing.sources as unknown as BackupSources;
     const sources = dto.sources
       ? {
           paths: dto.sources.paths ?? existingSources.paths,
