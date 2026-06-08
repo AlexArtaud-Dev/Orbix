@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { VaultService } from '../vault/vault.service';
 import { SettingsService } from '../settings/settings.service';
 import { LogsWriter } from '../logs/logs.writer';
+import { InputService } from '../input/input.service';
 
 const mockLogs = { info: jest.fn(), warn: jest.fn(), error: jest.fn() };
 
@@ -37,6 +38,7 @@ describe('BackupRunner', () => {
           provide: SettingsService,
           useValue: { get: jest.fn().mockResolvedValue({ filesRoot: '/tmp' }) },
         },
+        { provide: InputService, useValue: { getOne: jest.fn(), list: jest.fn() } },
         { provide: LogsWriter, useValue: mockLogs },
       ],
     }).compile();

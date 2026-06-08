@@ -38,13 +38,16 @@ export default function EditBackupPage() {
 
   if (!backup) return null;
 
+  // Detect wizard mode from existing sources
+  const mode = backup.sources.sources.some((s) => s.type === "input") ? "input" : "local";
+
   return (
     <div className="max-w-4xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">{t("backups.editTitle")}</h1>
         <p className="font-mono text-sm text-muted-foreground">{backup.name}</p>
       </div>
-      <BackupWizard initial={backup} />
+      <BackupWizard mode={mode} initial={backup} />
     </div>
   );
 }

@@ -84,6 +84,21 @@ export const SIDEBAR_LEVELS: Record<string, SidebarLevel> = {
       { to: "/input/http-rest", icon: Globe, labelKey: "nav.httpRestInputs" },
     ],
   },
+  "/backups/new": {
+    parentPath: "/backups",
+    titleKey: "nav.backups",
+    items: [],
+  },
+  "/backups/new/local": {
+    parentPath: "/backups",
+    titleKey: "nav.backups",
+    items: [],
+  },
+  "/backups/new/input": {
+    parentPath: "/backups",
+    titleKey: "nav.backups",
+    items: [],
+  },
   "/output": {
     parentPath: "/",
     titleKey: "nav.output",

@@ -49,15 +49,15 @@ export function backupToForm(backup: Backup): WizardForm {
       every: cfg && "every" in cfg ? Number(cfg.every) : 1,
       unit: cfg && "unit" in cfg ? (String(cfg.unit) as "minutes" | "hours") : "hours",
     },
-    sources: backup.sources.sources.map((s) => ({
-      path: s.path,
-      type: s.type,
-      exclude: s.exclude || [],
-      vaultId: s.vaultId,
-      requestParams: s.requestParams,
-      transferMode: s.transferMode,
-      inputId: s.inputId,
-    })),
+    // URL sources are no longer managed by the wizard — filter them out
+    sources: backup.sources.sources
+      .filter((s) => s.type !== "url")
+      .map((s) => ({
+        path: s.path,
+        type: s.type as "file" | "folder" | "input",
+        exclude: s.exclude || [],
+        inputId: s.inputId,
+      })),
     zip: {
       archiveFormat: (backup.archiveFormat as "zip" | "tar" | "tar-gz" | "tar-bz2") || "zip",
       zipCompression: (backup.zipCompression as "store" | "fast" | "default" | "best") || "default",
@@ -117,9 +117,6 @@ export function formToPayload(form: WizardForm, enabled: boolean): CreateBackupP
         path: s.path,
         type: s.type,
         exclude: s.exclude,
-        vaultId: s.type === "url" ? s.vaultId : undefined,
-        requestParams: s.requestParams?.length ? s.requestParams : undefined,
-        transferMode: s.type === "url" ? (s.transferMode ?? "stream") : undefined,
         inputId: s.type === "input" ? s.inputId : undefined,
       })),
     },

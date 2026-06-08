@@ -292,7 +292,19 @@
     "notValidated": "Non validé",
     "newTitle": "Nouvelle sauvegarde",
     "newSubtitle": "Configurez votre sauvegarde étape par étape",
+    "newLocalTitle": "Nouvelle sauvegarde locale",
+    "newLocalSubtitle": "Sélectionnez des fichiers et dossiers locaux à sauvegarder",
+    "newInputTitle": "Nouvelle sauvegarde Input",
+    "newInputSubtitle": "Sauvegardez des fichiers récupérés depuis une source externe",
     "editTitle": "Modifier la sauvegarde",
+    "typeSelector": {
+      "title": "Nouvelle sauvegarde",
+      "subtitle": "Choisissez le type de sauvegarde à créer",
+      "local": "Sauvegarde locale",
+      "localDesc": "Fichiers et dossiers présents sur le serveur",
+      "input": "Sauvegarde via Input",
+      "inputDesc": "Fichiers récupérés depuis une API ou source externe"
+    },
     "name": "Nom de la sauvegarde",
     "namePlaceholder": "ex. Sauvegarde config quotidienne",
     "enabled": "Statut",
@@ -337,7 +349,9 @@
       "stepSchedule": "Planification",
       "stepScheduleDesc": "Quand cette sauvegarde doit-elle s'exécuter ?",
       "stepSources": "Sources",
-      "stepSourcesDesc": "Sélectionnez les fichiers et dossiers à sauvegarder.",
+      "stepSourcesDesc": "Sélectionnez les sources à sauvegarder.",
+      "stepSourcesDescLocal": "Sélectionnez les fichiers et dossiers locaux à inclure dans l'archive.",
+      "stepSourcesDescInput": "Choisissez les inputs dont les fichiers seront récupérés et archivés.",
       "stepZip": "Archive",
       "stepZipDesc": "Configurez la mise en archive des fichiers.",
       "stepOutputs": "Sorties",
@@ -383,8 +397,9 @@
     },
     "sources": {
       "addPath": "Ajouter un chemin",
-      "addUrl": "Ajouter une URL",
-      "noSources": "Aucune source sélectionnée. Ajoutez un fichier, dossier, URL ou Input.",
+      "noSources": "Aucune source sélectionnée.",
+      "noSourcesLocal": "Aucun fichier ou dossier sélectionné.",
+      "noSourcesInput": "Aucun input sélectionné.",
       "folderBadge": "Dossier",
       "fileBadge": "Fichier",
       "urlBadge": "URL",
@@ -418,8 +433,7 @@
       "inputBadge": "INPUT",
       "inputTitle": "Sélectionner un Input",
       "inputSubtitle": "Choisissez l'input dont les fichiers seront ajoutés à l'archive.",
-      "noInputItems": "Aucun input configuré.",
-      "noSources": "Aucune source sélectionnée. Ajoutez un fichier, dossier, URL ou Input."
+      "noInputItems": "Aucun input configuré."
     },
     "zip": {
       "format": "Format d'archive",

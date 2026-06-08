@@ -31,7 +31,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError(errorCode, errorMessage);
   }
 
-  const json = (await res.json()) as { data: T };
+  // Handle empty body (e.g. 204 No Content) — parse only if there's actual content
+  const text = await res.text();
+  if (!text.trim()) return null as T;
+  const json = JSON.parse(text) as { data: T };
   return json.data;
 }
 
