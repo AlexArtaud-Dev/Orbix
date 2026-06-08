@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
-import { Mail, ChevronRight } from "lucide-react";
+import { Mail, Globe, ChevronRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
 interface VaultType {
@@ -12,6 +12,7 @@ interface VaultType {
 
 const VAULT_TYPES: VaultType[] = [
   { key: "email", icon: Mail, href: "/vault/email" },
+  { key: "http", icon: Globe, href: "/vault/http" },
 ];
 
 const COMING_SOON: { key: string; icon: React.ElementType }[] = [

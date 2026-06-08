@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { backupsService, type Backup } from "@/services/backups";
-import { vaultService, type EmailVaultItem } from "@/services/vault";
+import { vaultService, type EmailVaultItem, type HttpVaultItem } from "@/services/vault";
 import { templatesService, type MailTemplate } from "@/services/templates";
 import { contactsService, type Contact } from "@/services/contacts";
 import { ApiError } from "@/lib/api";
@@ -49,11 +49,24 @@ export function BackupWizard({ initial }: BackupWizardProps) {
   const [form, setForm] = useState<WizardForm>(() => initial ? backupToForm(initial) : defaultForm());
   const [isSaving, setIsSaving] = useState(false);
 
+  // Lazy-loaded data for step 2 (sources) — HTTP vaults
+  const [httpVaultItems, setHttpVaultItems] = useState<HttpVaultItem[]>([]);
+  const [sourcesDataLoaded, setSourcesDataLoaded] = useState(false);
+
   // Lazy-loaded data for step 4 (outputs)
   const [vaultItems, setVaultItems] = useState<EmailVaultItem[]>([]);
   const [templates, setTemplates] = useState<MailTemplate[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [outputDataLoaded, setOutputDataLoaded] = useState(false);
+
+  // Load HTTP vault list once when user reaches step 2
+  useEffect(() => {
+    if (step !== 2 || sourcesDataLoaded) return;
+    vaultService.listHttp(undefined, 100).then((res) => {
+      setHttpVaultItems(res.data);
+      setSourcesDataLoaded(true);
+    }).catch(() => { setSourcesDataLoaded(true); });
+  }, [step]); // eslint-disable-line
 
   // Load output data once when user reaches step 4
   useEffect(() => {
@@ -188,6 +201,7 @@ export function BackupWizard({ initial }: BackupWizardProps) {
         {step === 2 && (
           <StepSources
             data={form.sources}
+            httpVaultItems={httpVaultItems}
             onChange={(d) => setForm((f) => ({ ...f, sources: d }))}
           />
         )}

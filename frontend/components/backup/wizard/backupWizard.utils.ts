@@ -53,6 +53,8 @@ export function backupToForm(backup: Backup): WizardForm {
       path: s.path,
       type: s.type,
       exclude: s.exclude || [],
+      vaultId: s.vaultId,
+      requestParams: s.requestParams,
     })),
     zip: {
       archiveFormat: (backup.archiveFormat as "zip" | "tar" | "tar-gz" | "tar-bz2") || "zip",
@@ -108,7 +110,15 @@ export function formToPayload(form: WizardForm, enabled: boolean): CreateBackupP
     scheduleType: form.schedule.type,
     scheduleConfig: buildScheduleConfig(form.schedule),
     schedule: buildScheduleString(form.schedule),
-    sources: { sources: form.sources.map((s) => ({ path: s.path, type: s.type, exclude: s.exclude })) },
+    sources: {
+      sources: form.sources.map((s) => ({
+        path: s.path,
+        type: s.type,
+        exclude: s.exclude,
+        vaultId: s.vaultId,
+        requestParams: s.requestParams?.length ? s.requestParams : undefined,
+      })),
+    },
     archiveFormat: form.zip.archiveFormat,
     zipCompression: form.zip.zipCompression,
     // null = unchanged (edit mode), send undefined so backend keeps existing value
