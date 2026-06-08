@@ -9,8 +9,9 @@ import {
   ScrollText,
   KeyRound,
   Send,
+  Mail,
+  Globe,
 } from "lucide-react";
-import { Mail } from "lucide-react";
 
 export type SidebarNavItem = {
   to: string;
@@ -39,12 +40,26 @@ export const SIDEBAR_LEVELS: Record<string, SidebarLevel> = {
   "/vault": {
     parentPath: "/",
     titleKey: "nav.vault",
-    items: [{ to: "/vault/email", icon: Mail, labelKey: "nav.emailConfigs" }],
+    items: [
+      { to: "/vault/email", icon: Mail, labelKey: "nav.emailConfigs" },
+      { to: "/vault/http", icon: Globe, labelKey: "nav.httpConfigs" },
+    ],
   },
   "/vault/email": {
     parentPath: "/vault",
     titleKey: "nav.emailConfigs",
-    items: [{ to: "/vault/email", icon: Mail, labelKey: "nav.emailConfigs" }],
+    items: [
+      { to: "/vault/email", icon: Mail, labelKey: "nav.emailConfigs" },
+      { to: "/vault/http", icon: Globe, labelKey: "nav.httpConfigs" },
+    ],
+  },
+  "/vault/http": {
+    parentPath: "/vault",
+    titleKey: "nav.httpConfigs",
+    items: [
+      { to: "/vault/email", icon: Mail, labelKey: "nav.emailConfigs" },
+      { to: "/vault/http", icon: Globe, labelKey: "nav.httpConfigs" },
+    ],
   },
   "/output": {
     parentPath: "/",

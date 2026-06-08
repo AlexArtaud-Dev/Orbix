@@ -15,7 +15,12 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { VaultService } from '../vault/vault.service';
 import { SettingsService } from '../settings/settings.service';
 import { LogsWriter } from '../logs/logs.writer';
-import { parseBackupSources, type BackupSources } from './backup.types';
+import {
+  parseBackupSources,
+  type BackupSources,
+  type BackupSource,
+  type RequestParam,
+} from './backup.types';
 
 interface OutputRow {
   id: string;
@@ -41,10 +46,9 @@ interface ArchiveResult {
   filesCount: number;
 }
 
-interface FileToArchive {
-  abs: string; // absolute path on the filesystem
-  arc: string; // path inside the zip (forward-slash, structure preserved)
-}
+type FileToArchive =
+  | { abs: string; arc: string; buffer?: never }
+  | { buffer: Buffer; arc: string; abs?: never };
 
 export interface ZipInfo {
   basic: boolean; // zip + tar + tar-gz always available
@@ -370,11 +374,12 @@ export class BackupRunner {
       archiveFormat === 'zip' &&
       compression === 'store'
     ) {
-      const { abs, arc } = allFiles[0];
-      const buffer = readFileSync(abs);
+      const f = allFiles[0];
+      const buffer =
+        f.buffer !== undefined ? f.buffer : readFileSync(f.abs);
       return {
         buffer,
-        filename: arc.split('/').pop() ?? basename(abs),
+        filename: f.arc.split('/').pop() ?? basename(f.arc),
         size: buffer.byteLength,
         filesCount: 1,
       };
@@ -417,6 +422,14 @@ export class BackupRunner {
     const toArcPath = (p: string): string => p.split(sep).join('/');
 
     for (const source of sources.sources) {
+      if (source.type === 'url') {
+        const buffer = await this.fetchUrlSource(source);
+        const raw = source.path.split('?')[0];
+        const filename = raw.split('/').pop() ?? 'download';
+        results.push({ buffer, arc: filename });
+        continue;
+      }
+
       const absPath = await this.resolveSourcePath(source.path);
       const excludePatterns = source.exclude ?? [];
 
@@ -454,6 +467,140 @@ export class BackupRunner {
 
     return results;
   }
+
+  // ─── URL source helpers ──────────────────────────────────────────────────────
+
+  private async fetchUrlSource(source: BackupSource): Promise<Buffer> {
+    const headers: Record<string, string> = {};
+    const url = new URL(source.path);
+
+    if (source.vaultId) {
+      await this.applyVaultAuth(headers, source.vaultId);
+    }
+
+    if (source.requestParams) {
+      for (const param of source.requestParams) {
+        const value = await this.resolveParamValue(param);
+        if (param.in === 'header') headers[param.key] = value;
+        else if (param.in === 'query') url.searchParams.set(param.key, value);
+      }
+    }
+
+    const response = await fetch(url.toString(), { headers });
+    if (!response.ok) {
+      throw new Error(
+        `URL source returned HTTP ${response.status}: ${source.path}`,
+      );
+    }
+    return Buffer.from(await response.arrayBuffer());
+  }
+
+  private async applyVaultAuth(
+    headers: Record<string, string>,
+    vaultId: string,
+  ): Promise<void> {
+    const payload = await this.vault.getHttpPayload(vaultId);
+    switch (payload.subtype) {
+      case 'token':
+        headers['Authorization'] = `Bearer ${payload.token}`;
+        break;
+      case 'username_password':
+        headers['Authorization'] =
+          `Basic ${Buffer.from(`${payload.username}:${payload.password}`).toString('base64')}`;
+        break;
+      case 'key_secret':
+        headers[payload.key] = payload.secret;
+        break;
+      case 'oauth2_client_credentials': {
+        const token = await this.fetchOAuth2ClientToken(
+          payload.tokenUrl,
+          payload.clientId,
+          payload.clientSecret,
+          payload.scope,
+        );
+        headers['Authorization'] = `Bearer ${token}`;
+        break;
+      }
+      case 'oauth2_password_grant': {
+        const token = await this.fetchOAuth2PasswordToken(
+          payload.tokenUrl,
+          payload.clientId,
+          payload.username,
+          payload.password,
+        );
+        headers['Authorization'] = `Bearer ${token}`;
+        break;
+      }
+      case 'cookie':
+        headers['Cookie'] = payload.value;
+        break;
+      case 'custom_kv':
+        for (const { key, value } of payload.entries) headers[key] = value;
+        break;
+      default:
+        // mtls_certificate, ssh_key, jwt_signing_key, aws_sigv4 — not yet supported in runner
+        throw new Error(
+          `HTTP auth type '${payload.subtype}' is not supported in the backup runner`,
+        );
+    }
+  }
+
+  private async fetchOAuth2ClientToken(
+    tokenUrl: string,
+    clientId: string,
+    clientSecret: string,
+    scope?: string,
+  ): Promise<string> {
+    const body = new URLSearchParams({
+      grant_type: 'client_credentials',
+      client_id: clientId,
+      client_secret: clientSecret,
+      ...(scope ? { scope } : {}),
+    });
+    const res = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+    });
+    if (!res.ok) throw new Error(`OAuth2 token request failed: ${res.status}`);
+    const json = (await res.json()) as { access_token?: string };
+    if (!json.access_token) throw new Error('OAuth2 response missing access_token');
+    return json.access_token;
+  }
+
+  private async fetchOAuth2PasswordToken(
+    tokenUrl: string,
+    clientId: string,
+    username: string,
+    password: string,
+  ): Promise<string> {
+    const body = new URLSearchParams({
+      grant_type: 'password',
+      client_id: clientId,
+      username,
+      password,
+    });
+    const res = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+    });
+    if (!res.ok)
+      throw new Error(`OAuth2 password grant token request failed: ${res.status}`);
+    const json = (await res.json()) as { access_token?: string };
+    if (!json.access_token) throw new Error('OAuth2 response missing access_token');
+    return json.access_token;
+  }
+
+  private async resolveParamValue(param: RequestParam): Promise<string> {
+    if (param.valueType === 'literal') return param.value ?? '';
+    if (!param.vaultId) return '';
+    const payload = await this.vault.getHttpPayload(param.vaultId);
+    const field = param.vaultField ?? '';
+    return String((payload as Record<string, unknown>)[field] ?? '');
+  }
+
+  // ─── Archive building ────────────────────────────────────────────────────────
 
   private createArchive(
     files: FileToArchive[],
@@ -500,8 +647,13 @@ export class BackupRunner {
       arc.on('data', (chunk: Buffer) => chunks.push(chunk));
       arc.on('end', () => resolve(Buffer.concat(chunks)));
       arc.on('error', reject);
-      for (const { abs, arc: arcPath } of files)
-        arc.file(abs, { name: arcPath });
+      for (const f of files) {
+        if (f.buffer !== undefined) {
+          arc.append(f.buffer, { name: f.arc });
+        } else {
+          arc.file(f.abs, { name: f.arc });
+        }
+      }
       void arc.finalize();
     });
   }
@@ -530,8 +682,10 @@ export class BackupRunner {
         arc.on('data', (chunk: Buffer) => chunks.push(chunk));
         arc.on('end', () => resolve(Buffer.concat(chunks)));
         arc.on('error', reject);
-        for (const { abs, arc: arcPath } of files)
-          arc.file(abs, { name: arcPath });
+        for (const f of files) {
+          if (f.buffer !== undefined) arc.append(f.buffer, { name: f.arc });
+          else arc.file(f.abs, { name: f.arc });
+        }
         void arc.finalize();
       } catch {
         // Fallback to standard zip if plugin fails at runtime
@@ -560,8 +714,10 @@ export class BackupRunner {
         arc.on('data', (chunk: Buffer) => chunks.push(chunk));
         arc.on('end', () => resolve(Buffer.concat(chunks)));
         arc.on('error', reject);
-        for (const { abs, arc: arcPath } of files)
-          arc.file(abs, { name: arcPath });
+        for (const f of files) {
+          if (f.buffer !== undefined) arc.append(f.buffer, { name: f.arc });
+          else arc.file(f.abs, { name: f.arc });
+        }
         void arc.finalize();
       } catch {
         reject(new Error('archiver-tar-bzip2 not installed'));

@@ -1,7 +1,18 @@
+export interface RequestParam {
+  in: 'header' | 'query' | 'body';
+  key: string;
+  valueType: 'literal' | 'vault';
+  value?: string;
+  vaultId?: string;
+  vaultField?: string;
+}
+
 export interface BackupSource {
   path: string;
-  type: 'file' | 'folder';
+  type: 'file' | 'folder' | 'url';
   exclude: string[];
+  vaultId?: string;
+  requestParams?: RequestParam[];
 }
 
 export interface BackupSources {
@@ -21,14 +32,24 @@ export function parseBackupSources(json: unknown): BackupSources {
         const src = s as Record<string, unknown>;
         const path = typeof src['path'] === 'string' ? src['path'] : '';
         if (!path) return [];
+        const srcType =
+          src['type'] === 'file'
+            ? ('file' as const)
+            : src['type'] === 'url'
+              ? ('url' as const)
+              : ('folder' as const);
         return [
           {
             path,
-            type:
-              src['type'] === 'file' ? ('file' as const) : ('folder' as const),
+            type: srcType,
             exclude: Array.isArray(src['exclude'])
               ? (src['exclude'] as string[])
               : [],
+            vaultId:
+              typeof src['vaultId'] === 'string' ? src['vaultId'] : undefined,
+            requestParams: Array.isArray(src['requestParams'])
+              ? (src['requestParams'] as RequestParam[])
+              : undefined,
           },
         ];
       }),

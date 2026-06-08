@@ -1,9 +1,20 @@
 import { api } from "@/lib/api";
 
+export interface RequestParam {
+  in: "header" | "query" | "body";
+  key: string;
+  valueType: "literal" | "vault";
+  value?: string;
+  vaultId?: string;
+  vaultField?: string;
+}
+
 export interface BackupSource {
   path: string;
-  type: "file" | "folder";
+  type: "file" | "folder" | "url";
   exclude: string[];
+  vaultId?: string;
+  requestParams?: RequestParam[];
 }
 
 export interface BackupSourcesPayload {

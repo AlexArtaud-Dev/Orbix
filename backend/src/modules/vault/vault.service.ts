@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   HttpException,
   HttpStatus,
@@ -16,8 +17,17 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { LogsWriter } from '../logs/logs.writer';
 import type { CreateEmailVaultDto } from './dto/create-email-vault.dto';
 import type { UpdateEmailVaultDto } from './dto/update-email-vault.dto';
-import type { EmailPayload, EmailVaultResponse, VaultRow } from './vault.types';
-export type { EmailVaultResponse } from './vault.types';
+import type { CreateHttpVaultDto } from './dto/create-http-vault.dto';
+import type { UpdateHttpVaultDto } from './dto/update-http-vault.dto';
+import type {
+  EmailPayload,
+  EmailVaultResponse,
+  HttpVaultPayload,
+  HttpVaultResponse,
+  HttpVaultSubtype,
+  VaultRow,
+} from './vault.types';
+export type { EmailVaultResponse, HttpVaultResponse } from './vault.types';
 
 @Injectable()
 export class VaultService {
@@ -206,6 +216,182 @@ export class VaultService {
       entities.map((e) => this.testEmail(e.id).catch(() => {})),
     );
   }
+
+  // ─── HTTP vault ──────────────────────────────────────────────────────────────
+
+  private buildHttpPayload(
+    subtype: HttpVaultSubtype,
+    data: Record<string, unknown>,
+  ): HttpVaultPayload {
+    const req = (k: string): string => {
+      const v = data[k];
+      if (!v) throw new BadRequestException(`Field '${k}' is required for subtype '${subtype}'`);
+      return String(v);
+    };
+    const opt = (k: string): string | undefined => {
+      const v = data[k];
+      return v ? String(v) : undefined;
+    };
+
+    switch (subtype) {
+      case 'token':
+        return { subtype, token: req('token') };
+      case 'username_password':
+        return { subtype, username: req('username'), password: req('password') };
+      case 'key_secret':
+        return { subtype, key: req('key'), secret: req('secret') };
+      case 'oauth2_client_credentials':
+        return {
+          subtype,
+          clientId: req('clientId'),
+          clientSecret: req('clientSecret'),
+          tokenUrl: req('tokenUrl'),
+          scope: opt('scope'),
+        };
+      case 'oauth2_password_grant':
+        return {
+          subtype,
+          username: req('username'),
+          password: req('password'),
+          clientId: req('clientId'),
+          tokenUrl: req('tokenUrl'),
+        };
+      case 'mtls_certificate':
+        return { subtype, cert: req('cert'), key: req('key'), passphrase: opt('passphrase') };
+      case 'ssh_key':
+        return { subtype, privateKey: req('privateKey'), passphrase: opt('passphrase') };
+      case 'jwt_signing_key':
+        return {
+          subtype,
+          privateKey: req('privateKey'),
+          algorithm: req('algorithm'),
+          issuer: opt('issuer'),
+          audience: opt('audience'),
+          expiresIn: opt('expiresIn'),
+        };
+      case 'aws_sigv4':
+        return {
+          subtype,
+          accessKeyId: req('accessKeyId'),
+          secretAccessKey: req('secretAccessKey'),
+          region: req('region'),
+          service: req('service'),
+        };
+      case 'cookie':
+        return { subtype, value: req('value') };
+      case 'custom_kv':
+        return {
+          subtype,
+          entries: (data['entries'] as Array<{ key: string; value: string }>) ?? [],
+        };
+      default:
+        throw new BadRequestException(`Unknown HTTP vault subtype: ${subtype as string}`);
+    }
+  }
+
+  private httpToResponse(entity: VaultRow): HttpVaultResponse {
+    const payload = JSON.parse(this.decrypt(entity.encryptedPayload)) as HttpVaultPayload;
+    return {
+      id: entity.id,
+      name: entity.name,
+      subtype: payload.subtype,
+      createdAt: entity.createdAt.toISOString(),
+      updatedAt: entity.updatedAt.toISOString(),
+    };
+  }
+
+  async listHttp(
+    cursor?: string,
+    limit = 20,
+  ): Promise<{ data: HttpVaultResponse[]; nextCursor: string | null }> {
+    const take = Math.min(limit, 100);
+    const items = await this.prisma.vaultEntity.findMany({
+      where: { type: 'http' },
+      take: take + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      orderBy: { name: 'asc' },
+    });
+    const hasNext = items.length > take;
+    const page = items.slice(0, take);
+    return {
+      data: page.map((e) => this.httpToResponse(e)),
+      nextCursor: hasNext ? page[page.length - 1].id : null,
+    };
+  }
+
+  async createHttp(dto: CreateHttpVaultDto): Promise<HttpVaultResponse> {
+    const existing = await this.prisma.vaultEntity.findUnique({
+      where: { name: dto.name },
+    });
+    if (existing) throw new ConflictException('Name already in use');
+
+    const payload = this.buildHttpPayload(dto.subtype, dto.data);
+    const entity = await this.prisma.vaultEntity.create({
+      data: {
+        name: dto.name,
+        type: 'http',
+        encryptedPayload: this.encrypt(JSON.stringify(payload)),
+      },
+    });
+    this.logs.info('vault', 'VAULT_HTTP_CREATED', `HTTP credential created: ${dto.name}`);
+    return this.httpToResponse(entity);
+  }
+
+  async getHttp(id: string): Promise<HttpVaultResponse> {
+    const entity = await this.prisma.vaultEntity.findUnique({ where: { id } });
+    if (!entity || entity.type !== 'http') throw new NotFoundException();
+    return this.httpToResponse(entity);
+  }
+
+  async updateHttp(id: string, dto: UpdateHttpVaultDto): Promise<HttpVaultResponse> {
+    const entity = await this.prisma.vaultEntity.findUnique({ where: { id } });
+    if (!entity || entity.type !== 'http') throw new NotFoundException();
+
+    if (dto.name && dto.name !== entity.name) {
+      const conflict = await this.prisma.vaultEntity.findUnique({ where: { name: dto.name } });
+      if (conflict) throw new ConflictException('Name already in use');
+    }
+
+    const current = JSON.parse(this.decrypt(entity.encryptedPayload)) as HttpVaultPayload;
+    let payload: HttpVaultPayload;
+    if (dto.data && Object.keys(dto.data).length > 0) {
+      const merged: Record<string, unknown> = { ...current };
+      for (const [k, v] of Object.entries(dto.data)) {
+        if (v !== undefined && v !== '') merged[k] = v;
+      }
+      payload = merged as unknown as HttpVaultPayload;
+    } else {
+      payload = current;
+    }
+
+    const result = await this.prisma.vaultEntity.update({
+      where: { id },
+      data: {
+        name: dto.name ?? entity.name,
+        encryptedPayload: this.encrypt(JSON.stringify(payload)),
+      },
+    });
+    return this.httpToResponse(result);
+  }
+
+  countHttp(): Promise<number> {
+    return this.prisma.vaultEntity.count({ where: { type: 'http' } });
+  }
+
+  async deleteHttp(id: string): Promise<void> {
+    const entity = await this.prisma.vaultEntity.findUnique({ where: { id } });
+    if (!entity || entity.type !== 'http') throw new NotFoundException();
+    await this.prisma.vaultEntity.delete({ where: { id } });
+    this.logs.info('vault', 'VAULT_HTTP_DELETED', `HTTP credential deleted: ${entity.name}`);
+  }
+
+  async getHttpPayload(id: string): Promise<HttpVaultPayload> {
+    const entity = await this.prisma.vaultEntity.findUnique({ where: { id } });
+    if (!entity || entity.type !== 'http') throw new NotFoundException();
+    return JSON.parse(this.decrypt(entity.encryptedPayload)) as HttpVaultPayload;
+  }
+
+  // ─── Email vault ─────────────────────────────────────────────────────────────
 
   async testEmail(id: string): Promise<void> {
     const entity = await this.prisma.vaultEntity.findUnique({ where: { id } });
