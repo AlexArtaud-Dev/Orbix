@@ -11,6 +11,7 @@ function renderStep(zipPassword: string | null, onChange = vi.fn()) {
   return render(
     <StepZip
       data={{
+        noArchive: false,
         archiveFormat: "zip",
         zipCompression: "default",
         zipPassword,
@@ -74,7 +75,7 @@ describe("StepZip — password field not shown for non-ZIP formats", () => {
   it("does not render the password input for tar format", () => {
     render(
       <StepZip
-        data={{ archiveFormat: "tar", zipCompression: "default", zipPassword: null, zipFilename: "" }}
+        data={{ noArchive: false, archiveFormat: "tar", zipCompression: "default", zipPassword: null, zipFilename: "" }}
         backupName="test"
         onChange={vi.fn()}
       />,

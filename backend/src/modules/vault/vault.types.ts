@@ -125,6 +125,26 @@ export interface HttpVaultResponse {
   updatedAt: string;
 }
 
+// ─── Variable Set vault ───────────────────────────────────────────────────────
+
+export interface VarSetVariable {
+  key: string;
+  value: string;
+}
+
+export interface VarSetPayload {
+  variables: VarSetVariable[];
+}
+
+export interface VarSetResponse {
+  id: string;
+  name: string;
+  /** Number of variables stored (values never returned in list/get) */
+  variableCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ─── Shared row type ──────────────────────────────────────────────────────────
 
 export type VaultRow = {

@@ -41,6 +41,7 @@ interface BackupRow {
   scheduleConfig: unknown;
   schedule: string | null;
   enabled: boolean;
+  noArchive: boolean;
   archiveFormat: string;
   zipCompression: string;
   zipPassword: string | null;
@@ -73,6 +74,7 @@ export class BackupService {
       scheduleConfig: parseScheduleConfig(backup.scheduleConfig),
       schedule: backup.schedule,
       enabled: backup.enabled,
+      noArchive: backup.noArchive,
       archiveFormat: backup.archiveFormat,
       zipCompression: backup.zipCompression,
       zipPassword: backup.zipPassword,
@@ -162,6 +164,7 @@ export class BackupService {
         scheduleConfig: (dto.scheduleConfig ?? null) as any,
         schedule: dto.schedule ?? null,
         enabled: false, // always false on create — requires validation
+        noArchive: dto.noArchive ?? false,
         archiveFormat: dto.archiveFormat ?? 'zip',
         zipCompression: dto.zipCompression ?? 'default',
         zipPassword: dto.zipPassword ?? null,
@@ -203,6 +206,7 @@ export class BackupService {
       dto.scheduleType !== undefined ||
       dto.scheduleConfig !== undefined ||
       dto.schedule !== undefined ||
+      dto.noArchive !== undefined ||
       dto.archiveFormat !== undefined ||
       dto.zipCompression !== undefined ||
       dto.zipPassword !== undefined ||
@@ -253,6 +257,10 @@ export class BackupService {
           schedule:
             dto.schedule !== undefined ? dto.schedule : existing.schedule,
           enabled: configChanged ? false : (dto.enabled ?? existing.enabled),
+          noArchive:
+            dto.noArchive !== undefined
+              ? dto.noArchive
+              : (existing as BackupRow).noArchive,
           archiveFormat:
             dto.archiveFormat ?? (existing as BackupRow).archiveFormat,
           zipCompression:

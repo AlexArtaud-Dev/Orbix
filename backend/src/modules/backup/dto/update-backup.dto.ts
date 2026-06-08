@@ -48,6 +48,10 @@ export class UpdateBackupDto {
 
   @IsBoolean()
   @IsOptional()
+  noArchive?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
   enabled?: boolean;
 
   @IsIn(['manual', 'oneshoot', 'recurring', 'interval'])

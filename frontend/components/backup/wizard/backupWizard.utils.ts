@@ -29,7 +29,7 @@ export function defaultForm(): WizardForm {
       unit: "hours",
     },
     sources: [],
-    zip: { archiveFormat: "zip", zipCompression: "default", zipPassword: "", zipFilename: "" },
+    zip: { noArchive: false, archiveFormat: "zip", zipCompression: "default", zipPassword: "", zipFilename: "" },
     outputs: [],
   };
 }
@@ -59,6 +59,7 @@ export function backupToForm(backup: Backup): WizardForm {
         inputId: s.inputId,
       })),
     zip: {
+      noArchive: backup.noArchive ?? false,
       archiveFormat: (backup.archiveFormat as "zip" | "tar" | "tar-gz" | "tar-bz2") || "zip",
       zipCompression: (backup.zipCompression as "store" | "fast" | "default" | "best") || "default",
       // null = existing password, do not overwrite; "" = no password
@@ -105,7 +106,7 @@ export function buildScheduleConfig(s: StepScheduleData): ScheduleConfigPayload 
   }
 }
 
-export function formToPayload(form: WizardForm, enabled: boolean, mode: "local" | "input"): CreateBackupPayload {
+export function formToPayload(form: WizardForm, enabled: boolean, mode: "local" | "input" = "local"): CreateBackupPayload {
   return {
     name: form.basic.name,
     backupType: mode,
@@ -121,6 +122,7 @@ export function formToPayload(form: WizardForm, enabled: boolean, mode: "local" 
         inputId: s.type === "input" ? s.inputId : undefined,
       })),
     },
+    noArchive: form.zip.noArchive,
     archiveFormat: form.zip.archiveFormat,
     zipCompression: form.zip.zipCompression,
     // null = unchanged (edit mode), send undefined so backend keeps existing value

@@ -92,6 +92,10 @@ export class CreateBackupDto {
 
   @IsBoolean()
   @IsOptional()
+  noArchive?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
   enabled?: boolean;
 
   @IsIn(['manual', 'oneshoot', 'recurring', 'interval'])

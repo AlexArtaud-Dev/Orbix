@@ -1,9 +1,10 @@
 "use client";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Eye, EyeOff, ChevronDown } from "lucide-react";
+import { Eye, EyeOff, ChevronDown, PackageOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,6 +14,8 @@ import {
 } from "@/components/ui/popover";
 
 export interface StepZipData {
+  /** If true, bypass archiving entirely and send the single file as-is */
+  noArchive: boolean;
   archiveFormat: "zip" | "tar" | "tar-gz" | "tar-bz2";
   zipCompression: "store" | "fast" | "default" | "best";
   /** null = existing password not changed (edit mode); "" = no password; string = new password */
@@ -59,10 +62,12 @@ const FILENAME_VARS = [
 interface StepZipProps {
   data: StepZipData;
   backupName: string;
+  /** Hint: if the mode is "input" we show the noArchive option more prominently */
+  backupMode?: "local" | "input";
   onChange: (data: StepZipData) => void;
 }
 
-export function StepZip({ data, backupName, onChange }: StepZipProps) {
+export function StepZip({ data, backupName, backupMode, onChange }: StepZipProps) {
   const { t } = useTranslation();
   const [showPassword, setShowPassword] = useState(false);
 
@@ -109,8 +114,30 @@ export function StepZip({ data, backupName, onChange }: StepZipProps) {
         <p className="text-sm text-muted-foreground mt-1">{t("backups.wizard.stepZipDesc")}</p>
       </div>
 
-      {/* Format selector */}
-      <FieldGroup>
+      {/* No-archive toggle */}
+      <div
+        className={cn(
+          "flex items-start gap-3 rounded-lg border p-3 transition-colors",
+          data.noArchive ? "border-primary bg-primary/5" : "border-border",
+        )}
+      >
+        <PackageOpen className={cn("size-5 mt-0.5 shrink-0", data.noArchive ? "text-primary" : "text-muted-foreground")} />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium">{t("backups.zip.noArchive")}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{t("backups.zip.noArchiveDesc")}</p>
+          {backupMode === "local" && (
+            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">{t("backups.zip.noArchiveLocalWarning")}</p>
+          )}
+        </div>
+        <Switch
+          checked={data.noArchive}
+          onCheckedChange={(v) => set({ noArchive: v })}
+          className="shrink-0"
+        />
+      </div>
+
+      {/* Format selector — disabled when noArchive */}
+      <FieldGroup className={cn(data.noArchive && "opacity-40 pointer-events-none")}>
         <Field>
           <FieldLabel>{t("backups.zip.format")}</FieldLabel>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">

@@ -8,6 +8,7 @@ import {
   Settings,
   ScrollText,
   KeyRound,
+  KeySquare,
   Send,
   Mail,
   Globe,
@@ -45,6 +46,7 @@ export const SIDEBAR_LEVELS: Record<string, SidebarLevel> = {
     items: [
       { to: "/vault/email", icon: Mail, labelKey: "nav.emailConfigs" },
       { to: "/vault/http", icon: Globe, labelKey: "nav.httpConfigs" },
+      { to: "/vault/variable-set", icon: KeySquare, labelKey: "nav.variableSets" },
     ],
   },
   "/vault/email": {
@@ -53,6 +55,7 @@ export const SIDEBAR_LEVELS: Record<string, SidebarLevel> = {
     items: [
       { to: "/vault/email", icon: Mail, labelKey: "nav.emailConfigs" },
       { to: "/vault/http", icon: Globe, labelKey: "nav.httpConfigs" },
+      { to: "/vault/variable-set", icon: KeySquare, labelKey: "nav.variableSets" },
     ],
   },
   "/vault/http": {
@@ -61,6 +64,16 @@ export const SIDEBAR_LEVELS: Record<string, SidebarLevel> = {
     items: [
       { to: "/vault/email", icon: Mail, labelKey: "nav.emailConfigs" },
       { to: "/vault/http", icon: Globe, labelKey: "nav.httpConfigs" },
+      { to: "/vault/variable-set", icon: KeySquare, labelKey: "nav.variableSets" },
+    ],
+  },
+  "/vault/variable-set": {
+    parentPath: "/vault",
+    titleKey: "nav.variableSets",
+    items: [
+      { to: "/vault/email", icon: Mail, labelKey: "nav.emailConfigs" },
+      { to: "/vault/http", icon: Globe, labelKey: "nav.httpConfigs" },
+      { to: "/vault/variable-set", icon: KeySquare, labelKey: "nav.variableSets" },
     ],
   },
   "/input": {

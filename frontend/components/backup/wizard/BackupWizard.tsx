@@ -212,6 +212,7 @@ export function BackupWizard({ mode, initial }: BackupWizardProps) {
           <StepZip
             data={form.zip}
             backupName={form.basic.name}
+            backupMode={mode}
             onChange={(d) => setForm((f) => ({ ...f, zip: d }))}
           />
         )}

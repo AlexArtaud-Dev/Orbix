@@ -43,7 +43,8 @@
     "settings": "Paramètres",
     "back": "Retour",
     "input": "Inputs",
-    "httpRestInputs": "Inputs HTTP REST"
+    "httpRestInputs": "Inputs HTTP REST",
+    "variableSets": "Jeux de variables"
   },
   "dashboard": {
     "title": "Tableau de bord",
@@ -102,13 +103,15 @@
       "email": "E-mail",
       "http": "Identifiants HTTP",
       "sshKey": "Clés SSH",
-      "apiToken": "Tokens API"
+      "apiToken": "Tokens API",
+      "variableSet": "Jeux de variables"
     },
     "typeDesc": {
       "email": "Comptes SMTP pour l'envoi d'e-mails",
       "http": "Identifiants pour endpoints HTTP/REST (Bearer, Basic, OAuth2…)",
       "sshKey": "Clés SSH privées pour les connexions distantes",
-      "apiToken": "Tokens API pour les services tiers"
+      "apiToken": "Tokens API pour les services tiers",
+      "variableSet": "Variables chiffrées réutilisables dans les body/headers HTTP"
     },
     "emailTitle": "Comptes e-mail",
     "emailSubtitle": "Identifiants SMTP chiffrés en AES-256-GCM.",
@@ -193,6 +196,33 @@
         "entryKey": "Clé",
         "entryValue": "Valeur"
       }
+    },
+    "varset": {
+      "title": "Jeux de variables",
+      "subtitle": "Variables chiffrées réutilisables dans les body/headers des inputs HTTP",
+      "add": "Nouveau jeu",
+      "noItems": "Aucun jeu de variables. Créez-en un pour commencer.",
+      "newTitle": "Nouveau jeu de variables",
+      "newSubtitle": "Les valeurs sont chiffrées en AES-256-GCM avant stockage.",
+      "editTitle": "Modifier le jeu de variables",
+      "editSubtitle": "Remplacez toutes les variables à conserver.",
+      "editWarning": "Attention : les valeurs actuelles ne sont pas affichées. Saisissez à nouveau les variables que vous souhaitez conserver.",
+      "name": "Libellé",
+      "namePlaceholder": "ex. : credentials-portainer",
+      "variables": "Variables",
+      "addVariable": "Ajouter une variable",
+      "noVariables": "Aucune variable. Cliquez sur Ajouter une variable.",
+      "keyPlaceholder": "clé",
+      "valuePlaceholder": "valeur (secret)",
+      "variableCount_one": "{{count}} variable",
+      "variableCount_other": "{{count}} variables",
+      "variableCount": "{{count}} variable(s)",
+      "createSuccess": "Jeu de variables créé",
+      "updateSuccess": "Jeu de variables mis à jour",
+      "deleteSuccess": "Jeu de variables supprimé",
+      "errorNoName": "Veuillez saisir un libellé",
+      "errorEmptyKey": "Toutes les clés doivent être renseignées",
+      "syntaxHint": "Syntaxe de référence : {{vault.var.<id>.<clé>}}"
     }
   },
   "files": {
@@ -462,7 +492,10 @@
       "filenamePlaceholder": "{{backup.name}}_{{date}}",
       "filenameHint": "L'extension est ajoutée automatiquement selon le format choisi.",
       "filenamePreview": "Aperçu :",
-      "insertVariable": "Insérer une variable"
+      "insertVariable": "Insérer une variable",
+      "noArchive": "Envoyer sans archiver",
+      "noArchiveDesc": "Si activé et qu'il n'y a qu'un seul fichier, le fichier est envoyé tel quel sans être archivé. Idéal pour les backups Input (ex. Portainer → .tar.gz).",
+      "noArchiveLocalWarning": "Pour une source locale de type fichier uniquement — ne fonctionne pas avec les dossiers."
     },
     "outputs": {
       "overrideContent": "Personnaliser le contenu de l'e-mail",
@@ -508,13 +541,38 @@
       "downloadEndpoint": "Endpoint de téléchargement",
       "downloadEndpointPlaceholder": "/files/{id}",
       "downloadEndpointHint": "Utilisez {id} pour interpoler l'identifiant de l'élément",
-      "vaultOptional": "Authentification (optionnel)",
+      "vaultOptional": "Vault d'authentification",
       "noVault": "Aucune authentification",
       "enabled": "Activer cet input",
       "test": "Tester",
       "testing": "Test en cours…",
       "testItems": "{{count}} élément(s) trouvé(s)",
-      "testOk": "Endpoint accessible"
+      "testOk": "Endpoint accessible",
+      "general": "Général",
+      "auth": "Authentification",
+      "headers": "Headers",
+      "addHeader": "Ajouter un header",
+      "noHeaders": "Aucun header personnalisé",
+      "headerKey": "Nom du header",
+      "headerValue": "Valeur",
+      "body": "Body",
+      "bodyNone": "Aucun",
+      "noBodyFields": "Aucun champ. Cliquez sur Ajouter.",
+      "addBodyField": "Ajouter un champ",
+      "bodyFieldKey": "Clé",
+      "bodyFieldValue": "Valeur",
+      "rawBodyPlaceholder": "Contenu brut de la requête…",
+      "graphqlQuery": "Requête GraphQL",
+      "graphqlVariables": "Variables (JSON)",
+      "literalValue": "Valeur littérale",
+      "vaultVar": "Variable vault",
+      "selectVaultVar": "Sélectionner…",
+      "selectVaultVarHint": "Sélectionnez un jeu de variables",
+      "noVarSets": "Aucun jeu de variables configuré",
+      "orTypeRef": "Ou saisissez la référence manuellement",
+      "vaultVarSyntax": "Vous pouvez utiliser {{vault.var.<id>.<clé>}} dans les valeurs",
+      "mappingIdField": "Champ ID",
+      "mappingNameField": "Champ nom"
     }
   },
   "errors": {

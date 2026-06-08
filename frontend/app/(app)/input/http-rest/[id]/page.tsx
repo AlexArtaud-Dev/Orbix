@@ -4,7 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { inputService, type InputItem } from "@/services/input";
-import { vaultService, type HttpVaultItem } from "@/services/vault";
+import { vaultService, type HttpVaultItem, type VarSetItem } from "@/services/vault";
 import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,15 +23,18 @@ export default function EditHttpRestInputPage() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<HttpRestInputFormData | null>(null);
   const [httpVaultItems, setHttpVaultItems] = useState<HttpVaultItem[]>([]);
+  const [varSetItems, setVarSetItems] = useState<VarSetItem[]>([]);
 
   useEffect(() => {
     Promise.all([
       inputService.getOne(id),
       vaultService.listHttp(undefined, 100),
-    ]).then(([inputData, vaultData]) => {
+      vaultService.listVarSet(undefined, 100),
+    ]).then(([inputData, vaultData, varSetData]) => {
       setItem(inputData);
       setForm(itemToForm(inputData as unknown as { name: string; vaultId: string | null; config: Record<string, unknown>; enabled: boolean }));
       setHttpVaultItems(vaultData.data);
+      setVarSetItems(varSetData.data);
     }).catch(() => toast.error(t("common.error")));
   }, [id]); // eslint-disable-line
 
@@ -63,7 +66,7 @@ export default function EditHttpRestInputPage() {
       </div>
 
       <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
-        <HttpRestInputForm form={form} onChange={onChange} httpVaultItems={httpVaultItems} />
+        <HttpRestInputForm form={form} onChange={onChange} httpVaultItems={httpVaultItems} varSetItems={varSetItems} />
 
         <div className="flex gap-3">
           <Button type="submit" disabled={saving}>

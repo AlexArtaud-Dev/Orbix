@@ -66,6 +66,7 @@ model Backup {
   scheduleConfig   Json?
   schedule         String?
   enabled          Boolean        @default(false)
+  noArchive        Boolean        @default(false) // if true + 1 file → send raw without archiving
   archiveFormat    String         @default("zip")  // "zip"|"tar"|"tar-gz"|"tar-bz2"
   zipCompression   String         @default("default") // "store"|"fast"|"default"|"best"
   zipPassword      String?

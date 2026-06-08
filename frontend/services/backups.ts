@@ -65,6 +65,7 @@ export interface Backup {
   scheduleConfig: ScheduleConfigPayload;
   schedule: string | null;
   enabled: boolean;
+  noArchive: boolean;
   archiveFormat: string;
   zipCompression: string;
   zipPassword: string | null;
@@ -96,6 +97,7 @@ export interface BackupOutputPayload {
 export interface CreateBackupPayload {
   name: string;
   backupType?: "local" | "input";
+  noArchive?: boolean;
   enabled?: boolean;
   scheduleType?: string;
   scheduleConfig?: ScheduleConfigPayload;

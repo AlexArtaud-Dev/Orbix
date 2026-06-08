@@ -15,11 +15,13 @@ function makeBackup(overrides: Partial<Backup> = {}): Backup {
   return {
     id: "b-1",
     name: "Test Backup",
+    backupType: "local",
     sources: { sources: [{ path: "/data", type: "folder", exclude: [] }] },
     scheduleType: "manual",
     scheduleConfig: null,
     schedule: null,
     enabled: false,
+    noArchive: false,
     archiveFormat: "zip",
     zipCompression: "default",
     zipPassword: null,

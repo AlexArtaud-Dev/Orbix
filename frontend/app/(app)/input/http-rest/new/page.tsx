@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { inputService } from "@/services/input";
-import { vaultService, type HttpVaultItem } from "@/services/vault";
+import { vaultService, type HttpVaultItem, type VarSetItem } from "@/services/vault";
 import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,9 +20,11 @@ export default function NewHttpRestInputPage() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<HttpRestInputFormData>(defaultHttpRestInputForm());
   const [httpVaultItems, setHttpVaultItems] = useState<HttpVaultItem[]>([]);
+  const [varSetItems, setVarSetItems] = useState<VarSetItem[]>([]);
 
   useEffect(() => {
     vaultService.listHttp(undefined, 100).then((res) => setHttpVaultItems(res.data)).catch(() => null);
+    vaultService.listVarSet(undefined, 100).then((res) => setVarSetItems(res.data)).catch(() => null);
   }, []);
 
   const onChange = <K extends keyof HttpRestInputFormData>(key: K, value: HttpRestInputFormData[K]) =>
@@ -54,7 +56,7 @@ export default function NewHttpRestInputPage() {
       </div>
 
       <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
-        <HttpRestInputForm form={form} onChange={onChange} httpVaultItems={httpVaultItems} />
+        <HttpRestInputForm form={form} onChange={onChange} httpVaultItems={httpVaultItems} varSetItems={varSetItems} />
 
         <div className="flex gap-3">
           <Button type="submit" disabled={saving || !form.name.trim() || !form.baseUrl.trim()}>

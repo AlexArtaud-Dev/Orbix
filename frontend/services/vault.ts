@@ -73,6 +73,36 @@ export interface CreateEmailVaultPayload {
 
 export type UpdateEmailVaultPayload = Partial<CreateEmailVaultPayload>;
 
+// ─── Variable Set vault ───────────────────────────────────────────────────────
+
+export interface VarSetVariable {
+  key: string;
+  value: string;
+}
+
+export interface VarSetItem {
+  id: string;
+  name: string;
+  variableCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface VarSetListResponse {
+  data: VarSetItem[];
+  nextCursor: string | null;
+}
+
+export interface CreateVarSetPayload {
+  name: string;
+  variables: VarSetVariable[];
+}
+
+export interface UpdateVarSetPayload {
+  name?: string;
+  variables?: VarSetVariable[];
+}
+
 export const vaultService = {
   // Email
   listEmail: (cursor?: string, limit = 20) => {
@@ -109,4 +139,21 @@ export const vaultService = {
     api.delete<null>(`/api/vault/http/${id}`),
   countHttp: () =>
     api.get<{ count: number }>("/api/vault/http/count"),
+
+  // Variable Set
+  listVarSet: (cursor?: string, limit = 20) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (cursor) params.set("cursor", cursor);
+    return api.get<VarSetListResponse>(`/api/vault/varset?${params.toString()}`);
+  },
+  createVarSet: (data: CreateVarSetPayload) =>
+    api.post<VarSetItem>("/api/vault/varset", data),
+  getVarSet: (id: string) =>
+    api.get<VarSetItem>(`/api/vault/varset/${id}`),
+  updateVarSet: (id: string, data: UpdateVarSetPayload) =>
+    api.patch<VarSetItem>(`/api/vault/varset/${id}`, data),
+  deleteVarSet: (id: string) =>
+    api.delete<null>(`/api/vault/varset/${id}`),
+  countVarSet: () =>
+    api.get<{ count: number }>("/api/vault/varset/count"),
 };

@@ -43,7 +43,8 @@
     "settings": "Settings",
     "back": "Back",
     "input": "Inputs",
-    "httpRestInputs": "HTTP REST Inputs"
+    "httpRestInputs": "HTTP REST Inputs",
+    "variableSets": "Variable Sets"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -102,13 +103,15 @@
       "email": "Email",
       "http": "HTTP Credentials",
       "sshKey": "SSH Keys",
-      "apiToken": "API Tokens"
+      "apiToken": "API Tokens",
+      "variableSet": "Variable Sets"
     },
     "typeDesc": {
       "email": "SMTP accounts for sending emails",
       "http": "Credentials for HTTP/REST endpoints (Bearer, Basic, OAuth2…)",
       "sshKey": "SSH private keys for remote connections",
-      "apiToken": "API tokens for third-party services"
+      "apiToken": "API tokens for third-party services",
+      "variableSet": "Encrypted reusable variables for HTTP body/headers"
     },
     "emailTitle": "Email Configurations",
     "emailSubtitle": "SMTP accounts stored encrypted in the vault",
@@ -193,6 +196,31 @@
         "entryKey": "Key",
         "entryValue": "Value"
       }
+    },
+    "varset": {
+      "title": "Variable Sets",
+      "subtitle": "Encrypted reusable variables for HTTP body/headers templates",
+      "add": "New set",
+      "noItems": "No variable sets yet. Create one to get started.",
+      "newTitle": "New variable set",
+      "newSubtitle": "Values are encrypted with AES-256-GCM before storage.",
+      "editTitle": "Edit variable set",
+      "editSubtitle": "Re-enter all variables you want to keep.",
+      "editWarning": "Warning: current values are not displayed. Re-enter all variables you want to keep.",
+      "name": "Label",
+      "namePlaceholder": "e.g. portainer-credentials",
+      "variables": "Variables",
+      "addVariable": "Add variable",
+      "noVariables": "No variables yet. Click Add variable.",
+      "keyPlaceholder": "key",
+      "valuePlaceholder": "value (secret)",
+      "variableCount": "{{count}} variable(s)",
+      "createSuccess": "Variable set created",
+      "updateSuccess": "Variable set updated",
+      "deleteSuccess": "Variable set deleted",
+      "errorNoName": "Please enter a label",
+      "errorEmptyKey": "All keys must be filled in",
+      "syntaxHint": "Reference syntax: {{vault.var.<id>.<key>}}"
     }
   },
   "files": {
@@ -462,7 +490,10 @@
       "filenamePlaceholder": "{{backup.name}}_{{date}}",
       "filenameHint": "Extension is added automatically based on the format.",
       "filenamePreview": "Preview:",
-      "insertVariable": "Insert variable"
+      "insertVariable": "Insert variable",
+      "noArchive": "Send without archiving",
+      "noArchiveDesc": "If enabled and there is only one file, it is sent as-is without being archived. Ideal for Input backups (e.g. Portainer → .tar.gz).",
+      "noArchiveLocalWarning": "For a local file source only — does not work with folders."
     },
     "outputs": {
       "overrideContent": "Override email content",
@@ -514,7 +545,32 @@
       "test": "Test",
       "testing": "Testing…",
       "testItems": "{{count}} item(s) found",
-      "testOk": "Endpoint reachable"
+      "testOk": "Endpoint reachable",
+      "general": "General",
+      "auth": "Authentication",
+      "headers": "Headers",
+      "addHeader": "Add header",
+      "noHeaders": "No custom headers",
+      "headerKey": "Header name",
+      "headerValue": "Value",
+      "body": "Body",
+      "bodyNone": "None",
+      "noBodyFields": "No fields yet. Click Add.",
+      "addBodyField": "Add field",
+      "bodyFieldKey": "Key",
+      "bodyFieldValue": "Value",
+      "rawBodyPlaceholder": "Raw request body…",
+      "graphqlQuery": "GraphQL Query",
+      "graphqlVariables": "Variables (JSON)",
+      "literalValue": "Literal value",
+      "vaultVar": "Vault variable",
+      "selectVaultVar": "Select…",
+      "selectVaultVarHint": "Select a variable set",
+      "noVarSets": "No variable sets configured",
+      "orTypeRef": "Or type the reference manually",
+      "vaultVarSyntax": "You can use {{vault.var.<id>.<key>}} in values",
+      "mappingIdField": "ID field",
+      "mappingNameField": "Name field"
     }
   },
   "errors": {

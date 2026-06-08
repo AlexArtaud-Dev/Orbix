@@ -118,6 +118,7 @@ export interface BackupData {
   scheduleConfig: ScheduleConfig;
   schedule: string | null;
   enabled: boolean;
+  noArchive: boolean;
   archiveFormat: string;
   zipCompression: string;
   zipPassword: string | null;

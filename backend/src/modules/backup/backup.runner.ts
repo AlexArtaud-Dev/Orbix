@@ -23,7 +23,11 @@ import {
   type BackupSource,
   type RequestParam,
 } from './backup.types';
-import type { HttpRestConfig, InputRequestParam } from '../input/input.types';
+import type {
+  HttpRestConfig,
+  HttpBodyConfig,
+  InputRequestParam,
+} from '../input/input.types';
 
 interface OutputRow {
   id: string;
@@ -141,6 +145,7 @@ export class BackupRunner {
         (backup as { zipFilename: string | null }).zipFilename,
         maxSourceFileSizeMb,
         maxBackupTotalSizeMb,
+        (backup as { noArchive: boolean }).noArchive ?? false,
       );
 
       for (const output of (backup.outputs as OutputRow[]).sort(
@@ -232,6 +237,7 @@ export class BackupRunner {
         (backup as { zipFilename: string | null }).zipFilename,
         maxSourceFileSizeMb,
         maxBackupTotalSizeMb,
+        (backup as { noArchive: boolean }).noArchive ?? false,
       );
 
       for (const output of (backup.outputs as OutputRow[]).sort(
@@ -361,6 +367,7 @@ export class BackupRunner {
     filenameTemplate: string | null,
     maxSourceFileSizeMb: number,
     maxBackupTotalSizeMb: number,
+    noArchive = false,
   ): Promise<ArchiveResult> {
     const allFiles = await this.collectFiles(sources, maxSourceFileSizeMb);
     const now = new Date();
@@ -400,6 +407,34 @@ export class BackupRunner {
       return { buffer: Buffer.alloc(0), filename, size: 0, filesCount: 0 };
     }
 
+    // noArchive: bypass archiving entirely — send the single file as-is
+    if (noArchive) {
+      if (allFiles.length !== 1) {
+        throw new Error(
+          `noArchive mode requires exactly 1 file, but ${allFiles.length} were collected`,
+        );
+      }
+      const f = allFiles[0];
+      if (f.stream !== undefined) {
+        throw new Error(
+          'noArchive mode does not support streamed sources — use a file or input that buffers',
+        );
+      }
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+      const buffer = f.buffer !== undefined ? f.buffer : readFileSync(f.abs as string);
+      if (buffer.byteLength > maxBackupTotalSizeMb * 1024 * 1024) {
+        throw new Error(
+          `File size (${Math.round(buffer.byteLength / 1024 / 1024)} MB) exceeds the configured limit of ${maxBackupTotalSizeMb} MB`,
+        );
+      }
+      return {
+        buffer,
+        filename: f.arc.split('/').pop() ?? basename(f.arc),
+        size: buffer.byteLength,
+        filesCount: 1,
+      };
+    }
+
     // Single file with no password and non-compressed format → send raw (buffer/file only, not stream)
     if (
       allFiles.length === 1 &&
@@ -409,7 +444,8 @@ export class BackupRunner {
       allFiles[0].stream === undefined
     ) {
       const f = allFiles[0];
-      const buffer = f.buffer !== undefined ? f.buffer : readFileSync(f.abs);
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+      const buffer = f.buffer !== undefined ? f.buffer : readFileSync(f.abs as string);
       if (buffer.byteLength > maxBackupTotalSizeMb * 1024 * 1024) {
         throw new Error(
           `Archive size (${Math.round(buffer.byteLength / 1024 / 1024)} MB) exceeds the configured limit of ${maxBackupTotalSizeMb} MB`,
@@ -606,13 +642,14 @@ export class BackupRunner {
     const config = input.config as unknown as HttpRestConfig;
     const headers: Record<string, string> = {};
     const maxBytes = maxSizeMb * 1024 * 1024;
+    const method = config.method ?? 'GET';
 
     // Apply vault auth
     if (input.vaultId) {
       await this.applyVaultAuth(headers, input.vaultId);
     }
 
-    // Apply request params (literal only; vault refs resolved via resolveParamValue)
+    // Apply request params (literal only; vault refs resolved via resolveInputParamValue)
     const params = input.requestParams ?? [];
     const baseUrlObj = new URL(config.baseUrl);
     for (const param of params) {
@@ -621,6 +658,26 @@ export class BackupRunner {
       else if (param.in === 'query')
         baseUrlObj.searchParams.set(param.key, value);
     }
+
+    // Apply custom config headers (0..N, may reference vault variable sets)
+    for (const h of config.headers ?? []) {
+      const value =
+        h.valueType === 'vault_var' && h.vaultVarRef
+          ? await this.resolveVaultVarRef(h.vaultVarRef)
+          : (h.value ?? '');
+      if (h.key) headers[h.key] = value;
+    }
+
+    // Build request body (and collect any body-implied Content-Type header)
+    const bodyResult = await this.buildInputBody(config.body);
+    if (bodyResult.headers) {
+      Object.assign(headers, bodyResult.headers);
+    }
+    const bodyInit: { method: string; headers: Record<string, string>; body?: BodyInit } = {
+      method,
+      headers,
+      ...(bodyResult.body !== undefined ? { body: bodyResult.body } : {}),
+    };
 
     const results: FileToArchive[] = [];
 
@@ -635,7 +692,7 @@ export class BackupRunner {
       );
       baseUrlObj.searchParams.forEach((v, k) => listUrl.searchParams.set(k, v));
 
-      const listRes = await fetch(listUrl.toString(), { headers });
+      const listRes = await fetch(listUrl.toString(), bodyInit);
       if (!listRes.ok) {
         throw new Error(
           `Input list endpoint returned HTTP ${listRes.status}: ${listUrl.toString()}`,
@@ -678,7 +735,7 @@ export class BackupRunner {
           (downloadPath.startsWith('/') ? '' : '/') +
           downloadPath;
 
-        const dlRes = await fetch(downloadUrl, { headers });
+        const dlRes = await fetch(downloadUrl, { method: 'GET', headers });
         if (!dlRes.ok) {
           throw new Error(
             `Input download returned HTTP ${dlRes.status} for item '${itemName}' (${downloadUrl})`,
@@ -707,7 +764,7 @@ export class BackupRunner {
       }
     } else {
       // ── Direct single-file download ──
-      const response = await fetch(baseUrlObj.toString(), { headers });
+      const response = await fetch(baseUrlObj.toString(), bodyInit);
       if (!response.ok) {
         throw new Error(
           `Input source returned HTTP ${response.status}: ${config.baseUrl}`,
@@ -737,6 +794,103 @@ export class BackupRunner {
     }
 
     return results;
+  }
+
+  /** Resolve "vaultId.fieldKey" vault variable set reference */
+  private async resolveVaultVarRef(ref: string): Promise<string> {
+    const dotIdx = ref.indexOf('.');
+    if (dotIdx < 0) return '';
+    const vaultId = ref.slice(0, dotIdx);
+    const fieldKey = ref.slice(dotIdx + 1);
+    const payload = await this.vault.getVariableSetPayload(vaultId);
+    return payload[fieldKey] ?? '';
+  }
+
+  /** Substitute all {{vault.var.<id>.<key>}} tokens in a text string */
+  private async resolveVaultVarTemplate(text: string): Promise<string> {
+    const pattern = /\{\{vault\.var\.([^.}]+)\.([^}]+)\}\}/g;
+    const tokens = [...text.matchAll(pattern)];
+    if (tokens.length === 0) return text;
+
+    // Batch: collect unique vault IDs to avoid repeated DB calls
+    const vaultIds = [...new Set(tokens.map((m) => m[1]))];
+    const payloads: Record<string, Record<string, string>> = {};
+    await Promise.all(
+      vaultIds.map(async (id) => {
+        try {
+          payloads[id] = await this.vault.getVariableSetPayload(id);
+        } catch {
+          payloads[id] = {};
+        }
+      }),
+    );
+
+    return text.replace(pattern, (_, vaultId: string, fieldKey: string) => {
+      return payloads[vaultId]?.[fieldKey] ?? '';
+    });
+  }
+
+  /** Build the fetch body (and set Content-Type header if needed) */
+  private async buildInputBody(
+    bodyConfig: HttpBodyConfig | undefined,
+  ): Promise<{ body?: BodyInit; headers?: Record<string, string> }> {
+    if (!bodyConfig || bodyConfig.type === 'none') return {};
+
+    const extraHeaders: Record<string, string> = {};
+
+    switch (bodyConfig.type) {
+      case 'json': {
+        const raw = bodyConfig.json ?? '{}';
+        const resolved = await this.resolveVaultVarTemplate(raw);
+        extraHeaders['Content-Type'] = 'application/json';
+        return { body: resolved, headers: extraHeaders };
+      }
+      case 'raw': {
+        const resolved = await this.resolveVaultVarTemplate(bodyConfig.raw ?? '');
+        return { body: resolved, headers: extraHeaders };
+      }
+      case 'graphql': {
+        const query = bodyConfig.raw ?? '';
+        const variables = bodyConfig.graphqlVariables
+          ? await this.resolveVaultVarTemplate(bodyConfig.graphqlVariables)
+          : undefined;
+        extraHeaders['Content-Type'] = 'application/json';
+        const payload: Record<string, unknown> = { query };
+        if (variables) {
+          try {
+            payload['variables'] = JSON.parse(variables) as unknown;
+          } catch {
+            payload['variables'] = variables;
+          }
+        }
+        return { body: JSON.stringify(payload), headers: extraHeaders };
+      }
+      case 'form-data': {
+        const fd = new FormData();
+        for (const field of bodyConfig.formData ?? []) {
+          const value =
+            field.valueType === 'vault_var' && field.vaultVarRef
+              ? await this.resolveVaultVarRef(field.vaultVarRef)
+              : await this.resolveVaultVarTemplate(field.value ?? '');
+          fd.append(field.key, value);
+        }
+        return { body: fd, headers: extraHeaders };
+      }
+      case 'x-www-form-urlencoded': {
+        const params = new URLSearchParams();
+        for (const field of bodyConfig.urlEncoded ?? []) {
+          const value =
+            field.valueType === 'vault_var' && field.vaultVarRef
+              ? await this.resolveVaultVarRef(field.vaultVarRef)
+              : await this.resolveVaultVarTemplate(field.value ?? '');
+          params.append(field.key, value);
+        }
+        extraHeaders['Content-Type'] = 'application/x-www-form-urlencoded';
+        return { body: params.toString(), headers: extraHeaders };
+      }
+      default:
+        return {};
+    }
   }
 
   private async resolveInputParamValue(
