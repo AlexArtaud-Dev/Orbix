@@ -50,7 +50,7 @@ interface ArchiveResult {
 type FileToArchive =
   | { abs: string; arc: string; buffer?: never; stream?: never }
   | { buffer: Buffer; arc: string; abs?: never; stream?: never }
-  | { stream: NodeJS.ReadableStream; arc: string; abs?: never; buffer?: never };
+  | { stream: Readable; arc: string; abs?: never; buffer?: never };
 
 export interface ZipInfo {
   basic: boolean; // zip + tar + tar-gz always available
@@ -406,7 +406,7 @@ export class BackupRunner {
       allFiles[0].stream === undefined
     ) {
       const f = allFiles[0];
-      const buffer = f.buffer !== undefined ? f.buffer : readFileSync(f.abs!);
+      const buffer = f.buffer !== undefined ? f.buffer : readFileSync(f.abs);
       if (buffer.byteLength > maxBackupTotalSizeMb * 1024 * 1024) {
         throw new Error(
           `Archive size (${Math.round(buffer.byteLength / 1024 / 1024)} MB) exceeds the configured limit of ${maxBackupTotalSizeMb} MB`,
@@ -471,7 +471,7 @@ export class BackupRunner {
         const raw = source.path.split('?')[0];
         const filename = raw.split('/').pop() ?? 'download';
         const fetched = await this.fetchUrlSource(source, maxSourceFileSizeMb);
-        if (fetched instanceof Buffer) {
+        if (Buffer.isBuffer(fetched)) {
           results.push({ buffer: fetched, arc: filename });
         } else {
           results.push({ stream: fetched, arc: filename });
@@ -522,7 +522,7 @@ export class BackupRunner {
   private async fetchUrlSource(
     source: BackupSource,
     maxSizeMb: number,
-  ): Promise<Buffer | NodeJS.ReadableStream> {
+  ): Promise<Buffer | Readable> {
     const headers: Record<string, string> = {};
     const url = new URL(source.path);
 
@@ -561,9 +561,9 @@ export class BackupRunner {
       if (!response.body) {
         throw new Error(`URL source returned no body: ${source.path}`);
       }
+      // response.body is WHATWG ReadableStream; Readable.fromWeb expects stream/web type
       return Readable.fromWeb(
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
-        response.body as any,
+        response.body as unknown as Parameters<typeof Readable.fromWeb>[0],
       );
     }
 
@@ -741,7 +741,7 @@ export class BackupRunner {
         } else if (f.buffer !== undefined) {
           arc.append(f.buffer, { name: f.arc });
         } else {
-          arc.file(f.abs!, { name: f.arc });
+          arc.file(f.abs, { name: f.arc });
         }
       }
       void arc.finalize();
@@ -774,8 +774,9 @@ export class BackupRunner {
         arc.on('error', reject);
         for (const f of files) {
           if (f.stream !== undefined) arc.append(f.stream, { name: f.arc });
-          else if (f.buffer !== undefined) arc.append(f.buffer, { name: f.arc });
-          else arc.file(f.abs!, { name: f.arc });
+          else if (f.buffer !== undefined)
+            arc.append(f.buffer, { name: f.arc });
+          else arc.file(f.abs, { name: f.arc });
         }
         void arc.finalize();
       } catch {
@@ -807,8 +808,9 @@ export class BackupRunner {
         arc.on('error', reject);
         for (const f of files) {
           if (f.stream !== undefined) arc.append(f.stream, { name: f.arc });
-          else if (f.buffer !== undefined) arc.append(f.buffer, { name: f.arc });
-          else arc.file(f.abs!, { name: f.arc });
+          else if (f.buffer !== undefined)
+            arc.append(f.buffer, { name: f.arc });
+          else arc.file(f.abs, { name: f.arc });
         }
         void arc.finalize();
       } catch {
