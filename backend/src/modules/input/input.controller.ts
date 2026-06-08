@@ -23,7 +23,7 @@ export class InputController {
       cursor,
       limit ? parseInt(limit, 10) : undefined,
     );
-    return { data: result.data, nextCursor: result.nextCursor };
+    return { data: result };
   }
 
   @Post()
