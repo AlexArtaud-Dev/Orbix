@@ -23,7 +23,11 @@ describe('parseBackupSources', () => {
     };
     const result = parseBackupSources(input);
     expect(result.sources).toHaveLength(1);
-    expect(result.sources[0]).toEqual({ path: '/data', type: 'folder', exclude: ['*.tmp'] });
+    expect(result.sources[0]).toEqual({
+      path: '/data',
+      type: 'folder',
+      exclude: ['*.tmp'],
+    });
   });
 
   it('parses standard { sources } format with file type', () => {
@@ -35,12 +39,16 @@ describe('parseBackupSources', () => {
   });
 
   it('defaults type to folder for unknown type values', () => {
-    const result = parseBackupSources({ sources: [{ path: '/x', type: 'unknown' }] });
+    const result = parseBackupSources({
+      sources: [{ path: '/x', type: 'unknown' }],
+    });
     expect(result.sources[0].type).toBe('folder');
   });
 
   it('defaults exclude to empty array when not provided', () => {
-    const result = parseBackupSources({ sources: [{ path: '/x', type: 'folder' }] });
+    const result = parseBackupSources({
+      sources: [{ path: '/x', type: 'folder' }],
+    });
     expect(result.sources[0].exclude).toEqual([]);
   });
 
@@ -57,7 +65,9 @@ describe('parseBackupSources', () => {
   });
 
   it('skips non-object entries in sources array', () => {
-    const input = { sources: ['not-an-object', null, { path: '/ok', type: 'folder' }] };
+    const input = {
+      sources: ['not-an-object', null, { path: '/ok', type: 'folder' }],
+    };
     const result = parseBackupSources(input);
     expect(result.sources).toHaveLength(1);
     expect(result.sources[0].path).toBe('/ok');
@@ -78,8 +88,16 @@ describe('parseBackupSources', () => {
     const input = { paths: ['/a', '/b'], exclude: ['*.log'] };
     const result = parseBackupSources(input);
     expect(result.sources).toHaveLength(2);
-    expect(result.sources[0]).toEqual({ path: '/a', type: 'folder', exclude: ['*.log'] });
-    expect(result.sources[1]).toEqual({ path: '/b', type: 'folder', exclude: ['*.log'] });
+    expect(result.sources[0]).toEqual({
+      path: '/a',
+      type: 'folder',
+      exclude: ['*.log'],
+    });
+    expect(result.sources[1]).toEqual({
+      path: '/b',
+      type: 'folder',
+      exclude: ['*.log'],
+    });
   });
 
   it('parses legacy format with no exclude field', () => {

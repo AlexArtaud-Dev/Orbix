@@ -12,7 +12,9 @@ export class LogsService {
     private readonly settings: SettingsService,
   ) {}
 
-  async list(query: ListLogsQuery): Promise<{ data: LogEntry[]; nextCursor: string | null }> {
+  async list(
+    query: ListLogsQuery,
+  ): Promise<{ data: LogEntry[]; nextCursor: string | null }> {
     const limit = Math.min(query.limit ?? 50, 200);
 
     const where: Record<string, unknown> = {};
@@ -53,7 +55,10 @@ export class LogsService {
   }
 
   /** Count ERROR logs per backup — for sidebar badge */
-  async getBackupErrorSummary(): Promise<{ totalErrors: number; affectedBackups: number }> {
+  async getBackupErrorSummary(): Promise<{
+    totalErrors: number;
+    affectedBackups: number;
+  }> {
     const result = await this.prisma.log.groupBy({
       by: ['backupId'],
       where: { level: 'ERROR', category: 'backup', backupId: { not: null } },
@@ -101,9 +106,12 @@ export class LogsService {
   async cleanOldLogs(): Promise<void> {
     try {
       const s = await this.settings.get();
-      const retentionHours = (s as { logRetentionHours?: number }).logRetentionHours ?? 720;
+      const retentionHours =
+        (s as { logRetentionHours?: number }).logRetentionHours ?? 720;
       const cutoff = new Date(Date.now() - retentionHours * 60 * 60 * 1000);
-      const { count } = await this.prisma.log.deleteMany({ where: { ts: { lt: cutoff } } });
+      const { count } = await this.prisma.log.deleteMany({
+        where: { ts: { lt: cutoff } },
+      });
       if (count > 0) {
         // Write directly to avoid circular dependency
         await this.prisma.log.create({

@@ -21,18 +21,25 @@ export function parseBackupSources(json: unknown): BackupSources {
         const src = s as Record<string, unknown>;
         const path = typeof src['path'] === 'string' ? src['path'] : '';
         if (!path) return [];
-        return [{
-          path,
-          type: src['type'] === 'file' ? ('file' as const) : ('folder' as const),
-          exclude: Array.isArray(src['exclude']) ? (src['exclude'] as string[]) : [],
-        }];
+        return [
+          {
+            path,
+            type:
+              src['type'] === 'file' ? ('file' as const) : ('folder' as const),
+            exclude: Array.isArray(src['exclude'])
+              ? (src['exclude'] as string[])
+              : [],
+          },
+        ];
       }),
     };
   }
 
   // Backward compat: {paths: string[], exclude: string[]}
   if (Array.isArray(obj['paths'])) {
-    const globalExclude = Array.isArray(obj['exclude']) ? (obj['exclude'] as string[]) : [];
+    const globalExclude = Array.isArray(obj['exclude'])
+      ? (obj['exclude'] as string[])
+      : [];
     return {
       sources: (obj['paths'] as string[]).map((p) => ({
         path: p,

@@ -41,7 +41,12 @@ export class MailService {
         attachments,
       });
       await this.prisma.mailLog.create({
-        data: { vaultId: dto.vaultId, toAddrs: dto.to, subject: dto.subject, status: 'sent' },
+        data: {
+          vaultId: dto.vaultId,
+          toAddrs: dto.to,
+          subject: dto.subject,
+          status: 'sent',
+        },
       });
       this.logs.info(
         'mail',
@@ -60,7 +65,12 @@ export class MailService {
           errorMsg: msg,
         },
       });
-      this.logs.error('mail', 'MAIL_SEND_FAILED', `Email send failed: "${dto.subject}"`, msg);
+      this.logs.error(
+        'mail',
+        'MAIL_SEND_FAILED',
+        `Email send failed: "${dto.subject}"`,
+        msg,
+      );
       throw err;
     }
   }
@@ -74,6 +84,9 @@ export class MailService {
     });
     const hasNext = items.length > take;
     const page = items.slice(0, take);
-    return { data: page, nextCursor: hasNext ? page[page.length - 1].id : null };
+    return {
+      data: page,
+      nextCursor: hasNext ? page[page.length - 1].id : null,
+    };
   }
 }

@@ -1,4 +1,8 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LogsWriter } from '../logs/logs.writer';
 import type { CreateTemplateDto } from './dto/create-template.dto';
@@ -20,16 +24,30 @@ export class TemplatesService {
     });
     const hasNext = items.length > take;
     const page = items.slice(0, take);
-    return { data: page, nextCursor: hasNext ? page[page.length - 1].id : null };
+    return {
+      data: page,
+      nextCursor: hasNext ? page[page.length - 1].id : null,
+    };
   }
 
   async create(dto: CreateTemplateDto) {
-    const existing = await this.prisma.mailTemplate.findUnique({ where: { name: dto.name } });
+    const existing = await this.prisma.mailTemplate.findUnique({
+      where: { name: dto.name },
+    });
     if (existing) throw new ConflictException('Name already in use');
     const template = await this.prisma.mailTemplate.create({
-      data: { name: dto.name, subject: dto.subject, body: dto.body, bodyType: dto.bodyType ?? 'text' },
+      data: {
+        name: dto.name,
+        subject: dto.subject,
+        body: dto.body,
+        bodyType: dto.bodyType ?? 'text',
+      },
     });
-    this.logs.info('mail', 'MAIL_TEMPLATE_CREATED', `Template created: ${dto.name}`);
+    this.logs.info(
+      'mail',
+      'MAIL_TEMPLATE_CREATED',
+      `Template created: ${dto.name}`,
+    );
     return template;
   }
 
@@ -43,7 +61,9 @@ export class TemplatesService {
     const t = await this.prisma.mailTemplate.findUnique({ where: { id } });
     if (!t) throw new NotFoundException();
     if (dto.name && dto.name !== t.name) {
-      const conflict = await this.prisma.mailTemplate.findUnique({ where: { name: dto.name } });
+      const conflict = await this.prisma.mailTemplate.findUnique({
+        where: { name: dto.name },
+      });
       if (conflict) throw new ConflictException('Name already in use');
     }
     const updated = await this.prisma.mailTemplate.update({
@@ -55,7 +75,11 @@ export class TemplatesService {
         bodyType: dto.bodyType ?? t.bodyType,
       },
     });
-    this.logs.info('mail', 'MAIL_TEMPLATE_UPDATED', `Template updated: ${updated.name}`);
+    this.logs.info(
+      'mail',
+      'MAIL_TEMPLATE_UPDATED',
+      `Template updated: ${updated.name}`,
+    );
     return updated;
   }
 
@@ -63,6 +87,10 @@ export class TemplatesService {
     const t = await this.prisma.mailTemplate.findUnique({ where: { id } });
     if (!t) throw new NotFoundException();
     await this.prisma.mailTemplate.delete({ where: { id } });
-    this.logs.info('mail', 'MAIL_TEMPLATE_DELETED', `Template deleted: ${t.name}`);
+    this.logs.info(
+      'mail',
+      'MAIL_TEMPLATE_DELETED',
+      `Template deleted: ${t.name}`,
+    );
   }
 }

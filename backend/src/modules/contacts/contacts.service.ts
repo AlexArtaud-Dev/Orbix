@@ -1,4 +1,8 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { CreateContactDto } from './dto/create-contact.dto';
 import type { UpdateContactDto } from './dto/update-contact.dto';
@@ -16,11 +20,16 @@ export class ContactsService {
     });
     const hasNext = items.length > take;
     const page = items.slice(0, take);
-    return { data: page, nextCursor: hasNext ? page[page.length - 1].id : null };
+    return {
+      data: page,
+      nextCursor: hasNext ? page[page.length - 1].id : null,
+    };
   }
 
   async create(dto: CreateContactDto) {
-    const existing = await this.prisma.contact.findUnique({ where: { email: dto.email } });
+    const existing = await this.prisma.contact.findUnique({
+      where: { email: dto.email },
+    });
     if (existing) throw new ConflictException('Email already in use');
     return this.prisma.contact.create({
       data: { name: dto.name, email: dto.email, tags: dto.tags ?? [] },
@@ -37,7 +46,9 @@ export class ContactsService {
     const c = await this.prisma.contact.findUnique({ where: { id } });
     if (!c) throw new NotFoundException();
     if (dto.email && dto.email !== c.email) {
-      const conflict = await this.prisma.contact.findUnique({ where: { email: dto.email } });
+      const conflict = await this.prisma.contact.findUnique({
+        where: { email: dto.email },
+      });
       if (conflict) throw new ConflictException('Email already in use');
     }
     return this.prisma.contact.update({

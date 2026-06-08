@@ -47,7 +47,10 @@ describe('VaultService', () => {
       providers: [
         VaultService,
         { provide: PrismaService, useValue: mockPrisma },
-        { provide: ConfigService, useValue: { getOrThrow: jest.fn().mockReturnValue(TEST_KEY) } },
+        {
+          provide: ConfigService,
+          useValue: { getOrThrow: jest.fn().mockReturnValue(TEST_KEY) },
+        },
         { provide: LogsWriter, useValue: mockLogs },
       ],
     }).compile();

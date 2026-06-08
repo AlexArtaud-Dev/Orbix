@@ -37,7 +37,11 @@ export class AuthService {
     });
 
     this.setTokenCookie(res, user.id, user.username);
-    this.logs.info('auth', 'AUTH_SETUP', `Admin account created: ${user.username}`);
+    this.logs.info(
+      'auth',
+      'AUTH_SETUP',
+      `Admin account created: ${user.username}`,
+    );
     return { id: user.id, username: user.username };
   }
 
@@ -46,13 +50,21 @@ export class AuthService {
       where: { username: dto.username },
     });
     if (!user) {
-      this.logs.warn('auth', 'AUTH_LOGIN_FAILED', `Login failed — unknown user: ${dto.username}`);
+      this.logs.warn(
+        'auth',
+        'AUTH_LOGIN_FAILED',
+        `Login failed — unknown user: ${dto.username}`,
+      );
       throw new UnauthorizedException('Invalid credentials');
     }
 
     const valid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!valid) {
-      this.logs.warn('auth', 'AUTH_LOGIN_FAILED', `Login failed — wrong password: ${dto.username}`);
+      this.logs.warn(
+        'auth',
+        'AUTH_LOGIN_FAILED',
+        `Login failed — wrong password: ${dto.username}`,
+      );
       throw new UnauthorizedException('Invalid credentials');
     }
 

@@ -104,7 +104,10 @@ export class BackupService {
     };
   }
 
-  private mapOutputCreate(o: NonNullable<CreateBackupDto['outputs']>[number], idx: number) {
+  private mapOutputCreate(
+    o: NonNullable<CreateBackupDto['outputs']>[number],
+    idx: number,
+  ) {
     return {
       type: o.type,
       vaultId: o.vaultId,
@@ -120,7 +123,6 @@ export class BackupService {
   }
 
   async list(): Promise<BackupData[]> {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const items = await this.prisma.backup.findMany({
       include: { outputs: true },
       orderBy: { name: 'asc' },
@@ -129,21 +131,30 @@ export class BackupService {
   }
 
   async create(dto: CreateBackupDto): Promise<BackupData> {
-    const existing = await this.prisma.backup.findUnique({ where: { name: dto.name } });
+    const existing = await this.prisma.backup.findUnique({
+      where: { name: dto.name },
+    });
     if (existing) throw new ConflictException('Name already in use');
 
     const sources = dto.sources
-      ? { sources: dto.sources.sources.map((s) => ({ path: s.path, type: s.type, exclude: s.exclude ?? [] })) }
+      ? {
+          sources: dto.sources.sources.map((s) => ({
+            path: s.path,
+            type: s.type,
+            exclude: s.exclude ?? [],
+          })),
+        }
       : { sources: [] };
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const backup = await this.prisma.backup.create({
       data: {
         name: dto.name,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         sources: sources as any,
         scheduleType: dto.scheduleType ?? 'manual',
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         scheduleConfig: (dto.scheduleConfig ?? null) as any,
         schedule: dto.schedule ?? null,
         enabled: false, // always false on create — requires validation
@@ -159,7 +170,7 @@ export class BackupService {
     });
 
     this.logs.info('backup', 'BACKUP_CREATED', `Backup created: ${dto.name}`);
-    return this.toData(backup as BackupRow);
+    return this.toData(backup);
   }
 
   async getOne(id: string): Promise<BackupData> {
@@ -168,7 +179,7 @@ export class BackupService {
       include: { outputs: true },
     });
     if (!backup) throw new NotFoundException();
-    return this.toData(backup as BackupRow);
+    return this.toData(backup);
   }
 
   async update(id: string, dto: UpdateBackupDto): Promise<BackupData> {
@@ -176,7 +187,9 @@ export class BackupService {
     if (!existing) throw new NotFoundException();
 
     if (dto.name && dto.name !== existing.name) {
-      const conflict = await this.prisma.backup.findUnique({ where: { name: dto.name } });
+      const conflict = await this.prisma.backup.findUnique({
+        where: { name: dto.name },
+      });
       if (conflict) throw new ConflictException('Name already in use');
     }
 
@@ -192,15 +205,26 @@ export class BackupService {
       dto.zipFilename !== undefined ||
       dto.outputs !== undefined;
 
-    if (dto.enabled === true && !(existing as BackupRow).isValidated && !configChanged) {
-      throw new BadRequestException('Cannot enable a backup that has not passed validation');
+    if (
+      dto.enabled === true &&
+      !(existing as BackupRow).isValidated &&
+      !configChanged
+    ) {
+      throw new BadRequestException(
+        'Cannot enable a backup that has not passed validation',
+      );
     }
 
     const sources = dto.sources
-      ? { sources: dto.sources.sources.map((s) => ({ path: s.path, type: s.type, exclude: s.exclude ?? [] })) }
+      ? {
+          sources: dto.sources.sources.map((s) => ({
+            path: s.path,
+            type: s.type,
+            exclude: s.exclude ?? [],
+          })),
+        }
       : null;
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const backup = await this.prisma.$transaction(async (tx) => {
       if (dto.outputs !== undefined) {
         await tx.backupOutput.deleteMany({ where: { backupId: id } });
@@ -210,40 +234,67 @@ export class BackupService {
         where: { id },
         data: {
           name: dto.name ?? existing.name,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           sources: (sources ?? existing.sources) as any,
-          scheduleType: dto.scheduleType ?? (existing as BackupRow).scheduleType,
+          scheduleType:
+            dto.scheduleType ?? (existing as BackupRow).scheduleType,
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           scheduleConfig:
             dto.scheduleConfig !== undefined
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               ? (dto.scheduleConfig as any)
               : (existing as BackupRow).scheduleConfig,
-          schedule: dto.schedule !== undefined ? dto.schedule : existing.schedule,
+          schedule:
+            dto.schedule !== undefined ? dto.schedule : existing.schedule,
           enabled: configChanged ? false : (dto.enabled ?? existing.enabled),
-          archiveFormat: dto.archiveFormat ?? (existing as BackupRow).archiveFormat,
-          zipCompression: dto.zipCompression ?? (existing as BackupRow).zipCompression,
-          zipPassword: dto.zipPassword !== undefined ? dto.zipPassword : (existing as BackupRow).zipPassword,
-          zipFilename: dto.zipFilename !== undefined ? dto.zipFilename : (existing as BackupRow).zipFilename,
+          archiveFormat:
+            dto.archiveFormat ?? (existing as BackupRow).archiveFormat,
+          zipCompression:
+            dto.zipCompression ?? (existing as BackupRow).zipCompression,
+          zipPassword:
+            dto.zipPassword !== undefined
+              ? dto.zipPassword
+              : (existing as BackupRow).zipPassword,
+          zipFilename:
+            dto.zipFilename !== undefined
+              ? dto.zipFilename
+              : (existing as BackupRow).zipFilename,
           ...(configChanged
-            ? { isValidated: false, validationStatus: null, validationError: null, validatedAt: null }
+            ? {
+                isValidated: false,
+                validationStatus: null,
+                validationError: null,
+                validatedAt: null,
+              }
             : {}),
-          outputs: dto.outputs !== undefined
-            ? { create: dto.outputs.map((o, i) => this.mapOutputCreate(o, i)) }
-            : undefined,
+          outputs:
+            dto.outputs !== undefined
+              ? {
+                  create: dto.outputs.map((o, i) => this.mapOutputCreate(o, i)),
+                }
+              : undefined,
         },
         include: { outputs: true },
       });
     });
 
-    this.logs.info('backup', 'BACKUP_UPDATED', `Backup updated: ${backup.name}`);
-    return this.toData(backup as BackupRow);
+    this.logs.info(
+      'backup',
+      'BACKUP_UPDATED',
+      `Backup updated: ${backup.name}`,
+    );
+    return this.toData(backup);
   }
 
   async delete(id: string): Promise<void> {
     const existing = await this.prisma.backup.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException();
     await this.prisma.backup.delete({ where: { id } });
-    this.logs.info('backup', 'BACKUP_DELETED', `Backup deleted: ${existing.name}`);
+    this.logs.info(
+      'backup',
+      'BACKUP_DELETED',
+      `Backup deleted: ${existing.name}`,
+    );
   }
 
   async startValidation(id: string): Promise<void> {
@@ -251,16 +302,32 @@ export class BackupService {
     if (!existing) throw new NotFoundException();
     await this.prisma.backup.update({
       where: { id },
-      data: { validationStatus: 'running', isValidated: false, validationError: null },
+      data: {
+        validationStatus: 'running',
+        isValidated: false,
+        validationError: null,
+      },
     });
   }
 
   async findEnabledWithSchedule(): Promise<
-    { id: string; name: string; scheduleType: string; schedule: string | null; scheduleConfig: ScheduleConfig }[]
+    {
+      id: string;
+      name: string;
+      scheduleType: string;
+      schedule: string | null;
+      scheduleConfig: ScheduleConfig;
+    }[]
   > {
     const items = await this.prisma.backup.findMany({
       where: { enabled: true, scheduleType: { not: 'manual' } },
-      select: { id: true, name: true, scheduleType: true, schedule: true, scheduleConfig: true },
+      select: {
+        id: true,
+        name: true,
+        scheduleType: true,
+        schedule: true,
+        scheduleConfig: true,
+      },
     });
     return items.map((b) => ({
       id: b.id,

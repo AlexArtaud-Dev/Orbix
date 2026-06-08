@@ -47,15 +47,54 @@ export class LogsWriter {
       });
   }
 
-  info(category: LogCategory, code: string, msg: string, detail?: string, ctx?: LogContext) {
-    this.write({ level: 'INFO', category, code, msg, detail, backupId: ctx?.backupId });
+  info(
+    category: LogCategory,
+    code: string,
+    msg: string,
+    detail?: string,
+    ctx?: LogContext,
+  ) {
+    this.write({
+      level: 'INFO',
+      category,
+      code,
+      msg,
+      detail,
+      backupId: ctx?.backupId,
+    });
   }
 
-  warn(category: LogCategory, code: string, msg: string, detail?: string, ctx?: LogContext) {
-    this.write({ level: 'WARN', category, code, msg, detail, backupId: ctx?.backupId });
+  warn(
+    category: LogCategory,
+    code: string,
+    msg: string,
+    detail?: string,
+    ctx?: LogContext,
+  ) {
+    this.write({
+      level: 'WARN',
+      category,
+      code,
+      msg,
+      detail,
+      backupId: ctx?.backupId,
+    });
   }
 
-  error(category: LogCategory, code: string, msg: string, detail?: string, ctx?: LogContext) {
-    this.write({ level: 'ERROR', category, code, msg, detail, backupId: ctx?.backupId });
+  error(
+    category: LogCategory,
+    code: string,
+    msg: string,
+    detail?: string,
+    ctx?: LogContext,
+  ) {
+    this.write({
+      level: 'ERROR',
+      category,
+      code,
+      msg,
+      detail,
+      backupId: ctx?.backupId,
+    });
   }
 }

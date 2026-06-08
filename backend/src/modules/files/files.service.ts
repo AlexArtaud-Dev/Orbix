@@ -1,4 +1,8 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import * as fsSync from 'node:fs';
 import * as fs from 'node:fs/promises';
 import * as nodePath from 'node:path';
@@ -69,7 +73,13 @@ export class FilesService {
         } catch {
           // skip unreadable entries
         }
-        entries.push({ name: e.name, path: rel, isDir: e.isDirectory(), size, modifiedAt });
+        entries.push({
+          name: e.name,
+          path: rel,
+          isDir: e.isDirectory(),
+          size,
+          modifiedAt,
+        });
       }),
     );
 
@@ -79,7 +89,9 @@ export class FilesService {
     });
   }
 
-  private async dirStats(abs: string): Promise<{ size: number; itemCount: number }> {
+  private async dirStats(
+    abs: string,
+  ): Promise<{ size: number; itemCount: number }> {
     let size = 0;
     let itemCount = 0;
     try {
@@ -95,10 +107,14 @@ export class FilesService {
           try {
             const st = await fs.stat(child);
             size += st.size;
-          } catch { /* skip */ }
+          } catch {
+            /* skip */
+          }
         }
       }
-    } catch { /* skip unreadable */ }
+    } catch {
+      /* skip unreadable */
+    }
     return { size, itemCount };
   }
 
@@ -113,7 +129,7 @@ export class FilesService {
     }
     const name = nodePath.basename(abs);
     const isDir = s.isDirectory();
-    const ext = !isDir ? (nodePath.extname(name) || null) : null;
+    const ext = !isDir ? nodePath.extname(name) || null : null;
 
     let size: number;
     let itemCount: number | null;

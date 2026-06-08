@@ -30,12 +30,24 @@ export class BackupScheduler implements OnModuleInit, OnModuleDestroy {
   async onModuleInit() {
     const backups = await this.prisma.backup.findMany({
       where: { enabled: true, scheduleType: { not: 'manual' } },
-      select: { id: true, name: true, scheduleType: true, schedule: true, scheduleConfig: true },
+      select: {
+        id: true,
+        name: true,
+        scheduleType: true,
+        schedule: true,
+        scheduleConfig: true,
+      },
     });
 
     for (const backup of backups) {
       const config = parseScheduleConfig(backup.scheduleConfig);
-      this.register(backup.id, backup.name, backup.scheduleType, backup.schedule, config);
+      this.register(
+        backup.id,
+        backup.name,
+        backup.scheduleType,
+        backup.schedule,
+        config,
+      );
     }
 
     this.logs.info(
@@ -68,8 +80,15 @@ export class BackupScheduler implements OnModuleInit, OnModuleDestroy {
 
       const delay = new Date(cfg.datetime).getTime() - Date.now();
       if (delay <= 0) {
-        void this.prisma.backup.update({ where: { id: backupId }, data: { enabled: false } });
-        this.logs.info('scheduler', 'SCHEDULER_ONESHOOT_PAST', `One-shot already past, disabling: ${backupName}`);
+        void this.prisma.backup.update({
+          where: { id: backupId },
+          data: { enabled: false },
+        });
+        this.logs.info(
+          'scheduler',
+          'SCHEDULER_ONESHOOT_PAST',
+          `One-shot already past, disabling: ${backupName}`,
+        );
         return;
       }
 
@@ -79,7 +98,12 @@ export class BackupScheduler implements OnModuleInit, OnModuleDestroy {
       }, delay);
 
       this.timeouts.set(backupId, timeout);
-      this.logs.info('scheduler', 'SCHEDULER_ONESHOOT_ADDED', `One-shot scheduled: ${backupName}`, cfg.datetime);
+      this.logs.info(
+        'scheduler',
+        'SCHEDULER_ONESHOOT_ADDED',
+        `One-shot scheduled: ${backupName}`,
+        cfg.datetime,
+      );
       return;
     }
 
@@ -93,14 +117,23 @@ export class BackupScheduler implements OnModuleInit, OnModuleDestroy {
         : 'UTC';
 
     const jobName = `backup:${backupId}`;
-    try { this.schedulerRegistry.deleteCronJob(jobName); } catch { /* job may not exist yet */ }
+    try {
+      this.schedulerRegistry.deleteCronJob(jobName);
+    } catch {
+      /* job may not exist yet */
+    }
 
     const job = new CronJob(
       schedule,
       () => {
         this.runner.run(backupId).catch((err: unknown) => {
           const msg = err instanceof Error ? err.message : 'Unknown error';
-          this.logs.error('scheduler', 'SCHEDULER_JOB_ERROR', `Cron job failed: ${backupName}`, msg);
+          this.logs.error(
+            'scheduler',
+            'SCHEDULER_JOB_ERROR',
+            `Cron job failed: ${backupName}`,
+            msg,
+          );
         });
       },
       null,
@@ -108,7 +141,7 @@ export class BackupScheduler implements OnModuleInit, OnModuleDestroy {
       timezone,
     );
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     this.schedulerRegistry.addCronJob(jobName, job as any);
     job.start();
 
@@ -123,7 +156,9 @@ export class BackupScheduler implements OnModuleInit, OnModuleDestroy {
   remove(backupId: string): void {
     try {
       this.schedulerRegistry.deleteCronJob(`backup:${backupId}`);
-    } catch { /* job may not exist */ }
+    } catch {
+      /* job may not exist */
+    }
 
     const timeout = this.timeouts.get(backupId);
     if (timeout) {

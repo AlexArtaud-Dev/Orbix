@@ -113,7 +113,7 @@ function BackupCard({ item, onUpdated, onRemoved }: BackupCardProps) {
     logsService.getBackupLogs(item.id, 200).then((all) => {
       setErrorCount(all.filter((l) => l.level === "ERROR").length);
     }).catch(() => null);
-  }, [item.id]); // eslint-disable-line
+  }, [item.id]);  
 
   const handleOpenLogs = async () => {
     setLoadingLogs(true);

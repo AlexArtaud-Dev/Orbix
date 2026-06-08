@@ -32,7 +32,13 @@ export class BackupController {
   async create(@Body() dto: CreateBackupDto) {
     const data = await this.backupService.create(dto);
     if (data.enabled) {
-      this.scheduler.register(data.id, data.name, data.scheduleType, data.schedule, data.scheduleConfig);
+      this.scheduler.register(
+        data.id,
+        data.name,
+        data.scheduleType,
+        data.schedule,
+        data.scheduleConfig,
+      );
     }
     return { data };
   }
@@ -64,7 +70,13 @@ export class BackupController {
     const data = await this.backupService.update(id, dto);
     this.scheduler.remove(data.id);
     if (data.enabled) {
-      this.scheduler.register(data.id, data.name, data.scheduleType, data.schedule, data.scheduleConfig);
+      this.scheduler.register(
+        data.id,
+        data.name,
+        data.scheduleType,
+        data.schedule,
+        data.scheduleConfig,
+      );
     }
     return { data };
   }

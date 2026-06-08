@@ -74,7 +74,7 @@ function makeMockPrisma() {
       update: jest.fn(),
       delete: jest.fn(),
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
     $transaction: jest.fn().mockImplementation((fn: any) => fn(tx) as unknown),
     _tx: tx,
     _txBackupUpdate: txBackupUpdate,
@@ -122,7 +122,9 @@ describe('BackupService', () => {
     it('parses sources from JSON field', async () => {
       mockPrisma.backup.findMany.mockResolvedValue([
         makeBackupRow({
-          sources: { sources: [{ path: '/home', type: 'folder', exclude: ['*.tmp'] }] },
+          sources: {
+            sources: [{ path: '/home', type: 'folder', exclude: ['*.tmp'] }],
+          },
         }),
       ]);
 
@@ -141,13 +143,19 @@ describe('BackupService', () => {
 
       expect(result.name).toBe('New Backup');
       expect(result.enabled).toBe(false);
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      const createArg = (mockPrisma.backup.create.mock.calls[0] as [{ data: Record<string, unknown> }])[0];
+
+      const createArg = (
+        mockPrisma.backup.create.mock.calls[0] as [
+          { data: Record<string, unknown> },
+        ]
+      )[0];
       expect(createArg.data.enabled).toBe(false);
     });
 
     it('maps provided outputs', async () => {
-      const row = makeBackupRow({ outputs: [makeOutput({ vaultId: 'v-1', recipientsTo: ['c-1'] })] });
+      const row = makeBackupRow({
+        outputs: [makeOutput({ vaultId: 'v-1', recipientsTo: ['c-1'] })],
+      });
       mockPrisma.backup.create.mockResolvedValue(row);
 
       const result = await service.create({
@@ -160,10 +168,16 @@ describe('BackupService', () => {
     });
 
     it('defaults archiveFormat to zip and zipCompression to default', async () => {
-      mockPrisma.backup.create.mockResolvedValue(makeBackupRow({ archiveFormat: 'zip', zipCompression: 'default' }));
+      mockPrisma.backup.create.mockResolvedValue(
+        makeBackupRow({ archiveFormat: 'zip', zipCompression: 'default' }),
+      );
       await service.create({ name: 'Backup' });
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      const createArg = (mockPrisma.backup.create.mock.calls[0] as [{ data: Record<string, unknown> }])[0];
+
+      const createArg = (
+        mockPrisma.backup.create.mock.calls[0] as [
+          { data: Record<string, unknown> },
+        ]
+      )[0];
       expect(createArg.data.archiveFormat).toBe('zip');
       expect(createArg.data.zipCompression).toBe('default');
     });
@@ -171,7 +185,9 @@ describe('BackupService', () => {
 
   describe('getOne', () => {
     it('returns a backup by id', async () => {
-      mockPrisma.backup.findUnique.mockResolvedValue(makeBackupRow({ id: 'b-42', name: 'Found' }));
+      mockPrisma.backup.findUnique.mockResolvedValue(
+        makeBackupRow({ id: 'b-42', name: 'Found' }),
+      );
 
       const result = await service.getOne('b-42');
 
@@ -191,7 +207,7 @@ describe('BackupService', () => {
       const existing = makeBackupRow();
       mockPrisma.backup.findUnique
         .mockResolvedValueOnce(existing) // exists check
-        .mockResolvedValueOnce(null);    // name conflict check
+        .mockResolvedValueOnce(null); // name conflict check
       const updated = makeBackupRow({ name: 'Renamed' });
       mockPrisma._txBackupUpdate.mockResolvedValue(updated);
 
@@ -203,31 +219,41 @@ describe('BackupService', () => {
     it('throws NotFoundException when backup does not exist', async () => {
       mockPrisma.backup.findUnique.mockResolvedValue(null);
 
-      await expect(service.update('ghost', { name: 'x' })).rejects.toThrow(NotFoundException);
+      await expect(service.update('ghost', { name: 'x' })).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('throws ConflictException when new name is already taken by another backup', async () => {
       const existing = makeBackupRow({ id: 'b-1', name: 'Old Name' });
       const conflicting = makeBackupRow({ id: 'b-2', name: 'Taken Name' });
       mockPrisma.backup.findUnique
-        .mockResolvedValueOnce(existing)    // exists check
+        .mockResolvedValueOnce(existing) // exists check
         .mockResolvedValueOnce(conflicting); // name conflict check
 
-      await expect(service.update('b-1', { name: 'Taken Name' })).rejects.toThrow(ConflictException);
+      await expect(
+        service.update('b-1', { name: 'Taken Name' }),
+      ).rejects.toThrow(ConflictException);
     });
 
     it('preserves zipPassword when not included in the update DTO', async () => {
       const existing = makeBackupRow({ zipPassword: 'existing-secret' });
       mockPrisma.backup.findUnique
         .mockResolvedValueOnce(existing) // exists check
-        .mockResolvedValueOnce(null);    // name conflict check — no conflict
-      const updated = makeBackupRow({ name: 'New Name', zipPassword: 'existing-secret' });
+        .mockResolvedValueOnce(null); // name conflict check — no conflict
+      const updated = makeBackupRow({
+        name: 'New Name',
+        zipPassword: 'existing-secret',
+      });
       mockPrisma._txBackupUpdate.mockResolvedValue(updated);
 
       await service.update('backup-1', { name: 'New Name' }); // zipPassword absent du DTO
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      const updateArg = (mockPrisma._txBackupUpdate.mock.calls[0] as [{ data: Record<string, unknown> }])[0];
+      const updateArg = (
+        mockPrisma._txBackupUpdate.mock.calls[0] as [
+          { data: Record<string, unknown> },
+        ]
+      )[0];
       // dto.zipPassword is undefined → should fall back to existing value
       expect(updateArg.data.zipPassword).toBe('existing-secret');
     });
@@ -240,8 +266,11 @@ describe('BackupService', () => {
 
       await service.update('backup-1', { zipPassword: null });
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      const updateArg = (mockPrisma._txBackupUpdate.mock.calls[0] as [{ data: Record<string, unknown> }])[0];
+      const updateArg = (
+        mockPrisma._txBackupUpdate.mock.calls[0] as [
+          { data: Record<string, unknown> },
+        ]
+      )[0];
       expect(updateArg.data.zipPassword).toBeNull();
     });
 
@@ -253,8 +282,11 @@ describe('BackupService', () => {
 
       await service.update('backup-1', { zipPassword: 'new-password' });
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      const updateArg = (mockPrisma._txBackupUpdate.mock.calls[0] as [{ data: Record<string, unknown> }])[0];
+      const updateArg = (
+        mockPrisma._txBackupUpdate.mock.calls[0] as [
+          { data: Record<string, unknown> },
+        ]
+      )[0];
       expect(updateArg.data.zipPassword).toBe('new-password');
     });
 
@@ -266,8 +298,11 @@ describe('BackupService', () => {
 
       await service.update('backup-1', { archiveFormat: 'tar' });
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      const updateArg = (mockPrisma._txBackupUpdate.mock.calls[0] as [{ data: Record<string, unknown> }])[0];
+      const updateArg = (
+        mockPrisma._txBackupUpdate.mock.calls[0] as [
+          { data: Record<string, unknown> },
+        ]
+      )[0];
       expect(updateArg.data.isValidated).toBe(false);
       expect(updateArg.data.enabled).toBe(false);
     });
@@ -277,13 +312,20 @@ describe('BackupService', () => {
       mockPrisma.backup.findUnique
         .mockResolvedValueOnce(existing)
         .mockResolvedValueOnce(null);
-      const updated = makeBackupRow({ name: 'New Name', isValidated: true, enabled: true });
+      const updated = makeBackupRow({
+        name: 'New Name',
+        isValidated: true,
+        enabled: true,
+      });
       mockPrisma._txBackupUpdate.mockResolvedValue(updated);
 
       await service.update('backup-1', { name: 'New Name' });
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      const updateArg = (mockPrisma._txBackupUpdate.mock.calls[0] as [{ data: Record<string, unknown> }])[0];
+      const updateArg = (
+        mockPrisma._txBackupUpdate.mock.calls[0] as [
+          { data: Record<string, unknown> },
+        ]
+      )[0];
       expect(updateArg.data.isValidated).toBeUndefined();
     });
 
@@ -291,7 +333,9 @@ describe('BackupService', () => {
       const existing = makeBackupRow({ isValidated: false, enabled: false });
       mockPrisma.backup.findUnique.mockResolvedValue(existing);
 
-      await expect(service.update('backup-1', { enabled: true })).rejects.toThrow(BadRequestException);
+      await expect(
+        service.update('backup-1', { enabled: true }),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('replaces outputs when dto.outputs is provided', async () => {
@@ -305,7 +349,9 @@ describe('BackupService', () => {
         outputs: [{ type: 'mail', vaultId: 'v-2' }],
       });
 
-      expect(mockPrisma._txOutputDeleteMany).toHaveBeenCalledWith({ where: { backupId: 'backup-1' } });
+      expect(mockPrisma._txOutputDeleteMany).toHaveBeenCalledWith({
+        where: { backupId: 'backup-1' },
+      });
     });
 
     it('preserves recipients when updating outputs', async () => {
@@ -317,10 +363,19 @@ describe('BackupService', () => {
       mockPrisma._txBackupUpdate.mockResolvedValue(updated);
 
       const result = await service.update('backup-1', {
-        outputs: [{ type: 'mail', vaultId: 'v-1', recipientsTo: ['contact-1', 'contact-2'] }],
+        outputs: [
+          {
+            type: 'mail',
+            vaultId: 'v-1',
+            recipientsTo: ['contact-1', 'contact-2'],
+          },
+        ],
       });
 
-      expect(result.outputs[0].recipientsTo).toEqual(['contact-1', 'contact-2']);
+      expect(result.outputs[0].recipientsTo).toEqual([
+        'contact-1',
+        'contact-2',
+      ]);
     });
   });
 
@@ -332,7 +387,9 @@ describe('BackupService', () => {
 
       await service.delete('backup-1');
 
-      expect(mockPrisma.backup.delete).toHaveBeenCalledWith({ where: { id: 'backup-1' } });
+      expect(mockPrisma.backup.delete).toHaveBeenCalledWith({
+        where: { id: 'backup-1' },
+      });
     });
 
     it('throws NotFoundException for unknown id', async () => {
@@ -346,14 +403,21 @@ describe('BackupService', () => {
     it('sets validationStatus to running', async () => {
       const row = makeBackupRow();
       mockPrisma.backup.findUnique.mockResolvedValue(row);
-      mockPrisma.backup.update.mockResolvedValue({ ...row, validationStatus: 'running' });
+      mockPrisma.backup.update.mockResolvedValue({
+        ...row,
+        validationStatus: 'running',
+      });
 
       await service.startValidation('backup-1');
 
       expect(mockPrisma.backup.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'backup-1' },
-          data: expect.objectContaining({ validationStatus: 'running', isValidated: false }),
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          data: expect.objectContaining({
+            validationStatus: 'running',
+            isValidated: false,
+          }),
         }),
       );
     });
@@ -361,14 +425,21 @@ describe('BackupService', () => {
     it('throws NotFoundException for unknown id', async () => {
       mockPrisma.backup.findUnique.mockResolvedValue(null);
 
-      await expect(service.startValidation('ghost')).rejects.toThrow(NotFoundException);
+      await expect(service.startValidation('ghost')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
   describe('findEnabledWithSchedule', () => {
     it('returns only enabled backups with a non-manual schedule', async () => {
       mockPrisma.backup.findMany.mockResolvedValue([
-        makeBackupRow({ id: 'b-1', scheduleType: 'recurring', schedule: '0 3 * * 1,2,3', enabled: true }),
+        makeBackupRow({
+          id: 'b-1',
+          scheduleType: 'recurring',
+          schedule: '0 3 * * 1,2,3',
+          enabled: true,
+        }),
       ]);
 
       const result = await service.findEnabledWithSchedule();
