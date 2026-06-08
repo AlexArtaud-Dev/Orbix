@@ -50,7 +50,9 @@ describe('TemplatesService', () => {
   describe('create', () => {
     it('creates template and returns it', async () => {
       mockPrisma.mailTemplate.findUnique.mockResolvedValue(null);
-      mockPrisma.mailTemplate.create.mockResolvedValue(makeTemplate('id-1', 'Welcome'));
+      mockPrisma.mailTemplate.create.mockResolvedValue(
+        makeTemplate('id-1', 'Welcome'),
+      );
 
       const result = await service.create({
         name: 'Welcome',
@@ -72,12 +74,18 @@ describe('TemplatesService', () => {
 
       await service.create({ name: 'T', subject: 'S', body: 'B' });
 
-      const arg = (mockPrisma.mailTemplate.create.mock.calls[0] as [{ data: { bodyType: string } }])[0];
+      const arg = (
+        mockPrisma.mailTemplate.create.mock.calls[0] as [
+          { data: { bodyType: string } },
+        ]
+      )[0];
       expect(arg.data.bodyType).toBe('text');
     });
 
     it('throws ConflictException when name already exists', async () => {
-      mockPrisma.mailTemplate.findUnique.mockResolvedValue(makeTemplate('existing', 'Welcome'));
+      mockPrisma.mailTemplate.findUnique.mockResolvedValue(
+        makeTemplate('existing', 'Welcome'),
+      );
 
       await expect(
         service.create({ name: 'Welcome', subject: 'S', body: 'B' }),
@@ -87,7 +95,9 @@ describe('TemplatesService', () => {
 
   describe('list', () => {
     it('returns data and nextCursor null when no more pages', async () => {
-      mockPrisma.mailTemplate.findMany.mockResolvedValue([makeTemplate('id-1', 'T1')]);
+      mockPrisma.mailTemplate.findMany.mockResolvedValue([
+        makeTemplate('id-1', 'T1'),
+      ]);
 
       const result = await service.list();
 
@@ -110,7 +120,9 @@ describe('TemplatesService', () => {
 
   describe('getOne', () => {
     it('returns template by id', async () => {
-      mockPrisma.mailTemplate.findUnique.mockResolvedValue(makeTemplate('id-1', 'T'));
+      mockPrisma.mailTemplate.findUnique.mockResolvedValue(
+        makeTemplate('id-1', 'T'),
+      );
 
       const result = await service.getOne('id-1');
 
@@ -128,7 +140,10 @@ describe('TemplatesService', () => {
     it('updates subject while keeping other fields', async () => {
       const existing = makeTemplate('id-1', 'T');
       mockPrisma.mailTemplate.findUnique.mockResolvedValue(existing);
-      mockPrisma.mailTemplate.update.mockResolvedValue({ ...existing, subject: 'New subject' });
+      mockPrisma.mailTemplate.update.mockResolvedValue({
+        ...existing,
+        subject: 'New subject',
+      });
 
       const result = await service.update('id-1', { subject: 'New subject' });
 
@@ -141,15 +156,17 @@ describe('TemplatesService', () => {
         .mockResolvedValueOnce(makeTemplate('id-1', 'T1'))
         .mockResolvedValueOnce(makeTemplate('id-2', 'T2'));
 
-      await expect(
-        service.update('id-1', { name: 'T2' }),
-      ).rejects.toThrow(ConflictException);
+      await expect(service.update('id-1', { name: 'T2' })).rejects.toThrow(
+        ConflictException,
+      );
     });
 
     it('throws NotFoundException for unknown id', async () => {
       mockPrisma.mailTemplate.findUnique.mockResolvedValue(null);
 
-      await expect(service.update('ghost', { subject: 'x' })).rejects.toThrow(NotFoundException);
+      await expect(service.update('ghost', { subject: 'x' })).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -161,7 +178,9 @@ describe('TemplatesService', () => {
 
       await service.delete('id-1');
 
-      expect(mockPrisma.mailTemplate.delete).toHaveBeenCalledWith({ where: { id: 'id-1' } });
+      expect(mockPrisma.mailTemplate.delete).toHaveBeenCalledWith({
+        where: { id: 'id-1' },
+      });
     });
 
     it('throws NotFoundException for unknown id', async () => {

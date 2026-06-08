@@ -12,6 +12,7 @@ import { VaultModule } from './modules/vault/vault.module';
 import { FilesModule } from './modules/files/files.module';
 import { MailModule } from './modules/mail/mail.module';
 import { ContactsModule } from './modules/contacts/contacts.module';
+import { BackupModule } from './modules/backup/backup.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { ContactsModule } from './modules/contacts/contacts.module';
     FilesModule,
     MailModule,
     ContactsModule,
+    BackupModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: HttpExceptionFilter },

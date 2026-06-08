@@ -16,6 +16,7 @@ export interface LogEntry {
   code: string;
   msg: string;
   detail?: string;
+  backupId?: string;
 }
 
 export interface LogsResponse {
@@ -28,8 +29,14 @@ export interface LogsQuery {
   limit?: number;
   category?: LogCategory;
   level?: LogLevel;
+  backupId?: string;
   from?: string;
   to?: string;
+}
+
+export interface BackupErrorSummary {
+  totalErrors: number;
+  affectedBackups: number;
 }
 
 export const logsService = {
@@ -39,9 +46,19 @@ export const logsService = {
     if (query.limit) params.set("limit", String(query.limit));
     if (query.category) params.set("category", query.category);
     if (query.level) params.set("level", query.level);
+    if (query.backupId) params.set("backupId", query.backupId);
     if (query.from) params.set("from", query.from);
     if (query.to) params.set("to", query.to);
     const qs = params.toString();
     return api.get<LogsResponse>(`/api/logs${qs ? `?${qs}` : ""}`);
   },
+
+  getBackupErrorSummary: () =>
+    api.get<BackupErrorSummary>("/api/logs/backup-error-summary"),
+
+  getBackupLogs: (backupId: string, limit = 50) =>
+    api.get<LogEntry[]>(`/api/logs/backup/${backupId}?limit=${limit}`),
+
+  clearBackupLogs: (backupId: string) =>
+    api.delete<{ cleared: boolean }>(`/api/logs/backup/${backupId}`),
 };

@@ -57,10 +57,67 @@ model MailLog {
   sentAt   DateTime @default(now())
 }
 
+model Backup {
+  id               String         @id @default(cuid())
+  name             String         @unique
+  sources          Json           @default("{\"sources\":[]}")
+  scheduleType     String         @default("manual")
+  scheduleConfig   Json?
+  schedule         String?
+  enabled          Boolean        @default(false)
+  archiveFormat    String         @default("zip")  // "zip"|"tar"|"tar-gz"|"tar-bz2"
+  zipCompression   String         @default("default") // "store"|"fast"|"default"|"best"
+  zipPassword      String?
+  zipFilename      String?
+  isValidated      Boolean        @default(false)
+  validationStatus String?
+  validationError  String?
+  validatedAt      DateTime?
+  lastRunAt        DateTime?
+  lastStatus       String?
+  outputs          BackupOutput[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+}
+
+model BackupOutput {
+  id               String   @id @default(cuid())
+  backupId         String
+  backup           Backup   @relation(fields: [backupId], references: [id], onDelete: Cascade)
+  type             String
+  vaultId          String
+  templateId       String?
+  recipientsTo     String[]
+  recipientsCc     String[]
+  recipientsBcc    String[]
+  overrideSubject  String?
+  overrideBody     String?
+  overrideBodyType String?
+  order            Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model Log {
+  id        String   @id @default(cuid())
+  ts        DateTime @default(now())
+  level     String   // "DEBUG" | "INFO" | "WARN" | "ERROR"
+  category  String   // "auth" | "backup" | "mail" | "scheduler" | "system" | "vault"
+  code      String
+  msg       String
+  detail    String?
+  backupId  String?  // optional: links log to a specific backup
+
+  @@index([ts(sort: Desc)])
+  @@index([level, ts(sort: Desc)])
+  @@index([category, ts(sort: Desc)])
+  @@index([backupId, ts(sort: Desc)])
+}
+
 model SystemSettings {
   id                  String @id @default("singleton")
   maxFileSizeMb       Int    @default(500)
-  logRetentionDays    Int    @default(30)
+  logRetentionHours   Int    @default(720)
   backupRetentionDays Int    @default(90)
   defaultTimezone     String @default("UTC")
   defaultLanguage     String @default("en")

@@ -15,7 +15,12 @@ function makeMockPrisma() {
   };
 }
 
-function makeContact(id: string, name: string, email: string, tags: string[] = []) {
+function makeContact(
+  id: string,
+  name: string,
+  email: string,
+  tags: string[] = [],
+) {
   const now = new Date('2026-01-01T00:00:00.000Z');
   return { id, name, email, tags, createdAt: now, updatedAt: now };
 }
@@ -42,7 +47,11 @@ describe('ContactsService', () => {
         makeContact('id-1', 'Alice', 'alice@example.com', ['vip']),
       );
 
-      const result = await service.create({ name: 'Alice', email: 'alice@example.com', tags: ['vip'] });
+      const result = await service.create({
+        name: 'Alice',
+        email: 'alice@example.com',
+        tags: ['vip'],
+      });
 
       expect(result.id).toBe('id-1');
       expect(result.name).toBe('Alice');
@@ -63,12 +72,18 @@ describe('ContactsService', () => {
       mockPrisma.contact.findUnique.mockResolvedValue(null);
       mockPrisma.contact.create.mockImplementation(
         ({ data }: { data: { tags: string[] } }) =>
-          Promise.resolve(makeContact('id-1', 'Alice', 'alice@example.com', data.tags)),
+          Promise.resolve(
+            makeContact('id-1', 'Alice', 'alice@example.com', data.tags),
+          ),
       );
 
       await service.create({ name: 'Alice', email: 'alice@example.com' });
 
-      const createArg = (mockPrisma.contact.create.mock.calls[0] as [{ data: { tags: string[] } }])[0];
+      const createArg = (
+        mockPrisma.contact.create.mock.calls[0] as [
+          { data: { tags: string[] } },
+        ]
+      )[0];
       expect(createArg.data.tags).toEqual([]);
     });
   });
@@ -118,7 +133,9 @@ describe('ContactsService', () => {
 
   describe('update', () => {
     it('updates name while keeping other fields', async () => {
-      const existing = makeContact('id-1', 'Alice', 'alice@example.com', ['vip']);
+      const existing = makeContact('id-1', 'Alice', 'alice@example.com', [
+        'vip',
+      ]);
       mockPrisma.contact.findUnique.mockResolvedValue(existing);
       mockPrisma.contact.update.mockResolvedValue(
         makeContact('id-1', 'Alice Updated', 'alice@example.com', ['vip']),
@@ -132,7 +149,9 @@ describe('ContactsService', () => {
 
     it('throws ConflictException when new email is already taken', async () => {
       mockPrisma.contact.findUnique
-        .mockResolvedValueOnce(makeContact('id-1', 'Alice', 'alice@example.com'))
+        .mockResolvedValueOnce(
+          makeContact('id-1', 'Alice', 'alice@example.com'),
+        )
         .mockResolvedValueOnce(makeContact('id-2', 'Bob', 'bob@example.com'));
 
       await expect(
@@ -143,7 +162,9 @@ describe('ContactsService', () => {
     it('throws NotFoundException for unknown id', async () => {
       mockPrisma.contact.findUnique.mockResolvedValue(null);
 
-      await expect(service.update('ghost', { name: 'x' })).rejects.toThrow(NotFoundException);
+      await expect(service.update('ghost', { name: 'x' })).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -155,7 +176,9 @@ describe('ContactsService', () => {
 
       await service.delete('id-1');
 
-      expect(mockPrisma.contact.delete).toHaveBeenCalledWith({ where: { id: 'id-1' } });
+      expect(mockPrisma.contact.delete).toHaveBeenCalledWith({
+        where: { id: 'id-1' },
+      });
     });
 
     it('throws NotFoundException for unknown id', async () => {

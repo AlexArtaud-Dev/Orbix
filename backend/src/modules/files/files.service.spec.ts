@@ -30,7 +30,12 @@ function makeDirent(name: string, isDir: boolean) {
 function makeStat(
   size: number,
   mtime = new Date('2026-01-01T00:00:00Z'),
-  extra: Partial<{ uid: number; gid: number; mode: number; birthtime: Date }> = {},
+  extra: Partial<{
+    uid: number;
+    gid: number;
+    mode: number;
+    birthtime: Date;
+  }> = {},
 ) {
   return {
     size,
@@ -103,7 +108,9 @@ describe('FilesService', () => {
     });
 
     it('throws ForbiddenException on path traversal', async () => {
-      await expect(service.list('../../etc/passwd')).rejects.toThrow(ForbiddenException);
+      await expect(service.list('../../etc/passwd')).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 
@@ -112,7 +119,12 @@ describe('FilesService', () => {
       const mtime = new Date('2026-03-15T10:00:00Z');
       const birthtime = new Date('2026-01-01T00:00:00Z');
       mockStat.mockResolvedValue(
-        makeStat(1024, mtime, { uid: 1000, gid: 1000, mode: 0o100644, birthtime }),
+        makeStat(1024, mtime, {
+          uid: 1000,
+          gid: 1000,
+          mode: 0o100644,
+          birthtime,
+        }),
       );
 
       const result = await service.stat('readme.md');
@@ -132,15 +144,21 @@ describe('FilesService', () => {
     it('returns directory stat with itemCount and total size', async () => {
       const mtime = new Date('2026-03-15T10:00:00Z');
       const dirStat = {
-        size: 0, mtime, birthtime: mtime, uid: 0, gid: 0,
-        mode: 0o040755, isDirectory: () => true, isFile: () => false,
+        size: 0,
+        mtime,
+        birthtime: mtime,
+        uid: 0,
+        gid: 0,
+        mode: 0o040755,
+        isDirectory: () => true,
+        isFile: () => false,
       };
       const fileStat = makeStat(500);
 
       mockStat
-        .mockResolvedValueOnce(dirStat)  // top-level stat
+        .mockResolvedValueOnce(dirStat) // top-level stat
         .mockResolvedValueOnce(fileStat) // a.txt
-        .mockResolvedValueOnce(fileStat);// b.txt
+        .mockResolvedValueOnce(fileStat); // b.txt
       mockReaddir.mockResolvedValue([
         makeDirent('a.txt', false),
         makeDirent('b.txt', false),
@@ -157,11 +175,15 @@ describe('FilesService', () => {
     it('throws NotFoundException when path does not exist', async () => {
       mockStat.mockRejectedValue(new Error('ENOENT'));
 
-      await expect(service.stat('ghost.txt')).rejects.toThrow(NotFoundException);
+      await expect(service.stat('ghost.txt')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('throws ForbiddenException on path traversal', async () => {
-      await expect(service.stat('../secret')).rejects.toThrow(ForbiddenException);
+      await expect(service.stat('../secret')).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('returns null extension for files without extension', async () => {

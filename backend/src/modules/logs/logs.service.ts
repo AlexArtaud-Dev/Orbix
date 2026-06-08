@@ -1,72 +1,130 @@
 import { Injectable } from '@nestjs/common';
-import { createReadStream, existsSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
-import { createInterface } from 'node:readline';
-import { type LogEntry } from './logs.writer';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { PrismaService } from '../../prisma/prisma.service';
+import { SettingsService } from '../settings/settings.service';
 import type { ListLogsQuery } from './logs.types';
-
-const LOG_DIR = process.env.NODE_ENV === 'production' ? '/app/logs' : './logs';
+import type { LogEntry } from './logs.writer';
 
 @Injectable()
 export class LogsService {
-  async list(query: ListLogsQuery) {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly settings: SettingsService,
+  ) {}
+
+  async list(
+    query: ListLogsQuery,
+  ): Promise<{ data: LogEntry[]; nextCursor: string | null }> {
     const limit = Math.min(query.limit ?? 50, 200);
-    const entries = await this.readAllEntries(query);
 
-    entries.sort((a, b) => b.ts.localeCompare(a.ts));
-
-    let startIdx = 0;
+    const where: Record<string, unknown> = {};
+    if (query.category) where['category'] = query.category;
+    if (query.level) where['level'] = query.level;
+    if (query.backupId) where['backupId'] = query.backupId;
+    if (query.from || query.to) {
+      where['ts'] = {
+        ...(query.from ? { gte: new Date(query.from) } : {}),
+        ...(query.to ? { lte: new Date(query.to) } : {}),
+      };
+    }
     if (query.cursor) {
-      const idx = entries.findIndex((e) => e.ts === query.cursor);
-      if (idx !== -1) startIdx = idx + 1;
+      where['id'] = { lt: query.cursor };
     }
 
-    const page = entries.slice(startIdx, startIdx + limit + 1);
-    const hasNext = page.length > limit;
+    const rows = await this.prisma.log.findMany({
+      where,
+      orderBy: { ts: 'desc' },
+      take: limit + 1,
+    });
+
+    const hasNext = rows.length > limit;
+    const page = rows.slice(0, limit);
 
     return {
-      data: page.slice(0, limit),
-      nextCursor: hasNext ? page[limit - 1].ts : null,
+      data: page.map((r) => ({
+        ts: r.ts.toISOString(),
+        level: r.level as LogEntry['level'],
+        category: r.category as LogEntry['category'],
+        code: r.code,
+        msg: r.msg,
+        detail: r.detail ?? undefined,
+        backupId: r.backupId ?? undefined,
+      })),
+      nextCursor: hasNext ? page[page.length - 1].id : null,
     };
   }
 
-  private async readAllEntries(query: ListLogsQuery): Promise<LogEntry[]> {
-    if (!existsSync(LOG_DIR)) return [];
-
-    const files = readdirSync(LOG_DIR)
-      .filter((f) => f.endsWith('.log'))
-      .filter((f) => !query.category || f.startsWith(query.category));
-
-    const results = await Promise.all(
-      files.map((f) => this.readFile(join(LOG_DIR, f))),
-    );
-
-    return results.flat().filter((e) => this.matchesFilter(e, query));
+  /** Count ERROR logs per backup — for sidebar badge */
+  async getBackupErrorSummary(): Promise<{
+    totalErrors: number;
+    affectedBackups: number;
+  }> {
+    const result = await this.prisma.log.groupBy({
+      by: ['backupId'],
+      where: { level: 'ERROR', category: 'backup', backupId: { not: null } },
+      _count: { id: true },
+    });
+    return {
+      totalErrors: result.reduce((sum, r) => sum + r._count.id, 0),
+      affectedBackups: result.length,
+    };
   }
 
-  private readFile(path: string): Promise<LogEntry[]> {
-    return new Promise((resolve) => {
-      const entries: LogEntry[] = [];
-      if (!existsSync(path)) return resolve(entries);
-
-      const rl = createInterface({ input: createReadStream(path) });
-      rl.on('line', (line) => {
-        try {
-          entries.push(JSON.parse(line) as LogEntry);
-        } catch {
-          // Skip malformed lines
-        }
-      });
-      rl.on('close', () => resolve(entries));
-      rl.on('error', () => resolve(entries));
+  /** Count ERROR logs for a specific backup */
+  async getBackupErrorCount(backupId: string): Promise<number> {
+    return this.prisma.log.count({
+      where: { backupId, level: 'ERROR', category: 'backup' },
     });
   }
 
-  private matchesFilter(entry: LogEntry, query: ListLogsQuery): boolean {
-    if (query.category && entry.category !== query.category) return false;
-    if (query.level && entry.level !== query.level) return false;
-    if (query.from && entry.ts < query.from) return false;
-    if (query.to && entry.ts > query.to) return false;
-    return true;
+  /** List recent logs for a specific backup */
+  async listBackupLogs(backupId: string, limit = 50): Promise<LogEntry[]> {
+    const rows = await this.prisma.log.findMany({
+      where: { backupId },
+      orderBy: { ts: 'desc' },
+      take: limit,
+    });
+    return rows.map((r) => ({
+      ts: r.ts.toISOString(),
+      level: r.level as LogEntry['level'],
+      category: r.category as LogEntry['category'],
+      code: r.code,
+      msg: r.msg,
+      detail: r.detail ?? undefined,
+      backupId: r.backupId ?? undefined,
+    }));
+  }
+
+  /** Clear all logs for a specific backup */
+  async clearBackupLogs(backupId: string): Promise<void> {
+    await this.prisma.log.deleteMany({ where: { backupId } });
+  }
+
+  // ─── Auto-cleanup cron ─────────────────────────────────────────────────────
+
+  @Cron(CronExpression.EVERY_10_MINUTES)
+  async cleanOldLogs(): Promise<void> {
+    try {
+      const s = await this.settings.get();
+      const retentionHours =
+        (s as { logRetentionHours?: number }).logRetentionHours ?? 720;
+      const cutoff = new Date(Date.now() - retentionHours * 60 * 60 * 1000);
+      const { count } = await this.prisma.log.deleteMany({
+        where: { ts: { lt: cutoff } },
+      });
+      if (count > 0) {
+        // Write directly to avoid circular dependency
+        await this.prisma.log.create({
+          data: {
+            level: 'INFO',
+            category: 'system',
+            code: 'LOG_CLEANUP',
+            msg: `Cleaned ${count} log(s) older than ${retentionHours}h`,
+          },
+        });
+      }
+    } catch {
+      // Swallow — cleanup failure is not critical
+    }
   }
 }

@@ -10,8 +10,8 @@ export class UpdateSettingsDto {
   @IsOptional()
   @IsInt()
   @Min(1)
-  @Max(3650)
-  logRetentionDays?: number;
+  @Max(87600) // max 10 years in hours
+  logRetentionHours?: number;
 
   @IsOptional()
   @IsInt()

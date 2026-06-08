@@ -19,7 +19,10 @@ export class ContactsController {
 
   @Get()
   async list(@Query('cursor') cursor?: string, @Query('limit') limit?: string) {
-    const result = await this.contactsService.list(cursor, limit ? parseInt(limit, 10) : undefined);
+    const result = await this.contactsService.list(
+      cursor,
+      limit ? parseInt(limit, 10) : undefined,
+    );
     return { data: result };
   }
 
