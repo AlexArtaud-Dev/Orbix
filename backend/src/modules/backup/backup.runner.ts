@@ -15,6 +15,7 @@ import archiver, { type Archiver } from 'archiver';
 import { PrismaService } from '../../prisma/prisma.service';
 import { VaultService } from '../vault/vault.service';
 import { SettingsService } from '../settings/settings.service';
+import { InputService } from '../input/input.service';
 import { LogsWriter } from '../logs/logs.writer';
 import {
   parseBackupSources,
@@ -22,6 +23,7 @@ import {
   type BackupSource,
   type RequestParam,
 } from './backup.types';
+import type { HttpRestConfig, InputRequestParam } from '../input/input.types';
 
 interface OutputRow {
   id: string;
@@ -89,6 +91,7 @@ export class BackupRunner {
     private readonly prisma: PrismaService,
     private readonly vault: VaultService,
     private readonly settings: SettingsService,
+    private readonly inputService: InputService,
     private readonly logs: LogsWriter,
   ) {}
 
@@ -479,6 +482,16 @@ export class BackupRunner {
         continue;
       }
 
+      if (source.type === 'input') {
+        if (!source.inputId) continue;
+        const files = await this.fetchInputSource(
+          source.inputId,
+          maxSourceFileSizeMb,
+        );
+        results.push(...files);
+        continue;
+      }
+
       const absPath = await this.resolveSourcePath(source.path);
       const excludePatterns = source.exclude ?? [];
 
@@ -575,6 +588,166 @@ export class BackupRunner {
       );
     }
     return buf;
+  }
+
+  // ─── Input source helpers ────────────────────────────────────────────────────
+
+  private async fetchInputSource(
+    inputId: string,
+    maxSizeMb: number,
+  ): Promise<FileToArchive[]> {
+    const input = await this.inputService.getOne(inputId);
+    if (input.type !== 'http-rest') {
+      throw new Error(
+        `Input type '${input.type}' is not yet supported in the backup runner`,
+      );
+    }
+
+    const config = input.config as unknown as HttpRestConfig;
+    const headers: Record<string, string> = {};
+    const maxBytes = maxSizeMb * 1024 * 1024;
+
+    // Apply vault auth
+    if (input.vaultId) {
+      await this.applyVaultAuth(headers, input.vaultId);
+    }
+
+    // Apply request params (literal only; vault refs resolved via resolveParamValue)
+    const params = input.requestParams ?? [];
+    const baseUrlObj = new URL(config.baseUrl);
+    for (const param of params) {
+      const value = await this.resolveInputParamValue(param);
+      if (param.in === 'header') headers[param.key] = value;
+      else if (param.in === 'query')
+        baseUrlObj.searchParams.set(param.key, value);
+    }
+
+    const results: FileToArchive[] = [];
+
+    if (config.listEndpoint) {
+      // ── List + download mode ──
+      const listUrl = new URL(
+        config.listEndpoint.startsWith('http')
+          ? config.listEndpoint
+          : config.baseUrl.replace(/\/$/, '') +
+              (config.listEndpoint.startsWith('/') ? '' : '/') +
+              config.listEndpoint,
+      );
+      baseUrlObj.searchParams.forEach((v, k) => listUrl.searchParams.set(k, v));
+
+      const listRes = await fetch(listUrl.toString(), { headers });
+      if (!listRes.ok) {
+        throw new Error(
+          `Input list endpoint returned HTTP ${listRes.status}: ${listUrl.toString()}`,
+        );
+      }
+
+      const items = (await listRes.json()) as unknown[];
+      if (!Array.isArray(items)) {
+        throw new Error(`Input list endpoint did not return a JSON array`);
+      }
+
+      const idField = config.responseMapping?.id ?? 'id';
+      const nameField = config.responseMapping?.name ?? 'name';
+
+      for (const item of items) {
+        const rec = item as Record<string, unknown>;
+        const rawId = rec[idField];
+        const rawName = rec[nameField];
+        const itemId =
+          typeof rawId === 'string'
+            ? rawId
+            : typeof rawId === 'number'
+              ? String(rawId)
+              : '';
+        const itemName =
+          typeof rawName === 'string'
+            ? rawName
+            : typeof rawName === 'number'
+              ? String(rawName)
+              : itemId || 'file';
+        if (!itemId) continue;
+        if (!config.downloadEndpoint) continue;
+
+        const downloadPath = config.downloadEndpoint.replace(
+          '{id}',
+          encodeURIComponent(itemId),
+        );
+        const downloadUrl =
+          config.baseUrl.replace(/\/$/, '') +
+          (downloadPath.startsWith('/') ? '' : '/') +
+          downloadPath;
+
+        const dlRes = await fetch(downloadUrl, { headers });
+        if (!dlRes.ok) {
+          throw new Error(
+            `Input download returned HTTP ${dlRes.status} for item '${itemName}' (${downloadUrl})`,
+          );
+        }
+
+        const contentLength = dlRes.headers.get('content-length');
+        if (contentLength) {
+          const bytes = parseInt(contentLength, 10);
+          if (!isNaN(bytes) && bytes > maxBytes) {
+            throw new Error(
+              `Input item '${itemName}' (${Math.round(bytes / 1024 / 1024)} MB) exceeds limit of ${maxSizeMb} MB`,
+            );
+          }
+        }
+
+        const buf = Buffer.from(await dlRes.arrayBuffer());
+        if (buf.byteLength > maxBytes) {
+          throw new Error(
+            `Input item '${itemName}' (${Math.round(buf.byteLength / 1024 / 1024)} MB) exceeds limit of ${maxSizeMb} MB`,
+          );
+        }
+
+        const safeName = itemName.replace(/[/\\]/g, '_');
+        results.push({ buffer: buf, arc: safeName });
+      }
+    } else {
+      // ── Direct single-file download ──
+      const response = await fetch(baseUrlObj.toString(), { headers });
+      if (!response.ok) {
+        throw new Error(
+          `Input source returned HTTP ${response.status}: ${config.baseUrl}`,
+        );
+      }
+
+      const contentLength = response.headers.get('content-length');
+      if (contentLength) {
+        const bytes = parseInt(contentLength, 10);
+        if (!isNaN(bytes) && bytes > maxBytes) {
+          throw new Error(
+            `Input source size (${Math.round(bytes / 1024 / 1024)} MB) exceeds limit of ${maxSizeMb} MB`,
+          );
+        }
+      }
+
+      const buf = Buffer.from(await response.arrayBuffer());
+      if (buf.byteLength > maxBytes) {
+        throw new Error(
+          `Input source size (${Math.round(buf.byteLength / 1024 / 1024)} MB) exceeds limit of ${maxSizeMb} MB`,
+        );
+      }
+
+      const filename =
+        config.baseUrl.split('/').pop()?.split('?')[0] || 'download';
+      results.push({ buffer: buf, arc: filename });
+    }
+
+    return results;
+  }
+
+  private async resolveInputParamValue(
+    param: InputRequestParam,
+  ): Promise<string> {
+    if (param.valueType === 'literal') return param.value ?? '';
+    if (!param.vaultId) return '';
+    const payload = await this.vault.getHttpPayload(param.vaultId);
+    const field = param.vaultField ?? '';
+    const raw = (payload as unknown as Record<string, unknown>)[field];
+    return typeof raw === 'string' ? raw : '';
   }
 
   private async applyVaultAuth(

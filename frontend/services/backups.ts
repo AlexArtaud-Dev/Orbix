@@ -11,11 +11,12 @@ export interface RequestParam {
 
 export interface BackupSource {
   path: string;
-  type: "file" | "folder" | "url";
+  type: "file" | "folder" | "url" | "input";
   exclude: string[];
   vaultId?: string;
   requestParams?: RequestParam[];
   transferMode?: "stream" | "buffer";
+  inputId?: string;
 }
 
 export interface BackupSourcesPayload {

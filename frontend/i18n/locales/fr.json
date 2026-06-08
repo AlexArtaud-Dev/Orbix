@@ -41,7 +41,9 @@
     "backups": "Sauvegardes",
     "logs": "Historique",
     "settings": "Paramètres",
-    "back": "Retour"
+    "back": "Retour",
+    "input": "Inputs",
+    "httpRestInputs": "Inputs HTTP REST"
   },
   "dashboard": {
     "title": "Tableau de bord",
@@ -382,7 +384,7 @@
     "sources": {
       "addPath": "Ajouter un chemin",
       "addUrl": "Ajouter une URL",
-      "noSources": "Aucune source sélectionnée. Ajoutez un fichier, dossier ou URL.",
+      "noSources": "Aucune source sélectionnée. Ajoutez un fichier, dossier, URL ou Input.",
       "folderBadge": "Dossier",
       "fileBadge": "Fichier",
       "urlBadge": "URL",
@@ -411,7 +413,13 @@
       "transferMode": "Mode de transfert",
       "transferModeStream": "Stream (recommandé)",
       "transferModeBuffer": "Buffer",
-      "transferModeBufferWarning": "Attention : le fichier est chargé intégralement en RAM avant d'être archivé. Un fichier de 500 Mo en mode buffer nécessite ~500 Mo de RAM disponible en plus de la mémoire utilisée par l'archive en cours de construction."
+      "transferModeBufferWarning": "Attention : le fichier est chargé intégralement en RAM avant d'être archivé. Un fichier de 500 Mo en mode buffer nécessite ~500 Mo de RAM disponible en plus de la mémoire utilisée par l'archive en cours de construction.",
+      "addInput": "Ajouter un Input",
+      "inputBadge": "INPUT",
+      "inputTitle": "Sélectionner un Input",
+      "inputSubtitle": "Choisissez l'input dont les fichiers seront ajoutés à l'archive.",
+      "noInputItems": "Aucun input configuré.",
+      "noSources": "Aucune source sélectionnée. Ajoutez un fichier, dossier, URL ou Input."
     },
     "zip": {
       "format": "Format d'archive",
@@ -445,6 +453,54 @@
     "outputs": {
       "overrideContent": "Personnaliser le contenu de l'e-mail",
       "selectType": "Choisir le type de sortie"
+    }
+  },
+  "input": {
+    "selectorTitle": "Modules d'entrée",
+    "selectorSubtitle": "Configurez des sources de données externes pour vos sauvegardes",
+    "comingSoon": "Bientôt disponible",
+    "soon": "Bientôt",
+    "type": {
+      "httpRest": "HTTP REST",
+      "digiposte": "Digiposte",
+      "sftp": "SFTP"
+    },
+    "typeDesc": {
+      "httpRest": "Récupérer des fichiers depuis une API REST",
+      "digiposte": "Intégration Digiposte (documents)",
+      "sftp": "Transfert de fichiers via SFTP"
+    },
+    "httpRest": {
+      "title": "Inputs HTTP REST",
+      "subtitle": "Configurez des sources HTTP REST pour importer des fichiers depuis une API",
+      "add": "Ajouter",
+      "newTitle": "Nouvel input HTTP REST",
+      "newSubtitle": "Configurez une nouvelle source HTTP REST",
+      "editTitle": "Modifier l'input HTTP REST",
+      "editSubtitle": "Modifiez les paramètres de cet input",
+      "noItems": "Aucun input HTTP REST configuré",
+      "createSuccess": "Input créé",
+      "updateSuccess": "Input mis à jour",
+      "deleteSuccess": "Input supprimé",
+      "testSuccess": "Test réussi",
+      "testFailed": "Échec du test",
+      "name": "Nom",
+      "namePlaceholder": "Mon API",
+      "baseUrl": "URL de base",
+      "baseUrlPlaceholder": "https://api.example.com",
+      "listEndpoint": "Endpoint de liste (optionnel)",
+      "listEndpointPlaceholder": "/files",
+      "listEndpointHint": "Si défini, liste les éléments avant de les télécharger",
+      "downloadEndpoint": "Endpoint de téléchargement",
+      "downloadEndpointPlaceholder": "/files/{id}",
+      "downloadEndpointHint": "Utilisez {id} pour interpoler l'identifiant de l'élément",
+      "vaultOptional": "Authentification (optionnel)",
+      "noVault": "Aucune authentification",
+      "enabled": "Activer cet input",
+      "test": "Tester",
+      "testing": "Test en cours…",
+      "testItems": "{{count}} élément(s) trouvé(s)",
+      "testOk": "Endpoint accessible"
     }
   },
   "errors": {

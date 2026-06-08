@@ -41,7 +41,9 @@
     "backups": "Backups",
     "logs": "Logs",
     "settings": "Settings",
-    "back": "Back"
+    "back": "Back",
+    "input": "Inputs",
+    "httpRestInputs": "HTTP REST Inputs"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -382,7 +384,7 @@
     "sources": {
       "addPath": "Add path",
       "addUrl": "Add URL",
-      "noSources": "No sources selected. Add a file, folder, or URL.",
+      "noSources": "No sources selected. Add a file, folder, URL or Input.",
       "folderBadge": "Folder",
       "fileBadge": "File",
       "urlBadge": "URL",
@@ -411,7 +413,12 @@
       "transferMode": "Transfer mode",
       "transferModeStream": "Stream (recommended)",
       "transferModeBuffer": "Buffer",
-      "transferModeBufferWarning": "Warning: the file is loaded entirely into RAM before archiving. A 500 MB file in buffer mode requires ~500 MB of available RAM on top of the memory used by the archive being built."
+      "transferModeBufferWarning": "Warning: the file is loaded entirely into RAM before archiving. A 500 MB file in buffer mode requires ~500 MB of available RAM on top of the memory used by the archive being built.",
+      "addInput": "Add Input",
+      "inputBadge": "INPUT",
+      "inputTitle": "Select an Input",
+      "inputSubtitle": "Choose the input whose files will be added to the archive.",
+      "noInputItems": "No inputs configured yet."
     },
     "zip": {
       "format": "Archive format",
@@ -445,6 +452,54 @@
     "outputs": {
       "overrideContent": "Override email content",
       "selectType": "Select output type"
+    }
+  },
+  "input": {
+    "selectorTitle": "Input Modules",
+    "selectorSubtitle": "Configure external data sources for your backups",
+    "comingSoon": "Coming soon",
+    "soon": "Soon",
+    "type": {
+      "httpRest": "HTTP REST",
+      "digiposte": "Digiposte",
+      "sftp": "SFTP"
+    },
+    "typeDesc": {
+      "httpRest": "Fetch files from a REST API",
+      "digiposte": "Digiposte integration (documents)",
+      "sftp": "Transfer files via SFTP"
+    },
+    "httpRest": {
+      "title": "HTTP REST Inputs",
+      "subtitle": "Configure HTTP REST sources to import files from an API",
+      "add": "Add",
+      "newTitle": "New HTTP REST Input",
+      "newSubtitle": "Configure a new HTTP REST source",
+      "editTitle": "Edit HTTP REST Input",
+      "editSubtitle": "Update the parameters of this input",
+      "noItems": "No HTTP REST inputs configured",
+      "createSuccess": "Input created",
+      "updateSuccess": "Input updated",
+      "deleteSuccess": "Input deleted",
+      "testSuccess": "Test successful",
+      "testFailed": "Test failed",
+      "name": "Name",
+      "namePlaceholder": "My API",
+      "baseUrl": "Base URL",
+      "baseUrlPlaceholder": "https://api.example.com",
+      "listEndpoint": "List endpoint (optional)",
+      "listEndpointPlaceholder": "/files",
+      "listEndpointHint": "If set, lists items before downloading each one",
+      "downloadEndpoint": "Download endpoint",
+      "downloadEndpointPlaceholder": "/files/{id}",
+      "downloadEndpointHint": "Use {id} to interpolate the item identifier",
+      "vaultOptional": "Authentication (optional)",
+      "noVault": "No authentication",
+      "enabled": "Enable this input",
+      "test": "Test",
+      "testing": "Testing…",
+      "testItems": "{{count}} item(s) found",
+      "testOk": "Endpoint reachable"
     }
   },
   "errors": {

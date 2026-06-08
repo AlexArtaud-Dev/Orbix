@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FolderOpen, Plus, X, Folder, File, Globe, Tag, AlertTriangle } from "lucide-react";
+import { FolderOpen, Plus, X, Folder, File, Globe, Tag, AlertTriangle, Cpu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,28 +15,37 @@ import {
 import { SourcePicker } from "../SourcePicker";
 import type { HttpVaultItem } from "@/services/vault";
 import type { RequestParam } from "@/services/backups";
+import type { InputItem } from "@/services/input";
 
 export type { RequestParam };
 
 export interface SourceFormItem {
   path: string;
-  type: "file" | "folder" | "url";
+  type: "file" | "folder" | "url" | "input";
   exclude: string[];
   vaultId?: string;
   requestParams?: RequestParam[];
   transferMode?: "stream" | "buffer";
+  inputId?: string;
 }
 
 interface StepSourcesProps {
   data: SourceFormItem[];
   onChange: (data: SourceFormItem[]) => void;
   httpVaultItems?: HttpVaultItem[];
+  inputItems?: InputItem[];
 }
 
-export function StepSources({ data, onChange, httpVaultItems = [] }: StepSourcesProps) {
+export function StepSources({
+  data,
+  onChange,
+  httpVaultItems = [],
+  inputItems = [],
+}: StepSourcesProps) {
   const { t } = useTranslation();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [urlDialogOpen, setUrlDialogOpen] = useState(false);
+  const [inputDialogOpen, setInputDialogOpen] = useState(false);
 
   const addSource = (paths: string[]) => {
     const path = paths[0];
@@ -48,6 +57,11 @@ export function StepSources({ data, onChange, httpVaultItems = [] }: StepSources
   const addUrl = (item: SourceFormItem) => {
     if (!item.path || data.some((s) => s.path === item.path)) return;
     onChange([...data, item]);
+  };
+
+  const addInput = (input: InputItem) => {
+    if (data.some((s) => s.inputId === input.id)) return;
+    onChange([...data, { path: input.name, type: "input", exclude: [], inputId: input.id }]);
   };
 
   const removeSource = (idx: number) => onChange(data.filter((_, i) => i !== idx));
@@ -81,6 +95,10 @@ export function StepSources({ data, onChange, httpVaultItems = [] }: StepSources
             <Globe className="size-3.5" />
             {t("backups.sources.addUrl")}
           </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => setInputDialogOpen(true)}>
+            <Cpu className="size-3.5" />
+            {t("backups.sources.addInput")}
+          </Button>
         </div>
       </div>
 
@@ -96,6 +114,10 @@ export function StepSources({ data, onChange, httpVaultItems = [] }: StepSources
               <Globe className="size-3.5" />
               {t("backups.sources.addUrl")}
             </Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => setInputDialogOpen(true)}>
+              <Cpu className="size-3.5" />
+              {t("backups.sources.addInput")}
+            </Button>
           </div>
         </div>
       ) : (
@@ -103,11 +125,17 @@ export function StepSources({ data, onChange, httpVaultItems = [] }: StepSources
           {data.map((source, idx) =>
             source.type === "url" ? (
               <UrlSourceCard
-                key={source.path}
+                key={`url-${source.path}`}
                 source={source}
                 httpVaultItems={httpVaultItems}
                 onRemove={() => removeSource(idx)}
                 onUpdate={(patch) => updateSource(idx, patch)}
+              />
+            ) : source.type === "input" ? (
+              <InputSourceCard
+                key={`input-${source.inputId ?? idx}`}
+                source={source}
+                onRemove={() => removeSource(idx)}
               />
             ) : (
               <SourceCard
@@ -135,6 +163,14 @@ export function StepSources({ data, onChange, httpVaultItems = [] }: StepSources
         httpVaultItems={httpVaultItems}
         onClose={() => setUrlDialogOpen(false)}
         onAdd={addUrl}
+      />
+
+      <InputSourceDialog
+        open={inputDialogOpen}
+        inputItems={inputItems}
+        alreadyAdded={data.filter((s) => s.type === "input").map((s) => s.inputId!).filter(Boolean)}
+        onClose={() => setInputDialogOpen(false)}
+        onAdd={addInput}
       />
     </div>
   );
@@ -484,6 +520,112 @@ function RequestParamsEditor({ params, httpVaultItems, onChange }: RequestParams
       {httpVaultItems.length > 0 && (
         <p className="text-xs text-muted-foreground">{t("backups.sources.paramVault")}: use vault field name in value with vault: prefix</p>
       )}
+    </div>
+  );
+}
+
+// ─── Input source card ────────────────────────────────────────────────────────
+
+interface InputSourceCardProps {
+  source: SourceFormItem;
+  onRemove: () => void;
+}
+
+function InputSourceCard({ source, onRemove }: InputSourceCardProps) {
+  const { t } = useTranslation();
+  return (
+    <div className="rounded-lg border bg-card">
+      <div className="flex items-center gap-2 px-3 py-2.5">
+        <Cpu className="size-4 shrink-0 text-primary" />
+        <span className="flex-1 truncate text-sm font-medium">{source.path}</span>
+        <span className="text-xs text-muted-foreground rounded-full border px-1.5 py-0.5 shrink-0">
+          {t("backups.sources.inputBadge")}
+        </span>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="shrink-0 text-muted-foreground hover:text-destructive"
+          onClick={onRemove}
+          aria-label="Remove"
+        >
+          <X className="size-3.5" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Input source add dialog ──────────────────────────────────────────────────
+
+interface InputSourceDialogProps {
+  open: boolean;
+  inputItems: InputItem[];
+  alreadyAdded: string[];
+  onClose: () => void;
+  onAdd: (input: InputItem) => void;
+}
+
+function InputSourceDialog({
+  open,
+  inputItems,
+  alreadyAdded,
+  onClose,
+  onAdd,
+}: InputSourceDialogProps) {
+  const { t } = useTranslation();
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="w-full max-w-md rounded-lg border bg-background p-6 shadow-lg space-y-4">
+        <div>
+          <h3 className="font-semibold text-base">{t("backups.sources.inputTitle")}</h3>
+          <p className="text-xs text-muted-foreground mt-1">{t("backups.sources.inputSubtitle")}</p>
+        </div>
+
+        {inputItems.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{t("backups.sources.noInputItems")}</p>
+        ) : (
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {inputItems.map((input) => {
+              const already = alreadyAdded.includes(input.id);
+              return (
+                <button
+                  key={input.id}
+                  type="button"
+                  disabled={already}
+                  onClick={() => { onAdd(input); onClose(); }}
+                  className={cn(
+                    "w-full flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors",
+                    already
+                      ? "opacity-40 cursor-not-allowed"
+                      : "hover:border-primary/50 hover:bg-muted/30 cursor-pointer",
+                  )}
+                >
+                  <Cpu className="size-4 shrink-0 text-primary" />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-sm">{input.name}</p>
+                    <p className="text-xs text-muted-foreground font-mono truncate">
+                      {(input.config as { baseUrl?: string }).baseUrl ?? "—"}
+                    </p>
+                  </div>
+                  {already && (
+                    <span className="text-xs text-muted-foreground shrink-0">✓</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="flex justify-end">
+          <Button type="button" variant="outline" onClick={onClose}>
+            {t("common.cancel")}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

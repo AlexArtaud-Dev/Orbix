@@ -13,6 +13,7 @@ import { FilesModule } from './modules/files/files.module';
 import { MailModule } from './modules/mail/mail.module';
 import { ContactsModule } from './modules/contacts/contacts.module';
 import { BackupModule } from './modules/backup/backup.module';
+import { InputModule } from './modules/input/input.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { BackupModule } from './modules/backup/backup.module';
     FilesModule,
     MailModule,
     ContactsModule,
+    InputModule,
     BackupModule,
   ],
   providers: [

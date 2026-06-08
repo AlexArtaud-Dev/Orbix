@@ -9,11 +9,12 @@ export interface RequestParam {
 
 export interface BackupSource {
   path: string;
-  type: 'file' | 'folder' | 'url';
+  type: 'file' | 'folder' | 'url' | 'input';
   exclude: string[];
   vaultId?: string;
   requestParams?: RequestParam[];
   transferMode?: 'stream' | 'buffer';
+  inputId?: string;
 }
 
 export interface BackupSources {
@@ -38,7 +39,9 @@ export function parseBackupSources(json: unknown): BackupSources {
             ? ('file' as const)
             : src['type'] === 'url'
               ? ('url' as const)
-              : ('folder' as const);
+              : src['type'] === 'input'
+                ? ('input' as const)
+                : ('folder' as const);
         return [
           {
             path,
@@ -57,6 +60,8 @@ export function parseBackupSources(json: unknown): BackupSources {
                 : src['transferMode'] === 'stream'
                   ? ('stream' as const)
                   : undefined,
+            inputId:
+              typeof src['inputId'] === 'string' ? src['inputId'] : undefined,
           },
         ];
       }),

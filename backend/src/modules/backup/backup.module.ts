@@ -5,9 +5,10 @@ import { BackupRunner } from './backup.runner';
 import { BackupScheduler } from './backup.scheduler';
 import { VaultModule } from '../vault/vault.module';
 import { SettingsModule } from '../settings/settings.module';
+import { InputModule } from '../input/input.module';
 
 @Module({
-  imports: [VaultModule, SettingsModule],
+  imports: [VaultModule, SettingsModule, InputModule],
   controllers: [BackupController],
   providers: [BackupService, BackupRunner, BackupScheduler],
 })

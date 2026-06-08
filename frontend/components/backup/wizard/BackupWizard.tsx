@@ -11,6 +11,7 @@ import { backupsService, type Backup } from "@/services/backups";
 import { vaultService, type EmailVaultItem, type HttpVaultItem } from "@/services/vault";
 import { templatesService, type MailTemplate } from "@/services/templates";
 import { contactsService, type Contact } from "@/services/contacts";
+import { inputService, type InputItem } from "@/services/input";
 import { ApiError } from "@/lib/api";
 
 import { StepBasic } from "./StepBasic";
@@ -49,8 +50,9 @@ export function BackupWizard({ initial }: BackupWizardProps) {
   const [form, setForm] = useState<WizardForm>(() => initial ? backupToForm(initial) : defaultForm());
   const [isSaving, setIsSaving] = useState(false);
 
-  // Lazy-loaded data for step 2 (sources) — HTTP vaults
+  // Lazy-loaded data for step 2 (sources) — HTTP vaults + inputs
   const [httpVaultItems, setHttpVaultItems] = useState<HttpVaultItem[]>([]);
+  const [inputItems, setInputItems] = useState<InputItem[]>([]);
   const [sourcesDataLoaded, setSourcesDataLoaded] = useState(false);
 
   // Lazy-loaded data for step 4 (outputs)
@@ -59,13 +61,17 @@ export function BackupWizard({ initial }: BackupWizardProps) {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [outputDataLoaded, setOutputDataLoaded] = useState(false);
 
-  // Load HTTP vault list once when user reaches step 2
+  // Load HTTP vaults + inputs once when user reaches step 2
   useEffect(() => {
     if (step !== 2 || sourcesDataLoaded) return;
-    vaultService.listHttp(undefined, 100).then((res) => {
-      setHttpVaultItems(res.data);
+    Promise.allSettled([
+      vaultService.listHttp(undefined, 100),
+      inputService.list(undefined, 100),
+    ]).then(([vaultRes, inputRes]) => {
+      if (vaultRes.status === "fulfilled") setHttpVaultItems(vaultRes.value.data);
+      if (inputRes.status === "fulfilled") setInputItems(inputRes.value.data);
       setSourcesDataLoaded(true);
-    }).catch(() => { setSourcesDataLoaded(true); });
+    });
   }, [step]); // eslint-disable-line
 
   // Load output data once when user reaches step 4
@@ -202,6 +208,7 @@ export function BackupWizard({ initial }: BackupWizardProps) {
           <StepSources
             data={form.sources}
             httpVaultItems={httpVaultItems}
+            inputItems={inputItems}
             onChange={(d) => setForm((f) => ({ ...f, sources: d }))}
           />
         )}
