@@ -1,9 +1,4 @@
-import {
-  IsIn,
-  IsNotEmpty,
-  IsObject,
-  IsString,
-} from 'class-validator';
+import { IsIn, IsNotEmpty, IsObject, IsString } from 'class-validator';
 import type { HttpVaultSubtype } from '../vault.types';
 
 const HTTP_SUBTYPES: HttpVaultSubtype[] = [

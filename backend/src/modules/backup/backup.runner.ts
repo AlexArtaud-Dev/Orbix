@@ -375,8 +375,7 @@ export class BackupRunner {
       compression === 'store'
     ) {
       const f = allFiles[0];
-      const buffer =
-        f.buffer !== undefined ? f.buffer : readFileSync(f.abs);
+      const buffer = f.buffer !== undefined ? f.buffer : readFileSync(f.abs);
       return {
         buffer,
         filename: f.arc.split('/').pop() ?? basename(f.arc),
@@ -564,7 +563,8 @@ export class BackupRunner {
     });
     if (!res.ok) throw new Error(`OAuth2 token request failed: ${res.status}`);
     const json = (await res.json()) as { access_token?: string };
-    if (!json.access_token) throw new Error('OAuth2 response missing access_token');
+    if (!json.access_token)
+      throw new Error('OAuth2 response missing access_token');
     return json.access_token;
   }
 
@@ -586,9 +586,12 @@ export class BackupRunner {
       body: body.toString(),
     });
     if (!res.ok)
-      throw new Error(`OAuth2 password grant token request failed: ${res.status}`);
+      throw new Error(
+        `OAuth2 password grant token request failed: ${res.status}`,
+      );
     const json = (await res.json()) as { access_token?: string };
-    if (!json.access_token) throw new Error('OAuth2 response missing access_token');
+    if (!json.access_token)
+      throw new Error('OAuth2 response missing access_token');
     return json.access_token;
   }
 
@@ -597,7 +600,9 @@ export class BackupRunner {
     if (!param.vaultId) return '';
     const payload = await this.vault.getHttpPayload(param.vaultId);
     const field = param.vaultField ?? '';
-    return String((payload as Record<string, unknown>)[field] ?? '');
+
+    const raw = (payload as unknown as Record<string, unknown>)[field];
+    return typeof raw === 'string' ? raw : '';
   }
 
   // ─── Archive building ────────────────────────────────────────────────────────
