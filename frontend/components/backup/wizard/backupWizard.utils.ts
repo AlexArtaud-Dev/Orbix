@@ -55,6 +55,7 @@ export function backupToForm(backup: Backup): WizardForm {
       exclude: s.exclude || [],
       vaultId: s.vaultId,
       requestParams: s.requestParams,
+      transferMode: s.transferMode,
     })),
     zip: {
       archiveFormat: (backup.archiveFormat as "zip" | "tar" | "tar-gz" | "tar-bz2") || "zip",
@@ -117,6 +118,7 @@ export function formToPayload(form: WizardForm, enabled: boolean): CreateBackupP
         exclude: s.exclude,
         vaultId: s.vaultId,
         requestParams: s.requestParams?.length ? s.requestParams : undefined,
+        transferMode: s.type === "url" ? (s.transferMode ?? "stream") : undefined,
       })),
     },
     archiveFormat: form.zip.archiveFormat,

@@ -86,7 +86,10 @@
     "zipTarBz2Desc": "Requires archiver-tar-bzip2 (cd backend && pnpm add archiver-tar-bzip2)",
     "zipTest": "Test zip creation",
     "zipTestSuccess": "Zip test passed",
-    "zipTestFailed": "Zip test failed"
+    "zipTestFailed": "Zip test failed",
+    "backupLimits": "Backup limits",
+    "maxSourceFileSizeMb": "Max source file size (MB)",
+    "maxBackupTotalSizeMb": "Max total archive size (MB)"
   },
   "vault": {
     "selectorTitle": "Vault",
@@ -404,7 +407,11 @@
       "paramLiteral": "Literal",
       "paramVault": "From vault",
       "paramVaultField": "Vault field",
-      "paramValue": "Value"
+      "paramValue": "Value",
+      "transferMode": "Transfer mode",
+      "transferModeStream": "Stream (recommended)",
+      "transferModeBuffer": "Buffer",
+      "transferModeBufferWarning": "Warning: the file is loaded entirely into RAM before archiving. A 500 MB file in buffer mode requires ~500 MB of available RAM on top of the memory used by the archive being built."
     },
     "zip": {
       "format": "Archive format",

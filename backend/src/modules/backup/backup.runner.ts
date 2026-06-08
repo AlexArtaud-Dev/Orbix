@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { statSync, existsSync, readFileSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
+import { Readable } from 'node:stream';
 import {
   join,
   basename,
@@ -47,8 +48,9 @@ interface ArchiveResult {
 }
 
 type FileToArchive =
-  | { abs: string; arc: string; buffer?: never }
-  | { buffer: Buffer; arc: string; abs?: never };
+  | { abs: string; arc: string; buffer?: never; stream?: never }
+  | { buffer: Buffer; arc: string; abs?: never; stream?: never }
+  | { stream: NodeJS.ReadableStream; arc: string; abs?: never; buffer?: never };
 
 export interface ZipInfo {
   basic: boolean; // zip + tar + tar-gz always available
@@ -115,6 +117,17 @@ export class BackupRunner {
     );
 
     try {
+      const settings = await this.settings.get();
+      const settingsAny = settings as Record<string, unknown>;
+      const maxSourceFileSizeMb =
+        typeof settingsAny['maxSourceFileSizeMb'] === 'number'
+          ? settingsAny['maxSourceFileSizeMb']
+          : 500;
+      const maxBackupTotalSizeMb =
+        typeof settingsAny['maxBackupTotalSizeMb'] === 'number'
+          ? settingsAny['maxBackupTotalSizeMb']
+          : 2000;
+
       const sources = parseBackupSources(backup.sources);
       const archive = await this.buildArchive(
         backup.name,
@@ -123,6 +136,8 @@ export class BackupRunner {
         (backup as { zipCompression: string }).zipCompression,
         (backup as { zipPassword: string | null }).zipPassword,
         (backup as { zipFilename: string | null }).zipFilename,
+        maxSourceFileSizeMb,
+        maxBackupTotalSizeMb,
       );
 
       for (const output of (backup.outputs as OutputRow[]).sort(
@@ -193,6 +208,17 @@ export class BackupRunner {
     );
 
     try {
+      const settings = await this.settings.get();
+      const settingsAny = settings as Record<string, unknown>;
+      const maxSourceFileSizeMb =
+        typeof settingsAny['maxSourceFileSizeMb'] === 'number'
+          ? settingsAny['maxSourceFileSizeMb']
+          : 500;
+      const maxBackupTotalSizeMb =
+        typeof settingsAny['maxBackupTotalSizeMb'] === 'number'
+          ? settingsAny['maxBackupTotalSizeMb']
+          : 2000;
+
       const sources = parseBackupSources(backup.sources);
       const archive = await this.buildArchive(
         backup.name,
@@ -201,6 +227,8 @@ export class BackupRunner {
         (backup as { zipCompression: string }).zipCompression,
         (backup as { zipPassword: string | null }).zipPassword,
         (backup as { zipFilename: string | null }).zipFilename,
+        maxSourceFileSizeMb,
+        maxBackupTotalSizeMb,
       );
 
       for (const output of (backup.outputs as OutputRow[]).sort(
@@ -328,8 +356,10 @@ export class BackupRunner {
     compression: string,
     zipPassword: string | null,
     filenameTemplate: string | null,
+    maxSourceFileSizeMb: number,
+    maxBackupTotalSizeMb: number,
   ): Promise<ArchiveResult> {
-    const allFiles = await this.collectFiles(sources);
+    const allFiles = await this.collectFiles(sources, maxSourceFileSizeMb);
     const now = new Date();
     const slug = name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
     const ext = ARCHIVE_EXTENSIONS[archiveFormat] ?? '.zip';
@@ -367,15 +397,21 @@ export class BackupRunner {
       return { buffer: Buffer.alloc(0), filename, size: 0, filesCount: 0 };
     }
 
-    // Single file with no password and non-compressed format → send raw
+    // Single file with no password and non-compressed format → send raw (buffer/file only, not stream)
     if (
       allFiles.length === 1 &&
       !zipPassword &&
       archiveFormat === 'zip' &&
-      compression === 'store'
+      compression === 'store' &&
+      allFiles[0].stream === undefined
     ) {
       const f = allFiles[0];
-      const buffer = f.buffer !== undefined ? f.buffer : readFileSync(f.abs);
+      const buffer = f.buffer !== undefined ? f.buffer : readFileSync(f.abs!);
+      if (buffer.byteLength > maxBackupTotalSizeMb * 1024 * 1024) {
+        throw new Error(
+          `Archive size (${Math.round(buffer.byteLength / 1024 / 1024)} MB) exceeds the configured limit of ${maxBackupTotalSizeMb} MB`,
+        );
+      }
       return {
         buffer,
         filename: f.arc.split('/').pop() ?? basename(f.arc),
@@ -390,6 +426,13 @@ export class BackupRunner {
       level,
       zipPassword,
     );
+
+    if (buffer.byteLength > maxBackupTotalSizeMb * 1024 * 1024) {
+      throw new Error(
+        `Archive size (${Math.round(buffer.byteLength / 1024 / 1024)} MB) exceeds the configured limit of ${maxBackupTotalSizeMb} MB`,
+      );
+    }
+
     return {
       buffer,
       filename,
@@ -405,7 +448,10 @@ export class BackupRunner {
   }
 
   /** Collect all files with their archive paths, preserving folder structure. */
-  private async collectFiles(sources: BackupSources): Promise<FileToArchive[]> {
+  private async collectFiles(
+    sources: BackupSources,
+    maxSourceFileSizeMb: number,
+  ): Promise<FileToArchive[]> {
     const results: FileToArchive[] = [];
 
     const matchesPatterns = (filePath: string, patterns: string[]): boolean => {
@@ -422,10 +468,14 @@ export class BackupRunner {
 
     for (const source of sources.sources) {
       if (source.type === 'url') {
-        const buffer = await this.fetchUrlSource(source);
         const raw = source.path.split('?')[0];
         const filename = raw.split('/').pop() ?? 'download';
-        results.push({ buffer, arc: filename });
+        const fetched = await this.fetchUrlSource(source, maxSourceFileSizeMb);
+        if (fetched instanceof Buffer) {
+          results.push({ buffer: fetched, arc: filename });
+        } else {
+          results.push({ stream: fetched, arc: filename });
+        }
         continue;
       }
 
@@ -469,7 +519,10 @@ export class BackupRunner {
 
   // ─── URL source helpers ──────────────────────────────────────────────────────
 
-  private async fetchUrlSource(source: BackupSource): Promise<Buffer> {
+  private async fetchUrlSource(
+    source: BackupSource,
+    maxSizeMb: number,
+  ): Promise<Buffer | NodeJS.ReadableStream> {
     const headers: Record<string, string> = {};
     const url = new URL(source.path);
 
@@ -491,7 +544,37 @@ export class BackupRunner {
         `URL source returned HTTP ${response.status}: ${source.path}`,
       );
     }
-    return Buffer.from(await response.arrayBuffer());
+
+    const maxBytes = maxSizeMb * 1024 * 1024;
+    const contentLength = response.headers.get('content-length');
+    if (contentLength) {
+      const bytes = parseInt(contentLength, 10);
+      if (!isNaN(bytes) && bytes > maxBytes) {
+        throw new Error(
+          `Source file size (${Math.round(bytes / 1024 / 1024)} MB) exceeds the configured limit of ${maxSizeMb} MB: ${source.path}`,
+        );
+      }
+    }
+
+    // stream is the default: pipe response body directly to archiver without buffering
+    if ((source.transferMode ?? 'stream') === 'stream') {
+      if (!response.body) {
+        throw new Error(`URL source returned no body: ${source.path}`);
+      }
+      return Readable.fromWeb(
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
+        response.body as any,
+      );
+    }
+
+    // buffer mode: load entirely in RAM
+    const buf = Buffer.from(await response.arrayBuffer());
+    if (buf.byteLength > maxBytes) {
+      throw new Error(
+        `Source file size (${Math.round(buf.byteLength / 1024 / 1024)} MB) exceeds the configured limit of ${maxSizeMb} MB: ${source.path}`,
+      );
+    }
+    return buf;
   }
 
   private async applyVaultAuth(
@@ -653,10 +736,12 @@ export class BackupRunner {
       arc.on('end', () => resolve(Buffer.concat(chunks)));
       arc.on('error', reject);
       for (const f of files) {
-        if (f.buffer !== undefined) {
+        if (f.stream !== undefined) {
+          arc.append(f.stream, { name: f.arc });
+        } else if (f.buffer !== undefined) {
           arc.append(f.buffer, { name: f.arc });
         } else {
-          arc.file(f.abs, { name: f.arc });
+          arc.file(f.abs!, { name: f.arc });
         }
       }
       void arc.finalize();
@@ -688,8 +773,9 @@ export class BackupRunner {
         arc.on('end', () => resolve(Buffer.concat(chunks)));
         arc.on('error', reject);
         for (const f of files) {
-          if (f.buffer !== undefined) arc.append(f.buffer, { name: f.arc });
-          else arc.file(f.abs, { name: f.arc });
+          if (f.stream !== undefined) arc.append(f.stream, { name: f.arc });
+          else if (f.buffer !== undefined) arc.append(f.buffer, { name: f.arc });
+          else arc.file(f.abs!, { name: f.arc });
         }
         void arc.finalize();
       } catch {
@@ -720,8 +806,9 @@ export class BackupRunner {
         arc.on('end', () => resolve(Buffer.concat(chunks)));
         arc.on('error', reject);
         for (const f of files) {
-          if (f.buffer !== undefined) arc.append(f.buffer, { name: f.arc });
-          else arc.file(f.abs, { name: f.arc });
+          if (f.stream !== undefined) arc.append(f.stream, { name: f.arc });
+          else if (f.buffer !== undefined) arc.append(f.buffer, { name: f.arc });
+          else arc.file(f.abs!, { name: f.arc });
         }
         void arc.finalize();
       } catch {

@@ -15,6 +15,7 @@ export interface BackupSource {
   exclude: string[];
   vaultId?: string;
   requestParams?: RequestParam[];
+  transferMode?: "stream" | "buffer";
 }
 
 export interface BackupSourcesPayload {

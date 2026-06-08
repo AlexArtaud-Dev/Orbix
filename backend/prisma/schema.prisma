@@ -115,12 +115,14 @@ model Log {
 }
 
 model SystemSettings {
-  id                  String @id @default("singleton")
-  maxFileSizeMb       Int    @default(500)
-  logRetentionHours   Int    @default(720)
-  backupRetentionDays Int    @default(90)
-  defaultTimezone     String @default("UTC")
-  defaultLanguage     String @default("en")
-  defaultTheme        String @default("dark")
-  filesRoot           String @default("/data/files")
+  id                   String @id @default("singleton")
+  maxFileSizeMb        Int    @default(500)
+  logRetentionHours    Int    @default(720)
+  backupRetentionDays  Int    @default(90)
+  defaultTimezone      String @default("UTC")
+  defaultLanguage      String @default("en")
+  defaultTheme         String @default("dark")
+  filesRoot            String @default("/data/files")
+  maxSourceFileSizeMb  Int    @default(500)
+  maxBackupTotalSizeMb Int    @default(2000)
 }

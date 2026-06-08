@@ -9,6 +9,8 @@ export interface SystemSettings {
   defaultLanguage: string;
   defaultTheme: string;
   filesRoot: string;
+  maxSourceFileSizeMb: number;
+  maxBackupTotalSizeMb: number;
 }
 
 export type UpdateSettingsPayload = Partial<Omit<SystemSettings, "id">>;

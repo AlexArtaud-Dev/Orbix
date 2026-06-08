@@ -34,4 +34,16 @@ export class UpdateSettingsDto {
   @IsOptional()
   @IsString()
   filesRoot?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100000)
+  maxSourceFileSizeMb?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100000)
+  maxBackupTotalSizeMb?: number;
 }

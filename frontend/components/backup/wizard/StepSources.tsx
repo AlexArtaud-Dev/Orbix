@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FolderOpen, Plus, X, Folder, File, Globe, Tag } from "lucide-react";
+import { FolderOpen, Plus, X, Folder, File, Globe, Tag, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,7 @@ export interface SourceFormItem {
   exclude: string[];
   vaultId?: string;
   requestParams?: RequestParam[];
+  transferMode?: "stream" | "buffer";
 }
 
 interface StepSourcesProps {
@@ -339,6 +340,35 @@ function UrlSourceCard({ source, httpVaultItems, onRemove, onUpdate }: UrlSource
                 )}
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Transfer mode */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">
+              {t("backups.sources.transferMode")}
+            </label>
+            <Select
+              value={source.transferMode ?? "stream"}
+              onValueChange={(v) =>
+                onUpdate({ transferMode: v as "stream" | "buffer" })
+              }
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="stream">{t("backups.sources.transferModeStream")}</SelectItem>
+                <SelectItem value="buffer">{t("backups.sources.transferModeBuffer")}</SelectItem>
+              </SelectContent>
+            </Select>
+            {(source.transferMode ?? "stream") === "buffer" && (
+              <div className="flex gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+                <AlertTriangle className="size-3.5 shrink-0 text-amber-500 mt-0.5" />
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  {t("backups.sources.transferModeBufferWarning")}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Request params */}

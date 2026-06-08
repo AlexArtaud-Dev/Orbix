@@ -45,6 +45,8 @@ export default function SettingsPage() {
         defaultLanguage: settings.defaultLanguage,
         defaultTheme: settings.defaultTheme,
         filesRoot: settings.filesRoot,
+        maxSourceFileSizeMb: settings.maxSourceFileSizeMb,
+        maxBackupTotalSizeMb: settings.maxBackupTotalSizeMb,
       });
       setSettings(updated);
       toast.success(t("settings.saved"));
@@ -123,6 +125,36 @@ export default function SettingsPage() {
                   min={1}
                   value={settings.backupRetentionDays}
                   onChange={(e) => setSettings({ ...settings, backupRetentionDays: +e.target.value })}
+                />
+              </Field>
+            </FieldGroup>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">{t("settings.backupLimits")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="maxSourceFileSizeMb">{t("settings.maxSourceFileSizeMb")}</FieldLabel>
+                <Input
+                  id="maxSourceFileSizeMb"
+                  type="number"
+                  min={1}
+                  value={settings.maxSourceFileSizeMb}
+                  onChange={(e) => setSettings({ ...settings, maxSourceFileSizeMb: +e.target.value })}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="maxBackupTotalSizeMb">{t("settings.maxBackupTotalSizeMb")}</FieldLabel>
+                <Input
+                  id="maxBackupTotalSizeMb"
+                  type="number"
+                  min={1}
+                  value={settings.maxBackupTotalSizeMb}
+                  onChange={(e) => setSettings({ ...settings, maxBackupTotalSizeMb: +e.target.value })}
                 />
               </Field>
             </FieldGroup>

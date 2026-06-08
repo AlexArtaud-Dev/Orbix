@@ -13,6 +13,7 @@ export interface BackupSource {
   exclude: string[];
   vaultId?: string;
   requestParams?: RequestParam[];
+  transferMode?: 'stream' | 'buffer';
 }
 
 export interface BackupSources {
@@ -50,6 +51,12 @@ export function parseBackupSources(json: unknown): BackupSources {
             requestParams: Array.isArray(src['requestParams'])
               ? (src['requestParams'] as RequestParam[])
               : undefined,
+            transferMode:
+              src['transferMode'] === 'buffer'
+                ? ('buffer' as const)
+                : src['transferMode'] === 'stream'
+                  ? ('stream' as const)
+                  : undefined,
           },
         ];
       }),

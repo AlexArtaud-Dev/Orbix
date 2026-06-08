@@ -86,7 +86,10 @@
     "zipTarBz2Desc": "Nécessite archiver-tar-bzip2 (cd backend && pnpm add archiver-tar-bzip2)",
     "zipTest": "Tester la création zip",
     "zipTestSuccess": "Test zip réussi",
-    "zipTestFailed": "Test zip échoué"
+    "zipTestFailed": "Test zip échoué",
+    "backupLimits": "Limites de sauvegarde",
+    "maxSourceFileSizeMb": "Taille max par source (Mo)",
+    "maxBackupTotalSizeMb": "Taille max de l'archive finale (Mo)"
   },
   "vault": {
     "selectorTitle": "Coffre",
@@ -404,7 +407,11 @@
       "paramLiteral": "Littéral",
       "paramVault": "Depuis le vault",
       "paramVaultField": "Champ vault",
-      "paramValue": "Valeur"
+      "paramValue": "Valeur",
+      "transferMode": "Mode de transfert",
+      "transferModeStream": "Stream (recommandé)",
+      "transferModeBuffer": "Buffer",
+      "transferModeBufferWarning": "Attention : le fichier est chargé intégralement en RAM avant d'être archivé. Un fichier de 500 Mo en mode buffer nécessite ~500 Mo de RAM disponible en plus de la mémoire utilisée par l'archive en cours de construction."
     },
     "zip": {
       "format": "Format d'archive",
