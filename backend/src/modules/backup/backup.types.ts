@@ -112,6 +112,7 @@ export interface BackupOutputData {
 export interface BackupData {
   id: string;
   name: string;
+  backupType: string;
   sources: BackupSources;
   scheduleType: string;
   scheduleConfig: ScheduleConfig;

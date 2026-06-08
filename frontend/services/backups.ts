@@ -59,6 +59,7 @@ export interface BackupOutput {
 export interface Backup {
   id: string;
   name: string;
+  backupType: "local" | "input";
   sources: BackupSourcesPayload;
   scheduleType: string;
   scheduleConfig: ScheduleConfigPayload;
@@ -94,6 +95,7 @@ export interface BackupOutputPayload {
 
 export interface CreateBackupPayload {
   name: string;
+  backupType?: "local" | "input";
   enabled?: boolean;
   scheduleType?: string;
   scheduleConfig?: ScheduleConfigPayload;

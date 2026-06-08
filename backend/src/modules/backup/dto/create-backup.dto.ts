@@ -16,13 +16,17 @@ class BackupSourceDto {
   @IsNotEmpty()
   path!: string;
 
-  @IsIn(['file', 'folder'])
-  type!: 'file' | 'folder';
+  @IsIn(['file', 'folder', 'input'])
+  type!: 'file' | 'folder' | 'input';
 
   @IsArray()
   @IsString({ each: true })
   @IsOptional()
   exclude?: string[];
+
+  @IsString()
+  @IsOptional()
+  inputId?: string;
 }
 
 class BackupSourcesDto {
@@ -81,6 +85,10 @@ export class CreateBackupDto {
   @IsString()
   @IsNotEmpty()
   name!: string;
+
+  @IsIn(['local', 'input'])
+  @IsOptional()
+  backupType?: string;
 
   @IsBoolean()
   @IsOptional()

@@ -38,8 +38,12 @@ export default function EditBackupPage() {
 
   if (!backup) return null;
 
-  // Detect wizard mode from existing sources
-  const mode = backup.sources.sources.some((s) => s.type === "input") ? "input" : "local";
+  // Read persisted mode; fall back to source inference for legacy backups
+  const mode: "local" | "input" =
+    backup.backupType === "input" ||
+    backup.sources.sources.some((s) => s.type === "input")
+      ? "input"
+      : "local";
 
   return (
     <div className="max-w-4xl space-y-6">

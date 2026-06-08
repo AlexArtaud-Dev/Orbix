@@ -35,6 +35,7 @@ interface OutputRow {
 interface BackupRow {
   id: string;
   name: string;
+  backupType: string;
   sources: unknown;
   scheduleType: string;
   scheduleConfig: unknown;
@@ -66,6 +67,7 @@ export class BackupService {
     return {
       id: backup.id,
       name: backup.name,
+      backupType: backup.backupType,
       sources: parseBackupSources(backup.sources),
       scheduleType: backup.scheduleType,
       scheduleConfig: parseScheduleConfig(backup.scheduleConfig),
@@ -142,6 +144,7 @@ export class BackupService {
             path: s.path,
             type: s.type,
             exclude: s.exclude ?? [],
+            ...(s.inputId ? { inputId: s.inputId } : {}),
           })),
         }
       : { sources: [] };
@@ -149,6 +152,7 @@ export class BackupService {
     const backup = await this.prisma.backup.create({
       data: {
         name: dto.name,
+        backupType: dto.backupType ?? 'local',
 
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         sources: sources as any,
@@ -221,6 +225,7 @@ export class BackupService {
             path: s.path,
             type: s.type,
             exclude: s.exclude ?? [],
+            ...(s.inputId ? { inputId: s.inputId } : {}),
           })),
         }
       : null;
@@ -234,6 +239,7 @@ export class BackupService {
         where: { id },
         data: {
           name: dto.name ?? existing.name,
+          backupType: dto.backupType ?? (existing as BackupRow).backupType,
 
           // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           sources: (sources ?? existing.sources) as any,

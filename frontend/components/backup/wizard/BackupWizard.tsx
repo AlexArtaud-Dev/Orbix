@@ -113,7 +113,7 @@ export function BackupWizard({ mode, initial }: BackupWizardProps) {
     }
     setIsSaving(true);
     try {
-      const payload = formToPayload(form, form.enabled);
+      const payload = formToPayload(form, form.enabled, mode);
       let saved: Backup;
       if (backupId) {
         saved = await backupsService.update(backupId, payload);

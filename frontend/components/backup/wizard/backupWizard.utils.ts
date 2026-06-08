@@ -105,9 +105,10 @@ export function buildScheduleConfig(s: StepScheduleData): ScheduleConfigPayload 
   }
 }
 
-export function formToPayload(form: WizardForm, enabled: boolean): CreateBackupPayload {
+export function formToPayload(form: WizardForm, enabled: boolean, mode: "local" | "input"): CreateBackupPayload {
   return {
     name: form.basic.name,
+    backupType: mode,
     enabled,
     scheduleType: form.schedule.type,
     scheduleConfig: buildScheduleConfig(form.schedule),

@@ -60,6 +60,7 @@ model MailLog {
 model Backup {
   id               String         @id @default(cuid())
   name             String         @unique
+  backupType       String         @default("local") // "local" | "input"
   sources          Json           @default("{\"sources\":[]}")
   scheduleType     String         @default("manual")
   scheduleConfig   Json?
