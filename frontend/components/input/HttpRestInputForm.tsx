@@ -513,7 +513,7 @@ function VarInsertPopover({
   onChange,
   varSets,
 }: {
-  textareaRef: React.RefObject<HTMLTextAreaElement>;
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
   value: string;
   onChange: (v: string) => void;
   varSets: VarSetItem[];

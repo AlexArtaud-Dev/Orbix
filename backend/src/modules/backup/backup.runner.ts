@@ -729,7 +729,11 @@ export class BackupRunner {
       baseUrlObj.searchParams.forEach((v, k) => listUrl.searchParams.set(k, v));
 
       const listRes = await fetchWithConfig(
-        listUrl, bodyInit.method, bodyInit.headers, bodyInit.body, skipTls,
+        listUrl,
+        bodyInit.method,
+        bodyInit.headers,
+        bodyInit.body,
+        skipTls,
       );
       if (!listRes.ok) {
         throw new Error(
@@ -774,7 +778,11 @@ export class BackupRunner {
           downloadPath;
 
         const dlRes = await fetchWithConfig(
-          downloadUrl, 'GET', headers, undefined, skipTls,
+          downloadUrl,
+          'GET',
+          headers,
+          undefined,
+          skipTls,
         );
         if (!dlRes.ok) {
           throw new Error(
@@ -805,7 +813,11 @@ export class BackupRunner {
     } else {
       // ── Direct single-file download ──
       const response = await fetchWithConfig(
-        baseUrlObj, bodyInit.method, bodyInit.headers, bodyInit.body, skipTls,
+        baseUrlObj,
+        bodyInit.method,
+        bodyInit.headers,
+        bodyInit.body,
+        skipTls,
       );
       if (!response.ok) {
         throw new Error(
@@ -834,7 +846,8 @@ export class BackupRunner {
       const cdFilename = this.parseContentDispositionFilename(
         response.headers.get('content-disposition'),
       );
-      const urlBasename = config.baseUrl.split('/').pop()?.split('?')[0] || 'download';
+      const urlBasename =
+        config.baseUrl.split('/').pop()?.split('?')[0] || 'download';
       const filename = cdFilename || urlBasename;
       results.push({ buffer: buf, arc: filename });
     }
@@ -967,9 +980,13 @@ export class BackupRunner {
   }
 
   /** Parse filename from Content-Disposition header, returns null if not found. */
-  private parseContentDispositionFilename(header: string | null): string | null {
+  private parseContentDispositionFilename(
+    header: string | null,
+  ): string | null {
     if (!header) return null;
-    const match = header.match(/filename\*?=(?:UTF-8'')?["']?([^"';\r\n]+)["']?/i);
+    const match = header.match(
+      /filename\*?=(?:UTF-8'')?["']?([^"';\r\n]+)["']?/i,
+    );
     if (!match) return null;
     try {
       return decodeURIComponent(match[1].trim().replace(/["']/g, ''));

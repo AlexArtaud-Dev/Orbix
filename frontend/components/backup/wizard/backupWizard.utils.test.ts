@@ -25,6 +25,7 @@ function makeBackup(overrides: Partial<Backup> = {}): Backup {
     archiveFormat: "zip",
     zipCompression: "default",
     zipPassword: null,
+    zipPasswordVaultRef: null,
     zipFilename: null,
     isValidated: false,
     validationStatus: null,

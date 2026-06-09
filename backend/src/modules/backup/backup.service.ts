@@ -79,7 +79,7 @@ export class BackupService {
       archiveFormat: backup.archiveFormat,
       zipCompression: backup.zipCompression,
       zipPassword: backup.zipPassword,
-      zipPasswordVaultRef: (backup as BackupRow).zipPasswordVaultRef,
+      zipPasswordVaultRef: backup.zipPasswordVaultRef,
       zipFilename: backup.zipFilename,
       isValidated: backup.isValidated,
       validationStatus: backup.validationStatus,

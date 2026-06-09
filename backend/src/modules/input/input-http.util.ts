@@ -25,7 +25,7 @@ export async function fetchWithConfig(
       method,
       headers,
       ...(body !== undefined ? { body } : {}),
-    } as RequestInit);
+    });
   }
 
   // TLS bypass path — convert body to string when possible
@@ -44,7 +44,7 @@ export async function fetchWithConfig(
       method,
       headers,
       body,
-    } as RequestInit);
+    });
   }
 
   return fetchInsecure(urlObj, method, headers, bodyStr);

@@ -182,9 +182,17 @@ export class InputService {
             break;
           case 'graphql': {
             let gqlVars: unknown;
-            try { gqlVars = config.body.graphqlVariables ? JSON.parse(config.body.graphqlVariables) : undefined; }
-            catch { gqlVars = undefined; }
-            bodyString = JSON.stringify({ query: config.body.raw, ...(gqlVars ? { variables: gqlVars } : {}) });
+            try {
+              gqlVars = config.body.graphqlVariables
+                ? JSON.parse(config.body.graphqlVariables)
+                : undefined;
+            } catch {
+              gqlVars = undefined;
+            }
+            bodyString = JSON.stringify({
+              query: config.body.raw,
+              ...(gqlVars ? { variables: gqlVars } : {}),
+            });
             if (!headers['Content-Type'] && !headers['content-type'])
               headers['Content-Type'] = 'application/json';
             break;
@@ -192,7 +200,8 @@ export class InputService {
           case 'x-www-form-urlencoded': {
             const params = new URLSearchParams();
             for (const f of config.body.urlEncoded ?? [])
-              if (f.key && f.valueType === 'literal') params.set(f.key, f.value ?? '');
+              if (f.key && f.valueType === 'literal')
+                params.set(f.key, f.value ?? '');
             bodyString = params.toString();
             if (!headers['Content-Type'] && !headers['content-type'])
               headers['Content-Type'] = 'application/x-www-form-urlencoded';
@@ -207,29 +216,15 @@ export class InputService {
         bodyString = await this.resolveTemplate(bodyString);
       }
 
-      // ── [TEMP] Full request trace ─────────────────────────────────────────
-      this.logger.warn(
-        `[INPUT TEST] ▶ REQUEST\n` +
-          `  ${method} ${url.toString()}\n` +
-          `  Headers : ${JSON.stringify(headers, null, 2)}\n` +
-          `  Body    : ${bodyString ?? '(none)'}`,
-      );
-
       const res = await fetchWithConfig(
-        url, method, headers, bodyString, config.insecureSkipVerify ?? false,
+        url,
+        method,
+        headers,
+        bodyString,
+        config.insecureSkipVerify ?? false,
       );
 
-      // Read body once so we can log it and still use it
       const rawBody = await res.text();
-
-      // ── [TEMP] Full response trace ────────────────────────────────────────
-      const resHeaders: Record<string, string> = {};
-      res.headers.forEach((v, k) => { resHeaders[k] = v; });
-      this.logger.warn(
-        `[INPUT TEST] ◀ RESPONSE ${res.status} ${res.statusText}\n` +
-          `  Headers : ${JSON.stringify(resHeaders, null, 2)}\n` +
-          `  Body    : ${rawBody.slice(0, 2000)}`,
-      );
 
       if (!res.ok) {
         const error = `HTTP ${res.status}`;
@@ -272,7 +267,7 @@ export class InputService {
                 config: {
                   ...(input.config as object),
                   detectedExtension,
-                } as Prisma.InputJsonValue,
+                },
               }
             : {}),
         },
@@ -314,10 +309,7 @@ export class InputService {
     const payloads = new Map<string, Record<string, string>>();
     for (const slug of slugs) {
       try {
-        payloads.set(
-          slug,
-          await this.vault.getVariableSetPayloadBySlug(slug),
-        );
+        payloads.set(slug, await this.vault.getVariableSetPayloadBySlug(slug));
       } catch {
         payloads.set(slug, {});
       }
@@ -345,7 +337,9 @@ export class InputService {
       );
       if (cdMatch) {
         try {
-          const fname = decodeURIComponent(cdMatch[1].trim().replace(/["']/g, ''));
+          const fname = decodeURIComponent(
+            cdMatch[1].trim().replace(/["']/g, ''),
+          );
           const ext = this.extractExt(fname);
           if (ext) return ext;
         } catch {

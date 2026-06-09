@@ -504,9 +504,9 @@ export class VaultService {
       .toLowerCase()
       .normalize('NFD')
       .replace(/[̀-ͯ]/g, '') // strip diacritics
-      .replace(/[^a-z0-9]+/g, '-')    // non-alnum → hyphen
-      .replace(/^-+|-+$/g, '')         // trim edge hyphens
-      .replace(/-{2,}/g, '-');         // collapse runs
+      .replace(/[^a-z0-9]+/g, '-') // non-alnum → hyphen
+      .replace(/^-+|-+$/g, '') // trim edge hyphens
+      .replace(/-{2,}/g, '-'); // collapse runs
   }
 
   private toVarSetResponse(entity: VaultRow): VarSetResponse {
@@ -601,7 +601,10 @@ export class VaultService {
       variables: (dto.variables ?? current.variables).map((v) => ({
         key: v.key,
         // Empty string submitted for an existing key → keep the stored value
-        value: v.value === '' && currentMap.has(v.key) ? currentMap.get(v.key)! : v.value,
+        value:
+          v.value === '' && currentMap.has(v.key)
+            ? currentMap.get(v.key)!
+            : v.value,
       })),
     };
 
@@ -653,10 +656,9 @@ export class VaultService {
     const entities = await this.prisma.vaultEntity.findMany({
       where: { type: 'variable_set' },
     });
-    const entity = entities.find(
-      (e) => VaultService.slugify(e.name) === slug,
-    );
-    if (!entity) throw new NotFoundException(`Variable set "${slug}" not found`);
+    const entity = entities.find((e) => VaultService.slugify(e.name) === slug);
+    if (!entity)
+      throw new NotFoundException(`Variable set "${slug}" not found`);
     const payload = JSON.parse(
       this.decrypt(entity.encryptedPayload),
     ) as VarSetPayload;
