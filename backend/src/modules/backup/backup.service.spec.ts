@@ -36,14 +36,17 @@ function makeBackupRow(overrides: Record<string, unknown> = {}) {
   return {
     id: 'backup-1',
     name: 'My Backup',
+    backupType: 'local',
     sources: { sources: [{ path: '/data', type: 'folder', exclude: [] }] },
     scheduleType: 'manual',
     scheduleConfig: null,
     schedule: null,
     enabled: false,
+    noArchive: false,
     archiveFormat: 'zip',
     zipCompression: 'default',
     zipPassword: null,
+    zipPasswordVaultRef: null,
     zipFilename: null,
     isValidated: false,
     validationStatus: null,
@@ -428,6 +431,141 @@ describe('BackupService', () => {
       await expect(service.startValidation('ghost')).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  // ─── zipPasswordVaultRef ──────────────────────────────────────────────────────
+
+  describe('zipPasswordVaultRef — create', () => {
+    it('persists zipPasswordVaultRef when provided in DTO', async () => {
+      mockPrisma.backup.findUnique.mockResolvedValue(null); // no name conflict
+      mockPrisma.backup.create.mockResolvedValue(
+        makeBackupRow({ zipPasswordVaultRef: 'myslug.password' }),
+      );
+
+      const result = await service.create({
+        name: 'Backup',
+        zipPasswordVaultRef: 'myslug.password',
+      });
+
+      expect(result.zipPasswordVaultRef).toBe('myslug.password');
+
+      const createArg = (
+        mockPrisma.backup.create.mock.calls[0] as [
+          { data: Record<string, unknown> },
+        ]
+      )[0];
+      expect(createArg.data.zipPasswordVaultRef).toBe('myslug.password');
+    });
+
+    it('defaults zipPasswordVaultRef to null when not provided', async () => {
+      mockPrisma.backup.findUnique.mockResolvedValue(null);
+      mockPrisma.backup.create.mockResolvedValue(makeBackupRow());
+
+      await service.create({ name: 'Backup' });
+
+      const createArg = (
+        mockPrisma.backup.create.mock.calls[0] as [
+          { data: Record<string, unknown> },
+        ]
+      )[0];
+      expect(createArg.data.zipPasswordVaultRef).toBeNull();
+    });
+  });
+
+  describe('zipPasswordVaultRef — update', () => {
+    it('preserves zipPasswordVaultRef when absent from DTO', async () => {
+      const existing = makeBackupRow({ zipPasswordVaultRef: 'myslug.pw' });
+      mockPrisma.backup.findUnique.mockResolvedValue(existing);
+      mockPrisma._txBackupUpdate.mockResolvedValue(existing);
+
+      // No name in DTO → skips name-conflict check entirely
+      await service.update('backup-1', {});
+
+      const updateArg = (
+        mockPrisma._txBackupUpdate.mock.calls[0] as [
+          { data: Record<string, unknown> },
+        ]
+      )[0];
+      expect(updateArg.data.zipPasswordVaultRef).toBe('myslug.pw');
+    });
+
+    it('clears zipPasswordVaultRef when explicitly set to null', async () => {
+      const existing = makeBackupRow({ zipPasswordVaultRef: 'myslug.pw' });
+      mockPrisma.backup.findUnique.mockResolvedValue(existing);
+      mockPrisma._txBackupUpdate.mockResolvedValue(
+        makeBackupRow({ zipPasswordVaultRef: null }),
+      );
+
+      await service.update('backup-1', { zipPasswordVaultRef: null });
+
+      const updateArg = (
+        mockPrisma._txBackupUpdate.mock.calls[0] as [
+          { data: Record<string, unknown> },
+        ]
+      )[0];
+      expect(updateArg.data.zipPasswordVaultRef).toBeNull();
+    });
+
+    it('sets a new zipPasswordVaultRef string', async () => {
+      const existing = makeBackupRow({ zipPasswordVaultRef: null });
+      mockPrisma.backup.findUnique.mockResolvedValue(existing);
+      mockPrisma._txBackupUpdate.mockResolvedValue(
+        makeBackupRow({ zipPasswordVaultRef: 'newslug.key' }),
+      );
+
+      await service.update('backup-1', { zipPasswordVaultRef: 'newslug.key' });
+
+      const updateArg = (
+        mockPrisma._txBackupUpdate.mock.calls[0] as [
+          { data: Record<string, unknown> },
+        ]
+      )[0];
+      expect(updateArg.data.zipPasswordVaultRef).toBe('newslug.key');
+    });
+
+    it('changing zipPasswordVaultRef triggers configChanged and resets validation', async () => {
+      const existing = makeBackupRow({
+        zipPasswordVaultRef: null,
+        isValidated: true,
+        enabled: true,
+      });
+      mockPrisma.backup.findUnique.mockResolvedValue(existing);
+      mockPrisma._txBackupUpdate.mockResolvedValue(
+        makeBackupRow({ isValidated: false }),
+      );
+
+      await service.update('backup-1', { zipPasswordVaultRef: 'slug.key' });
+
+      const updateArg = (
+        mockPrisma._txBackupUpdate.mock.calls[0] as [
+          { data: Record<string, unknown> },
+        ]
+      )[0];
+      expect(updateArg.data.isValidated).toBe(false);
+      expect(updateArg.data.enabled).toBe(false);
+    });
+  });
+
+  describe('zipPasswordVaultRef — toData mapping', () => {
+    it('maps zipPasswordVaultRef to the output when non-null', async () => {
+      mockPrisma.backup.findMany.mockResolvedValue([
+        makeBackupRow({ zipPasswordVaultRef: 'myslug.pw' }),
+      ]);
+
+      const [result] = await service.list();
+
+      expect(result.zipPasswordVaultRef).toBe('myslug.pw');
+    });
+
+    it('maps zipPasswordVaultRef as null when null in DB', async () => {
+      mockPrisma.backup.findMany.mockResolvedValue([
+        makeBackupRow({ zipPasswordVaultRef: null }),
+      ]);
+
+      const [result] = await service.list();
+
+      expect(result.zipPasswordVaultRef).toBeNull();
     });
   });
 

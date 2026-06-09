@@ -293,6 +293,44 @@ describe("formToPayload — recipients from stubs", () => {
   });
 });
 
+describe("formToPayload — zipPasswordVaultRef handling", () => {
+  it("sends zipPasswordVaultRef when non-empty", () => {
+    const form = {
+      ...defaultForm(),
+      zip: { ...defaultForm().zip, zipPasswordVaultRef: "myslug.password" },
+    };
+    const payload = formToPayload(form, false);
+    expect(payload.zipPasswordVaultRef).toBe("myslug.password");
+  });
+
+  it("sends null when zipPasswordVaultRef is empty string", () => {
+    const form = {
+      ...defaultForm(),
+      zip: { ...defaultForm().zip, zipPasswordVaultRef: "" },
+    };
+    const payload = formToPayload(form, false);
+    expect(payload.zipPasswordVaultRef).toBeNull();
+  });
+});
+
+describe("defaultForm — zipPasswordVaultRef", () => {
+  it("initialises zipPasswordVaultRef as empty string", () => {
+    expect(defaultForm().zip.zipPasswordVaultRef).toBe("");
+  });
+});
+
+describe("backupToForm — zipPasswordVaultRef", () => {
+  it("maps zipPasswordVaultRef from backup when present", () => {
+    const backup = makeBackup({ zipPasswordVaultRef: "slug.key" });
+    expect(backupToForm(backup).zip.zipPasswordVaultRef).toBe("slug.key");
+  });
+
+  it("defaults to empty string when backup has null", () => {
+    const backup = makeBackup({ zipPasswordVaultRef: null });
+    expect(backupToForm(backup).zip.zipPasswordVaultRef).toBe("");
+  });
+});
+
 describe("formToPayload — general", () => {
   it("maps name and enabled correctly", () => {
     const form = { ...defaultForm(), basic: { name: "My Backup" }, enabled: true };
