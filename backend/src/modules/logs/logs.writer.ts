@@ -5,6 +5,7 @@ export type LogLevel = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
 export type LogCategory =
   | 'auth'
   | 'backup'
+  | 'input'
   | 'mail'
   | 'scheduler'
   | 'system'

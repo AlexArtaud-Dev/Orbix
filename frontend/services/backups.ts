@@ -11,10 +11,12 @@ export interface RequestParam {
 
 export interface BackupSource {
   path: string;
-  type: "file" | "folder" | "url";
+  type: "file" | "folder" | "url" | "input";
   exclude: string[];
   vaultId?: string;
   requestParams?: RequestParam[];
+  transferMode?: "stream" | "buffer";
+  inputId?: string;
 }
 
 export interface BackupSourcesPayload {
@@ -57,14 +59,17 @@ export interface BackupOutput {
 export interface Backup {
   id: string;
   name: string;
+  backupType: "local" | "input";
   sources: BackupSourcesPayload;
   scheduleType: string;
   scheduleConfig: ScheduleConfigPayload;
   schedule: string | null;
   enabled: boolean;
+  noArchive: boolean;
   archiveFormat: string;
   zipCompression: string;
   zipPassword: string | null;
+  zipPasswordVaultRef: string | null;
   zipFilename: string | null;
   isValidated: boolean;
   validationStatus: string | null;
@@ -92,6 +97,8 @@ export interface BackupOutputPayload {
 
 export interface CreateBackupPayload {
   name: string;
+  backupType?: "local" | "input";
+  noArchive?: boolean;
   enabled?: boolean;
   scheduleType?: string;
   scheduleConfig?: ScheduleConfigPayload;
@@ -100,6 +107,7 @@ export interface CreateBackupPayload {
   archiveFormat?: string;
   zipCompression?: string;
   zipPassword?: string | null;
+  zipPasswordVaultRef?: string | null;
   zipFilename?: string | null;
   outputs?: BackupOutputPayload[];
 }

@@ -10,6 +10,7 @@ import {
   AlertTriangle, TriangleAlert,
 } from "lucide-react";
 import { backupsService, describeSchedule, type Backup } from "@/services/backups";
+import { inputService, type InputItem } from "@/services/input";
 import { logsService, type LogEntry } from "@/services/logs";
 import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -31,12 +32,17 @@ export default function BackupsPage() {
   const { t } = useTranslation();
   const [items, setItems] = useState<Backup[]>([]);
   const [loading, setLoading] = useState(true);
+  const [inputMap, setInputMap] = useState<Map<string, InputItem>>(new Map());
 
   const load = async () => {
     setLoading(true);
     try {
-      const data = await backupsService.list();
-      setItems(data);
+      const [backups, inputs] = await Promise.all([
+        backupsService.list(),
+        inputService.list(undefined, 100),
+      ]);
+      setItems(backups);
+      setInputMap(new Map(inputs.data.map((i) => [i.id, i])));
     } finally {
       setLoading(false);
     }
@@ -83,6 +89,7 @@ export default function BackupsPage() {
             <BackupCard
               key={item.id}
               item={item}
+              inputMap={inputMap}
               onUpdated={updateItem}
               onRemoved={() => removeItem(item.id)}
             />
@@ -95,11 +102,12 @@ export default function BackupsPage() {
 
 interface BackupCardProps {
   item: Backup;
+  inputMap: Map<string, InputItem>;
   onUpdated: (b: Backup) => void;
   onRemoved: () => void;
 }
 
-function BackupCard({ item, onUpdated, onRemoved }: BackupCardProps) {
+function BackupCard({ item, inputMap, onUpdated, onRemoved }: BackupCardProps) {
   const { t } = useTranslation();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState<"run" | "toggle" | "delete" | null>(null);
@@ -134,6 +142,8 @@ function BackupCard({ item, onUpdated, onRemoved }: BackupCardProps) {
       setErrorLogs([]);
       setErrorCount(0);
       toast.success(t("backups.logsClearedSuccess"));
+      // Notify sidebar to refresh its error badge
+      window.dispatchEvent(new CustomEvent("orbix:logs-changed"));
     } catch {
       toast.error(t("common.error"));
     } finally {
@@ -146,8 +156,13 @@ function BackupCard({ item, onUpdated, onRemoved }: BackupCardProps) {
     ? new Date(item.lastRunAt).toLocaleString()
     : t("backups.never");
 
-  const canRun = item.isValidated;
-  const canEnable = item.isValidated && !item.enabled;
+  // Input cascade: any input source not yet tested → block run + show badge
+  const inputNeedsRetest = item.sources.sources.some(
+    (s) => s.type === "input" && s.inputId && inputMap.get(s.inputId)?.lastTestStatus !== "ok",
+  );
+
+  const canRun = item.isValidated && !inputNeedsRetest;
+  const canEnable = item.isValidated && !item.enabled && !inputNeedsRetest;
 
   const handleRun = async () => {
     if (!canRun) return;
@@ -207,6 +222,19 @@ function BackupCard({ item, onUpdated, onRemoved }: BackupCardProps) {
               <span className="inline-flex items-center rounded-full bg-yellow-500/10 px-2 py-0.5 text-xs font-medium text-yellow-600 dark:text-yellow-400">
                 {t("backups.notValidated")}
               </span>
+            )}
+            {inputNeedsRetest && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400 cursor-default">
+                    <AlertTriangle className="size-3" />
+                    {t("backups.sources.inputNeedsRetest")}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-xs text-center">
+                  {t("backups.tooltips.inputNeedsRetest")}
+                </TooltipContent>
+              </Tooltip>
             )}
           </div>
           <p className="mt-1 truncate text-xs text-muted-foreground">
@@ -269,7 +297,11 @@ function BackupCard({ item, onUpdated, onRemoved }: BackupCardProps) {
               </span>
             </TooltipTrigger>
             <TooltipContent>
-              {canRun ? t("backups.runNow") : t("backups.tooltips.runDisabled")}
+              {canRun
+                ? t("backups.runNow")
+                : inputNeedsRetest
+                ? t("backups.tooltips.inputNeedsRetest")
+                : t("backups.tooltips.runDisabled")}
             </TooltipContent>
           </Tooltip>
 
@@ -299,6 +331,8 @@ function BackupCard({ item, onUpdated, onRemoved }: BackupCardProps) {
                 ? t("backups.disable")
                 : canEnable
                 ? t("backups.enable")
+                : inputNeedsRetest
+                ? t("backups.tooltips.inputNeedsRetest")
                 : t("backups.tooltips.enableDisabled")}
             </TooltipContent>
           </Tooltip>

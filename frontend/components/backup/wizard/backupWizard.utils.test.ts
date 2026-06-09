@@ -15,14 +15,17 @@ function makeBackup(overrides: Partial<Backup> = {}): Backup {
   return {
     id: "b-1",
     name: "Test Backup",
+    backupType: "local",
     sources: { sources: [{ path: "/data", type: "folder", exclude: [] }] },
     scheduleType: "manual",
     scheduleConfig: null,
     schedule: null,
     enabled: false,
+    noArchive: false,
     archiveFormat: "zip",
     zipCompression: "default",
     zipPassword: null,
+    zipPasswordVaultRef: null,
     zipFilename: null,
     isValidated: false,
     validationStatus: null,
@@ -287,6 +290,44 @@ describe("formToPayload — recipients from stubs", () => {
     const payload = formToPayload(form, false);
 
     expect(payload.outputs![0].recipientsTo).toEqual(["c-1", "c-2"]);
+  });
+});
+
+describe("formToPayload — zipPasswordVaultRef handling", () => {
+  it("sends zipPasswordVaultRef when non-empty", () => {
+    const form = {
+      ...defaultForm(),
+      zip: { ...defaultForm().zip, zipPasswordVaultRef: "myslug.password" },
+    };
+    const payload = formToPayload(form, false);
+    expect(payload.zipPasswordVaultRef).toBe("myslug.password");
+  });
+
+  it("sends null when zipPasswordVaultRef is empty string", () => {
+    const form = {
+      ...defaultForm(),
+      zip: { ...defaultForm().zip, zipPasswordVaultRef: "" },
+    };
+    const payload = formToPayload(form, false);
+    expect(payload.zipPasswordVaultRef).toBeNull();
+  });
+});
+
+describe("defaultForm — zipPasswordVaultRef", () => {
+  it("initialises zipPasswordVaultRef as empty string", () => {
+    expect(defaultForm().zip.zipPasswordVaultRef).toBe("");
+  });
+});
+
+describe("backupToForm — zipPasswordVaultRef", () => {
+  it("maps zipPasswordVaultRef from backup when present", () => {
+    const backup = makeBackup({ zipPasswordVaultRef: "slug.key" });
+    expect(backupToForm(backup).zip.zipPasswordVaultRef).toBe("slug.key");
+  });
+
+  it("defaults to empty string when backup has null", () => {
+    const backup = makeBackup({ zipPasswordVaultRef: null });
+    expect(backupToForm(backup).zip.zipPasswordVaultRef).toBe("");
   });
 });
 

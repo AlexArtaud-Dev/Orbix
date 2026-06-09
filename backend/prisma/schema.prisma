@@ -60,15 +60,18 @@ model MailLog {
 model Backup {
   id               String         @id @default(cuid())
   name             String         @unique
+  backupType       String         @default("local") // "local" | "input"
   sources          Json           @default("{\"sources\":[]}")
   scheduleType     String         @default("manual")
   scheduleConfig   Json?
   schedule         String?
   enabled          Boolean        @default(false)
+  noArchive        Boolean        @default(false) // if true + 1 file → send raw without archiving
   archiveFormat    String         @default("zip")  // "zip"|"tar"|"tar-gz"|"tar-bz2"
   zipCompression   String         @default("default") // "store"|"fast"|"default"|"best"
-  zipPassword      String?
-  zipFilename      String?
+  zipPassword         String?
+  zipPasswordVaultRef String?  // "slug.key" — if set, overrides zipPassword at runtime
+  zipFilename         String?
   isValidated      Boolean        @default(false)
   validationStatus String?
   validationError  String?
@@ -114,13 +117,30 @@ model Log {
   @@index([backupId, ts(sort: Desc)])
 }
 
+model Input {
+  id             String    @id @default(cuid())
+  name           String    @unique
+  type           String    // "http-rest" | "digiposte" | "sftp"
+  vaultId        String?
+  config         Json      @default("{}")
+  requestParams  Json      @default("[]")
+  enabled        Boolean   @default(true)
+  lastTestAt     DateTime?
+  lastTestStatus String?
+  lastTestError  String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
 model SystemSettings {
-  id                  String @id @default("singleton")
-  maxFileSizeMb       Int    @default(500)
-  logRetentionHours   Int    @default(720)
-  backupRetentionDays Int    @default(90)
-  defaultTimezone     String @default("UTC")
-  defaultLanguage     String @default("en")
-  defaultTheme        String @default("dark")
-  filesRoot           String @default("/data/files")
+  id                   String @id @default("singleton")
+  maxFileSizeMb        Int    @default(500)
+  logRetentionHours    Int    @default(720)
+  backupRetentionDays  Int    @default(90)
+  defaultTimezone      String @default("UTC")
+  defaultLanguage      String @default("en")
+  defaultTheme         String @default("dark")
+  filesRoot            String @default("/data/files")
+  maxSourceFileSizeMb  Int    @default(500)
+  maxBackupTotalSizeMb Int    @default(2000)
 }

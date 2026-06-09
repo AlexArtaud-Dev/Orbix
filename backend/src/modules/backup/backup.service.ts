@@ -35,14 +35,17 @@ interface OutputRow {
 interface BackupRow {
   id: string;
   name: string;
+  backupType: string;
   sources: unknown;
   scheduleType: string;
   scheduleConfig: unknown;
   schedule: string | null;
   enabled: boolean;
+  noArchive: boolean;
   archiveFormat: string;
   zipCompression: string;
   zipPassword: string | null;
+  zipPasswordVaultRef: string | null;
   zipFilename: string | null;
   isValidated: boolean;
   validationStatus: string | null;
@@ -66,14 +69,17 @@ export class BackupService {
     return {
       id: backup.id,
       name: backup.name,
+      backupType: backup.backupType,
       sources: parseBackupSources(backup.sources),
       scheduleType: backup.scheduleType,
       scheduleConfig: parseScheduleConfig(backup.scheduleConfig),
       schedule: backup.schedule,
       enabled: backup.enabled,
+      noArchive: backup.noArchive,
       archiveFormat: backup.archiveFormat,
       zipCompression: backup.zipCompression,
       zipPassword: backup.zipPassword,
+      zipPasswordVaultRef: backup.zipPasswordVaultRef,
       zipFilename: backup.zipFilename,
       isValidated: backup.isValidated,
       validationStatus: backup.validationStatus,
@@ -142,6 +148,7 @@ export class BackupService {
             path: s.path,
             type: s.type,
             exclude: s.exclude ?? [],
+            ...(s.inputId ? { inputId: s.inputId } : {}),
           })),
         }
       : { sources: [] };
@@ -149,6 +156,7 @@ export class BackupService {
     const backup = await this.prisma.backup.create({
       data: {
         name: dto.name,
+        backupType: dto.backupType ?? 'local',
 
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         sources: sources as any,
@@ -158,9 +166,11 @@ export class BackupService {
         scheduleConfig: (dto.scheduleConfig ?? null) as any,
         schedule: dto.schedule ?? null,
         enabled: false, // always false on create — requires validation
+        noArchive: dto.noArchive ?? false,
         archiveFormat: dto.archiveFormat ?? 'zip',
         zipCompression: dto.zipCompression ?? 'default',
         zipPassword: dto.zipPassword ?? null,
+        zipPasswordVaultRef: dto.zipPasswordVaultRef ?? null,
         zipFilename: dto.zipFilename ?? null,
         outputs: dto.outputs
           ? { create: dto.outputs.map((o, i) => this.mapOutputCreate(o, i)) }
@@ -199,9 +209,11 @@ export class BackupService {
       dto.scheduleType !== undefined ||
       dto.scheduleConfig !== undefined ||
       dto.schedule !== undefined ||
+      dto.noArchive !== undefined ||
       dto.archiveFormat !== undefined ||
       dto.zipCompression !== undefined ||
       dto.zipPassword !== undefined ||
+      dto.zipPasswordVaultRef !== undefined ||
       dto.zipFilename !== undefined ||
       dto.outputs !== undefined;
 
@@ -221,6 +233,7 @@ export class BackupService {
             path: s.path,
             type: s.type,
             exclude: s.exclude ?? [],
+            ...(s.inputId ? { inputId: s.inputId } : {}),
           })),
         }
       : null;
@@ -234,6 +247,7 @@ export class BackupService {
         where: { id },
         data: {
           name: dto.name ?? existing.name,
+          backupType: dto.backupType ?? (existing as BackupRow).backupType,
 
           // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           sources: (sources ?? existing.sources) as any,
@@ -247,6 +261,10 @@ export class BackupService {
           schedule:
             dto.schedule !== undefined ? dto.schedule : existing.schedule,
           enabled: configChanged ? false : (dto.enabled ?? existing.enabled),
+          noArchive:
+            dto.noArchive !== undefined
+              ? dto.noArchive
+              : (existing as BackupRow).noArchive,
           archiveFormat:
             dto.archiveFormat ?? (existing as BackupRow).archiveFormat,
           zipCompression:
@@ -255,6 +273,10 @@ export class BackupService {
             dto.zipPassword !== undefined
               ? dto.zipPassword
               : (existing as BackupRow).zipPassword,
+          zipPasswordVaultRef:
+            dto.zipPasswordVaultRef !== undefined
+              ? dto.zipPasswordVaultRef
+              : (existing as BackupRow).zipPasswordVaultRef,
           zipFilename:
             dto.zipFilename !== undefined
               ? dto.zipFilename

@@ -19,15 +19,23 @@ import type { CreateEmailVaultDto } from './dto/create-email-vault.dto';
 import type { UpdateEmailVaultDto } from './dto/update-email-vault.dto';
 import type { CreateHttpVaultDto } from './dto/create-http-vault.dto';
 import type { UpdateHttpVaultDto } from './dto/update-http-vault.dto';
+import type { CreateVarSetDto } from './dto/create-varset.dto';
+import type { UpdateVarSetDto } from './dto/update-varset.dto';
 import type {
   EmailPayload,
   EmailVaultResponse,
   HttpVaultPayload,
   HttpVaultResponse,
   HttpVaultSubtype,
+  VarSetPayload,
+  VarSetResponse,
   VaultRow,
 } from './vault.types';
-export type { EmailVaultResponse, HttpVaultResponse } from './vault.types';
+export type {
+  EmailVaultResponse,
+  HttpVaultResponse,
+  VarSetResponse,
+} from './vault.types';
 
 @Injectable()
 export class VaultService {
@@ -486,5 +494,178 @@ export class VaultService {
         HttpStatus.BAD_GATEWAY,
       );
     }
+  }
+
+  // ─── Variable Set vault ───────────────────────────────────────────────────────
+
+  /** Derive a URL-safe slug from a human-readable name */
+  static slugify(name: string): string {
+    return name
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '') // strip diacritics
+      .replace(/[^a-z0-9]+/g, '-') // non-alnum → hyphen
+      .replace(/^-+|-+$/g, '') // trim edge hyphens
+      .replace(/-{2,}/g, '-'); // collapse runs
+  }
+
+  private toVarSetResponse(entity: VaultRow): VarSetResponse {
+    const payload = JSON.parse(
+      this.decrypt(entity.encryptedPayload),
+    ) as VarSetPayload;
+    const vars = payload.variables ?? [];
+    return {
+      id: entity.id,
+      name: entity.name,
+      slug: VaultService.slugify(entity.name),
+      variableCount: vars.length,
+      variableKeys: vars.map((v) => v.key),
+      createdAt: entity.createdAt.toISOString(),
+      updatedAt: entity.updatedAt.toISOString(),
+    };
+  }
+
+  async listVarSet(
+    cursor?: string,
+    limit = 20,
+  ): Promise<{ data: VarSetResponse[]; nextCursor: string | null }> {
+    const take = Math.min(limit, 100);
+    const items = await this.prisma.vaultEntity.findMany({
+      where: { type: 'variable_set' },
+      take: take + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      orderBy: { name: 'asc' },
+    });
+    const hasNext = items.length > take;
+    const page = items.slice(0, take);
+    return {
+      data: page.map((e) => this.toVarSetResponse(e)),
+      nextCursor: hasNext ? page[page.length - 1].id : null,
+    };
+  }
+
+  async createVarSet(dto: CreateVarSetDto): Promise<VarSetResponse> {
+    const existing = await this.prisma.vaultEntity.findUnique({
+      where: { name: dto.name },
+    });
+    if (existing) throw new ConflictException('Name already in use');
+
+    const payload: VarSetPayload = { variables: dto.variables };
+    const entity = await this.prisma.vaultEntity.create({
+      data: {
+        name: dto.name,
+        type: 'variable_set',
+        encryptedPayload: this.encrypt(JSON.stringify(payload)),
+      },
+    });
+    this.logs.info(
+      'vault',
+      'VAULT_VARSET_CREATED',
+      `Variable Set created: ${dto.name}`,
+    );
+    return this.toVarSetResponse(entity);
+  }
+
+  async getVarSet(id: string): Promise<VarSetResponse> {
+    const entity = await this.prisma.vaultEntity.findUnique({ where: { id } });
+    if (!entity || entity.type !== 'variable_set')
+      throw new NotFoundException();
+    return this.toVarSetResponse(entity);
+  }
+
+  async updateVarSet(
+    id: string,
+    dto: UpdateVarSetDto,
+  ): Promise<VarSetResponse> {
+    const entity = await this.prisma.vaultEntity.findUnique({ where: { id } });
+    if (!entity || entity.type !== 'variable_set')
+      throw new NotFoundException();
+
+    if (dto.name && dto.name !== entity.name) {
+      const conflict = await this.prisma.vaultEntity.findUnique({
+        where: { name: dto.name },
+      });
+      if (conflict) throw new ConflictException('Name already in use');
+    }
+
+    const current = JSON.parse(
+      this.decrypt(entity.encryptedPayload),
+    ) as VarSetPayload;
+
+    // Build a lookup of existing values so empty-value submissions keep the current value
+    const currentMap = new Map(
+      (current.variables ?? []).map((v) => [v.key, v.value]),
+    );
+
+    const updated: VarSetPayload = {
+      variables: (dto.variables ?? current.variables).map((v) => ({
+        key: v.key,
+        // Empty string submitted for an existing key → keep the stored value
+        value:
+          v.value === '' && currentMap.has(v.key)
+            ? currentMap.get(v.key)!
+            : v.value,
+      })),
+    };
+
+    const result = await this.prisma.vaultEntity.update({
+      where: { id },
+      data: {
+        name: dto.name ?? entity.name,
+        encryptedPayload: this.encrypt(JSON.stringify(updated)),
+      },
+    });
+    return this.toVarSetResponse(result);
+  }
+
+  countVarSet(): Promise<number> {
+    return this.prisma.vaultEntity.count({ where: { type: 'variable_set' } });
+  }
+
+  async deleteVarSet(id: string): Promise<void> {
+    const entity = await this.prisma.vaultEntity.findUnique({ where: { id } });
+    if (!entity || entity.type !== 'variable_set')
+      throw new NotFoundException();
+    await this.prisma.vaultEntity.delete({ where: { id } });
+    this.logs.info(
+      'vault',
+      'VAULT_VARSET_DELETED',
+      `Variable Set deleted: ${entity.name}`,
+    );
+  }
+
+  /** Decrypt and return variables as a plain key→value map (used by backup runner for template substitution) */
+  async getVariableSetPayload(id: string): Promise<Record<string, string>> {
+    const entity = await this.prisma.vaultEntity.findUnique({ where: { id } });
+    if (!entity || entity.type !== 'variable_set')
+      throw new NotFoundException();
+    const payload = JSON.parse(
+      this.decrypt(entity.encryptedPayload),
+    ) as VarSetPayload;
+    const result: Record<string, string> = {};
+    for (const { key, value } of payload.variables ?? []) {
+      result[key] = value;
+    }
+    return result;
+  }
+
+  /** Resolve variables by slug (used by runner for {{vault.var.<slug>.<key>}} templates) */
+  async getVariableSetPayloadBySlug(
+    slug: string,
+  ): Promise<Record<string, string>> {
+    const entities = await this.prisma.vaultEntity.findMany({
+      where: { type: 'variable_set' },
+    });
+    const entity = entities.find((e) => VaultService.slugify(e.name) === slug);
+    if (!entity)
+      throw new NotFoundException(`Variable set "${slug}" not found`);
+    const payload = JSON.parse(
+      this.decrypt(entity.encryptedPayload),
+    ) as VarSetPayload;
+    const result: Record<string, string> = {};
+    for (const { key, value } of payload.variables ?? []) {
+      result[key] = value;
+    }
+    return result;
   }
 }

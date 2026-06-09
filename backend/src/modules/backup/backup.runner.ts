@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { statSync, existsSync, readFileSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
+import { Readable } from 'node:stream';
 import {
   join,
   basename,
@@ -14,6 +15,7 @@ import archiver, { type Archiver } from 'archiver';
 import { PrismaService } from '../../prisma/prisma.service';
 import { VaultService } from '../vault/vault.service';
 import { SettingsService } from '../settings/settings.service';
+import { InputService } from '../input/input.service';
 import { LogsWriter } from '../logs/logs.writer';
 import {
   parseBackupSources,
@@ -21,6 +23,12 @@ import {
   type BackupSource,
   type RequestParam,
 } from './backup.types';
+import { fetchWithConfig } from '../input/input-http.util';
+import type {
+  HttpRestConfig,
+  HttpBodyConfig,
+  InputRequestParam,
+} from '../input/input.types';
 
 interface OutputRow {
   id: string;
@@ -47,8 +55,9 @@ interface ArchiveResult {
 }
 
 type FileToArchive =
-  | { abs: string; arc: string; buffer?: never }
-  | { buffer: Buffer; arc: string; abs?: never };
+  | { abs: string; arc: string; buffer?: never; stream?: never }
+  | { buffer: Buffer; arc: string; abs?: never; stream?: never }
+  | { stream: Readable; arc: string; abs?: never; buffer?: never };
 
 export interface ZipInfo {
   basic: boolean; // zip + tar + tar-gz always available
@@ -87,6 +96,7 @@ export class BackupRunner {
     private readonly prisma: PrismaService,
     private readonly vault: VaultService,
     private readonly settings: SettingsService,
+    private readonly inputService: InputService,
     private readonly logs: LogsWriter,
   ) {}
 
@@ -115,14 +125,32 @@ export class BackupRunner {
     );
 
     try {
+      const settings = await this.settings.get();
+      const settingsAny = settings as Record<string, unknown>;
+      const maxSourceFileSizeMb =
+        typeof settingsAny['maxSourceFileSizeMb'] === 'number'
+          ? settingsAny['maxSourceFileSizeMb']
+          : 500;
+      const maxBackupTotalSizeMb =
+        typeof settingsAny['maxBackupTotalSizeMb'] === 'number'
+          ? settingsAny['maxBackupTotalSizeMb']
+          : 2000;
+
       const sources = parseBackupSources(backup.sources);
+      const resolvedZipPassword = await this.resolveZipPassword(
+        (backup as { zipPassword: string | null }).zipPassword,
+        (backup as { zipPasswordVaultRef: string | null }).zipPasswordVaultRef,
+      );
       const archive = await this.buildArchive(
         backup.name,
         sources,
         (backup as { archiveFormat: string }).archiveFormat ?? 'zip',
         (backup as { zipCompression: string }).zipCompression,
-        (backup as { zipPassword: string | null }).zipPassword,
+        resolvedZipPassword,
         (backup as { zipFilename: string | null }).zipFilename,
+        maxSourceFileSizeMb,
+        maxBackupTotalSizeMb,
+        (backup as { noArchive: boolean }).noArchive ?? false,
       );
 
       for (const output of (backup.outputs as OutputRow[]).sort(
@@ -193,14 +221,32 @@ export class BackupRunner {
     );
 
     try {
+      const settings = await this.settings.get();
+      const settingsAny = settings as Record<string, unknown>;
+      const maxSourceFileSizeMb =
+        typeof settingsAny['maxSourceFileSizeMb'] === 'number'
+          ? settingsAny['maxSourceFileSizeMb']
+          : 500;
+      const maxBackupTotalSizeMb =
+        typeof settingsAny['maxBackupTotalSizeMb'] === 'number'
+          ? settingsAny['maxBackupTotalSizeMb']
+          : 2000;
+
       const sources = parseBackupSources(backup.sources);
+      const resolvedZipPasswordV = await this.resolveZipPassword(
+        (backup as { zipPassword: string | null }).zipPassword,
+        (backup as { zipPasswordVaultRef: string | null }).zipPasswordVaultRef,
+      );
       const archive = await this.buildArchive(
         backup.name,
         sources,
         (backup as { archiveFormat: string }).archiveFormat ?? 'zip',
         (backup as { zipCompression: string }).zipCompression,
-        (backup as { zipPassword: string | null }).zipPassword,
+        resolvedZipPasswordV,
         (backup as { zipFilename: string | null }).zipFilename,
+        maxSourceFileSizeMb,
+        maxBackupTotalSizeMb,
+        (backup as { noArchive: boolean }).noArchive ?? false,
       );
 
       for (const output of (backup.outputs as OutputRow[]).sort(
@@ -328,15 +374,18 @@ export class BackupRunner {
     compression: string,
     zipPassword: string | null,
     filenameTemplate: string | null,
+    maxSourceFileSizeMb: number,
+    maxBackupTotalSizeMb: number,
+    noArchive = false,
   ): Promise<ArchiveResult> {
-    const allFiles = await this.collectFiles(sources);
+    const allFiles = await this.collectFiles(sources, maxSourceFileSizeMb);
     const now = new Date();
     const slug = name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
     const ext = ARCHIVE_EXTENSIONS[archiveFormat] ?? '.zip';
     const level = compressionLevelOf(compression);
 
     const baseVars: Record<string, string> = {
-      'backup.name': name,
+      'backup.name': slug, // slug = name with spaces replaced by underscores
       date: now.toISOString().slice(0, 10),
       datetime: now
         .toISOString()
@@ -367,15 +416,72 @@ export class BackupRunner {
       return { buffer: Buffer.alloc(0), filename, size: 0, filesCount: 0 };
     }
 
-    // Single file with no password and non-compressed format → send raw
+    // noArchive: bypass archiving entirely — send the single file as-is
+    if (noArchive) {
+      if (allFiles.length !== 1) {
+        throw new Error(
+          `noArchive mode requires exactly 1 file, but ${allFiles.length} were collected`,
+        );
+      }
+      const f = allFiles[0];
+      if (f.stream !== undefined) {
+        throw new Error(
+          'noArchive mode does not support streamed sources — use a file or input that buffers',
+        );
+      }
+
+      const buffer = f.buffer !== undefined ? f.buffer : readFileSync(f.abs);
+      if (buffer.byteLength > maxBackupTotalSizeMb * 1024 * 1024) {
+        throw new Error(
+          `File size (${Math.round(buffer.byteLength / 1024 / 1024)} MB) exceeds the configured limit of ${maxBackupTotalSizeMb} MB`,
+        );
+      }
+
+      // Determine output filename for passthrough mode
+      const fileArc = f.arc.split('/').pop() ?? basename(f.arc);
+      let noArchiveFilename: string;
+      if (filenameTemplate) {
+        // Use the configured template + extension extracted from detected filename
+        const compoundMatch = fileArc.match(/\.(tar\.gz|tar\.bz2|tar\.xz)$/i);
+        const detectedExt = compoundMatch
+          ? '.' + compoundMatch[1].toLowerCase()
+          : fileArc.includes('.')
+            ? fileArc.slice(fileArc.lastIndexOf('.')).toLowerCase()
+            : '';
+        const base = resolveBase(filenameTemplate).replace(
+          /\.(zip|tar\.gz|tar\.bz2|tar\.xz|tar)$/i,
+          '',
+        );
+        noArchiveFilename = base + detectedExt;
+      } else {
+        // No template → use filename as-is from Content-Disposition or URL path
+        noArchiveFilename = fileArc;
+      }
+
+      return {
+        buffer,
+        filename: noArchiveFilename,
+        size: buffer.byteLength,
+        filesCount: 1,
+      };
+    }
+
+    // Single file with no password and non-compressed format → send raw (buffer/file only, not stream)
     if (
       allFiles.length === 1 &&
       !zipPassword &&
       archiveFormat === 'zip' &&
-      compression === 'store'
+      compression === 'store' &&
+      allFiles[0].stream === undefined
     ) {
       const f = allFiles[0];
+
       const buffer = f.buffer !== undefined ? f.buffer : readFileSync(f.abs);
+      if (buffer.byteLength > maxBackupTotalSizeMb * 1024 * 1024) {
+        throw new Error(
+          `Archive size (${Math.round(buffer.byteLength / 1024 / 1024)} MB) exceeds the configured limit of ${maxBackupTotalSizeMb} MB`,
+        );
+      }
       return {
         buffer,
         filename: f.arc.split('/').pop() ?? basename(f.arc),
@@ -390,6 +496,13 @@ export class BackupRunner {
       level,
       zipPassword,
     );
+
+    if (buffer.byteLength > maxBackupTotalSizeMb * 1024 * 1024) {
+      throw new Error(
+        `Archive size (${Math.round(buffer.byteLength / 1024 / 1024)} MB) exceeds the configured limit of ${maxBackupTotalSizeMb} MB`,
+      );
+    }
+
     return {
       buffer,
       filename,
@@ -405,7 +518,10 @@ export class BackupRunner {
   }
 
   /** Collect all files with their archive paths, preserving folder structure. */
-  private async collectFiles(sources: BackupSources): Promise<FileToArchive[]> {
+  private async collectFiles(
+    sources: BackupSources,
+    maxSourceFileSizeMb: number,
+  ): Promise<FileToArchive[]> {
     const results: FileToArchive[] = [];
 
     const matchesPatterns = (filePath: string, patterns: string[]): boolean => {
@@ -422,10 +538,24 @@ export class BackupRunner {
 
     for (const source of sources.sources) {
       if (source.type === 'url') {
-        const buffer = await this.fetchUrlSource(source);
         const raw = source.path.split('?')[0];
         const filename = raw.split('/').pop() ?? 'download';
-        results.push({ buffer, arc: filename });
+        const fetched = await this.fetchUrlSource(source, maxSourceFileSizeMb);
+        if (Buffer.isBuffer(fetched)) {
+          results.push({ buffer: fetched, arc: filename });
+        } else {
+          results.push({ stream: fetched, arc: filename });
+        }
+        continue;
+      }
+
+      if (source.type === 'input') {
+        if (!source.inputId) continue;
+        const files = await this.fetchInputSource(
+          source.inputId,
+          maxSourceFileSizeMb,
+        );
+        results.push(...files);
         continue;
       }
 
@@ -469,7 +599,10 @@ export class BackupRunner {
 
   // ─── URL source helpers ──────────────────────────────────────────────────────
 
-  private async fetchUrlSource(source: BackupSource): Promise<Buffer> {
+  private async fetchUrlSource(
+    source: BackupSource,
+    maxSizeMb: number,
+  ): Promise<Buffer | Readable> {
     const headers: Record<string, string> = {};
     const url = new URL(source.path);
 
@@ -491,7 +624,386 @@ export class BackupRunner {
         `URL source returned HTTP ${response.status}: ${source.path}`,
       );
     }
-    return Buffer.from(await response.arrayBuffer());
+
+    const maxBytes = maxSizeMb * 1024 * 1024;
+    const contentLength = response.headers.get('content-length');
+    if (contentLength) {
+      const bytes = parseInt(contentLength, 10);
+      if (!isNaN(bytes) && bytes > maxBytes) {
+        throw new Error(
+          `Source file size (${Math.round(bytes / 1024 / 1024)} MB) exceeds the configured limit of ${maxSizeMb} MB: ${source.path}`,
+        );
+      }
+    }
+
+    // stream is the default: pipe response body directly to archiver without buffering
+    if ((source.transferMode ?? 'stream') === 'stream') {
+      if (!response.body) {
+        throw new Error(`URL source returned no body: ${source.path}`);
+      }
+      // response.body is WHATWG ReadableStream; Readable.fromWeb expects stream/web type
+      return Readable.fromWeb(
+        response.body as unknown as Parameters<typeof Readable.fromWeb>[0],
+      );
+    }
+
+    // buffer mode: load entirely in RAM
+    const buf = Buffer.from(await response.arrayBuffer());
+    if (buf.byteLength > maxBytes) {
+      throw new Error(
+        `Source file size (${Math.round(buf.byteLength / 1024 / 1024)} MB) exceeds the configured limit of ${maxSizeMb} MB: ${source.path}`,
+      );
+    }
+    return buf;
+  }
+
+  // ─── Input source helpers ────────────────────────────────────────────────────
+
+  private async fetchInputSource(
+    inputId: string,
+    maxSizeMb: number,
+  ): Promise<FileToArchive[]> {
+    const input = await this.inputService.getOne(inputId);
+    if (input.type !== 'http-rest') {
+      throw new Error(
+        `Input type '${input.type}' is not yet supported in the backup runner`,
+      );
+    }
+
+    const config = input.config as unknown as HttpRestConfig;
+    const headers: Record<string, string> = {};
+    const maxBytes = maxSizeMb * 1024 * 1024;
+    const method = config.method ?? 'GET';
+
+    // Apply vault auth
+    if (input.vaultId) {
+      await this.applyVaultAuth(headers, input.vaultId);
+    }
+
+    // Apply request params (literal only; vault refs resolved via resolveInputParamValue)
+    const params = input.requestParams ?? [];
+    const baseUrlObj = new URL(config.baseUrl);
+    for (const param of params) {
+      const value = await this.resolveInputParamValue(param);
+      if (param.in === 'header') headers[param.key] = value;
+      else if (param.in === 'query')
+        baseUrlObj.searchParams.set(param.key, value);
+    }
+
+    // Apply custom config headers (0..N, may reference vault variable sets)
+    for (const h of config.headers ?? []) {
+      const value =
+        h.valueType === 'vault_var' && h.vaultVarRef
+          ? await this.resolveVaultVarRef(h.vaultVarRef)
+          : (h.value ?? '');
+      if (h.key) headers[h.key] = value;
+    }
+
+    // Build request body (and collect any body-implied Content-Type header)
+    const bodyResult = await this.buildInputBody(config.body);
+    if (bodyResult.headers) {
+      Object.assign(headers, bodyResult.headers);
+    }
+    const bodyInit: {
+      method: string;
+      headers: Record<string, string>;
+      body?: BodyInit;
+    } = {
+      method,
+      headers,
+      ...(bodyResult.body !== undefined ? { body: bodyResult.body } : {}),
+    };
+
+    const skipTls = config.insecureSkipVerify ?? false;
+    const results: FileToArchive[] = [];
+
+    if (config.listEndpoint) {
+      // ── List + download mode ──
+      const listUrl = new URL(
+        config.listEndpoint.startsWith('http')
+          ? config.listEndpoint
+          : config.baseUrl.replace(/\/$/, '') +
+              (config.listEndpoint.startsWith('/') ? '' : '/') +
+              config.listEndpoint,
+      );
+      baseUrlObj.searchParams.forEach((v, k) => listUrl.searchParams.set(k, v));
+
+      const listRes = await fetchWithConfig(
+        listUrl,
+        bodyInit.method,
+        bodyInit.headers,
+        bodyInit.body,
+        skipTls,
+      );
+      if (!listRes.ok) {
+        throw new Error(
+          `Input list endpoint returned HTTP ${listRes.status}: ${listUrl.toString()}`,
+        );
+      }
+
+      const items = (await listRes.json()) as unknown[];
+      if (!Array.isArray(items)) {
+        throw new Error(`Input list endpoint did not return a JSON array`);
+      }
+
+      const idField = config.responseMapping?.id ?? 'id';
+      const nameField = config.responseMapping?.name ?? 'name';
+
+      for (const item of items) {
+        const rec = item as Record<string, unknown>;
+        const rawId = rec[idField];
+        const rawName = rec[nameField];
+        const itemId =
+          typeof rawId === 'string'
+            ? rawId
+            : typeof rawId === 'number'
+              ? String(rawId)
+              : '';
+        const itemName =
+          typeof rawName === 'string'
+            ? rawName
+            : typeof rawName === 'number'
+              ? String(rawName)
+              : itemId || 'file';
+        if (!itemId) continue;
+        if (!config.downloadEndpoint) continue;
+
+        const downloadPath = config.downloadEndpoint.replace(
+          '{id}',
+          encodeURIComponent(itemId),
+        );
+        const downloadUrl =
+          config.baseUrl.replace(/\/$/, '') +
+          (downloadPath.startsWith('/') ? '' : '/') +
+          downloadPath;
+
+        const dlRes = await fetchWithConfig(
+          downloadUrl,
+          'GET',
+          headers,
+          undefined,
+          skipTls,
+        );
+        if (!dlRes.ok) {
+          throw new Error(
+            `Input download returned HTTP ${dlRes.status} for item '${itemName}' (${downloadUrl})`,
+          );
+        }
+
+        const contentLength = dlRes.headers.get('content-length');
+        if (contentLength) {
+          const bytes = parseInt(contentLength, 10);
+          if (!isNaN(bytes) && bytes > maxBytes) {
+            throw new Error(
+              `Input item '${itemName}' (${Math.round(bytes / 1024 / 1024)} MB) exceeds limit of ${maxSizeMb} MB`,
+            );
+          }
+        }
+
+        const buf = Buffer.from(await dlRes.arrayBuffer());
+        if (buf.byteLength > maxBytes) {
+          throw new Error(
+            `Input item '${itemName}' (${Math.round(buf.byteLength / 1024 / 1024)} MB) exceeds limit of ${maxSizeMb} MB`,
+          );
+        }
+
+        const safeName = itemName.replace(/[/\\]/g, '_');
+        results.push({ buffer: buf, arc: safeName });
+      }
+    } else {
+      // ── Direct single-file download ──
+      const response = await fetchWithConfig(
+        baseUrlObj,
+        bodyInit.method,
+        bodyInit.headers,
+        bodyInit.body,
+        skipTls,
+      );
+      if (!response.ok) {
+        throw new Error(
+          `Input source returned HTTP ${response.status}: ${config.baseUrl}`,
+        );
+      }
+
+      const contentLength = response.headers.get('content-length');
+      if (contentLength) {
+        const bytes = parseInt(contentLength, 10);
+        if (!isNaN(bytes) && bytes > maxBytes) {
+          throw new Error(
+            `Input source size (${Math.round(bytes / 1024 / 1024)} MB) exceeds limit of ${maxSizeMb} MB`,
+          );
+        }
+      }
+
+      const buf = Buffer.from(await response.arrayBuffer());
+      if (buf.byteLength > maxBytes) {
+        throw new Error(
+          `Input source size (${Math.round(buf.byteLength / 1024 / 1024)} MB) exceeds limit of ${maxSizeMb} MB`,
+        );
+      }
+
+      // Prefer Content-Disposition filename (preserves extension)
+      const cdFilename = this.parseContentDispositionFilename(
+        response.headers.get('content-disposition'),
+      );
+      const urlBasename =
+        config.baseUrl.split('/').pop()?.split('?')[0] || 'download';
+      const filename = cdFilename || urlBasename;
+      results.push({ buffer: buf, arc: filename });
+    }
+
+    return results;
+  }
+
+  /** Resolve "vaultId.fieldKey" vault variable set reference */
+  private async resolveVaultVarRef(ref: string): Promise<string> {
+    const dotIdx = ref.indexOf('.');
+    if (dotIdx < 0) return '';
+    const slug = ref.slice(0, dotIdx);
+    const fieldKey = ref.slice(dotIdx + 1);
+    try {
+      const payload = await this.vault.getVariableSetPayloadBySlug(slug);
+      return payload[fieldKey] ?? '';
+    } catch {
+      return '';
+    }
+  }
+
+  /** Substitute all {{vault.var.<slug>.<key>}} tokens in a text string */
+  private async resolveVaultVarTemplate(text: string): Promise<string> {
+    const pattern = /\{\{vault\.var\.([^.}]+)\.([^}]+)\}\}/g;
+    const tokens = [...text.matchAll(pattern)];
+    if (tokens.length === 0) return text;
+
+    // Batch: collect unique slugs to avoid repeated DB calls
+    const slugs = [...new Set(tokens.map((m) => m[1]))];
+    const payloads: Record<string, Record<string, string>> = {};
+    await Promise.all(
+      slugs.map(async (slug) => {
+        try {
+          payloads[slug] = await this.vault.getVariableSetPayloadBySlug(slug);
+        } catch {
+          payloads[slug] = {};
+        }
+      }),
+    );
+
+    return text.replace(pattern, (_, slug: string, fieldKey: string) => {
+      return payloads[slug]?.[fieldKey] ?? '';
+    });
+  }
+
+  /** Build the fetch body (and set Content-Type header if needed) */
+  private async buildInputBody(
+    bodyConfig: HttpBodyConfig | undefined,
+  ): Promise<{ body?: BodyInit; headers?: Record<string, string> }> {
+    if (!bodyConfig || bodyConfig.type === 'none') return {};
+
+    const extraHeaders: Record<string, string> = {};
+
+    switch (bodyConfig.type) {
+      case 'json': {
+        const raw = bodyConfig.json ?? '{}';
+        const resolved = await this.resolveVaultVarTemplate(raw);
+        extraHeaders['Content-Type'] = 'application/json';
+        return { body: resolved, headers: extraHeaders };
+      }
+      case 'raw': {
+        const resolved = await this.resolveVaultVarTemplate(
+          bodyConfig.raw ?? '',
+        );
+        return { body: resolved, headers: extraHeaders };
+      }
+      case 'graphql': {
+        const query = bodyConfig.raw ?? '';
+        const variables = bodyConfig.graphqlVariables
+          ? await this.resolveVaultVarTemplate(bodyConfig.graphqlVariables)
+          : undefined;
+        extraHeaders['Content-Type'] = 'application/json';
+        const payload: Record<string, unknown> = { query };
+        if (variables) {
+          try {
+            payload['variables'] = JSON.parse(variables) as unknown;
+          } catch {
+            payload['variables'] = variables;
+          }
+        }
+        return { body: JSON.stringify(payload), headers: extraHeaders };
+      }
+      case 'form-data': {
+        const fd = new FormData();
+        for (const field of bodyConfig.formData ?? []) {
+          const value =
+            field.valueType === 'vault_var' && field.vaultVarRef
+              ? await this.resolveVaultVarRef(field.vaultVarRef)
+              : await this.resolveVaultVarTemplate(field.value ?? '');
+          fd.append(field.key, value);
+        }
+        return { body: fd, headers: extraHeaders };
+      }
+      case 'x-www-form-urlencoded': {
+        const params = new URLSearchParams();
+        for (const field of bodyConfig.urlEncoded ?? []) {
+          const value =
+            field.valueType === 'vault_var' && field.vaultVarRef
+              ? await this.resolveVaultVarRef(field.vaultVarRef)
+              : await this.resolveVaultVarTemplate(field.value ?? '');
+          params.append(field.key, value);
+        }
+        extraHeaders['Content-Type'] = 'application/x-www-form-urlencoded';
+        return { body: params.toString(), headers: extraHeaders };
+      }
+      default:
+        return {};
+    }
+  }
+
+  /**
+   * Resolve the zip password: returns the literal password, or fetches the
+   * value from a vault variable set when zipPasswordVaultRef is provided.
+   */
+  private async resolveZipPassword(
+    literal: string | null,
+    vaultRef: string | null,
+  ): Promise<string | null> {
+    if (!vaultRef) return literal;
+    const dotIdx = vaultRef.indexOf('.');
+    if (dotIdx <= 0) return literal;
+    const slug = vaultRef.slice(0, dotIdx);
+    const key = vaultRef.slice(dotIdx + 1);
+    try {
+      const payload = await this.vault.getVariableSetPayloadBySlug(slug);
+      return payload[key] ?? null;
+    } catch {
+      return null; // vault resolution failed — no password rather than crash
+    }
+  }
+
+  /** Parse filename from Content-Disposition header, returns null if not found. */
+  private parseContentDispositionFilename(
+    header: string | null,
+  ): string | null {
+    if (!header) return null;
+    const match = header.match(
+      /filename\*?=(?:UTF-8'')?["']?([^"';\r\n]+)["']?/i,
+    );
+    if (!match) return null;
+    try {
+      return decodeURIComponent(match[1].trim().replace(/["']/g, ''));
+    } catch {
+      return match[1].trim().replace(/["']/g, '');
+    }
+  }
+
+  private async resolveInputParamValue(
+    param: InputRequestParam,
+  ): Promise<string> {
+    if (param.valueType === 'literal') return param.value ?? '';
+    if (!param.vaultId) return '';
+    const payload = await this.vault.getHttpPayload(param.vaultId);
+    const field = param.vaultField ?? '';
+    const raw = (payload as unknown as Record<string, unknown>)[field];
+    return typeof raw === 'string' ? raw : '';
   }
 
   private async applyVaultAuth(
@@ -653,7 +1165,9 @@ export class BackupRunner {
       arc.on('end', () => resolve(Buffer.concat(chunks)));
       arc.on('error', reject);
       for (const f of files) {
-        if (f.buffer !== undefined) {
+        if (f.stream !== undefined) {
+          arc.append(f.stream, { name: f.arc });
+        } else if (f.buffer !== undefined) {
           arc.append(f.buffer, { name: f.arc });
         } else {
           arc.file(f.abs, { name: f.arc });
@@ -688,7 +1202,9 @@ export class BackupRunner {
         arc.on('end', () => resolve(Buffer.concat(chunks)));
         arc.on('error', reject);
         for (const f of files) {
-          if (f.buffer !== undefined) arc.append(f.buffer, { name: f.arc });
+          if (f.stream !== undefined) arc.append(f.stream, { name: f.arc });
+          else if (f.buffer !== undefined)
+            arc.append(f.buffer, { name: f.arc });
           else arc.file(f.abs, { name: f.arc });
         }
         void arc.finalize();
@@ -720,7 +1236,9 @@ export class BackupRunner {
         arc.on('end', () => resolve(Buffer.concat(chunks)));
         arc.on('error', reject);
         for (const f of files) {
-          if (f.buffer !== undefined) arc.append(f.buffer, { name: f.arc });
+          if (f.stream !== undefined) arc.append(f.stream, { name: f.arc });
+          else if (f.buffer !== undefined)
+            arc.append(f.buffer, { name: f.arc });
           else arc.file(f.abs, { name: f.arc });
         }
         void arc.finalize();

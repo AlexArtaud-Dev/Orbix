@@ -9,10 +9,12 @@ export interface RequestParam {
 
 export interface BackupSource {
   path: string;
-  type: 'file' | 'folder' | 'url';
+  type: 'file' | 'folder' | 'url' | 'input';
   exclude: string[];
   vaultId?: string;
   requestParams?: RequestParam[];
+  transferMode?: 'stream' | 'buffer';
+  inputId?: string;
 }
 
 export interface BackupSources {
@@ -37,7 +39,9 @@ export function parseBackupSources(json: unknown): BackupSources {
             ? ('file' as const)
             : src['type'] === 'url'
               ? ('url' as const)
-              : ('folder' as const);
+              : src['type'] === 'input'
+                ? ('input' as const)
+                : ('folder' as const);
         return [
           {
             path,
@@ -50,6 +54,14 @@ export function parseBackupSources(json: unknown): BackupSources {
             requestParams: Array.isArray(src['requestParams'])
               ? (src['requestParams'] as RequestParam[])
               : undefined,
+            transferMode:
+              src['transferMode'] === 'buffer'
+                ? ('buffer' as const)
+                : src['transferMode'] === 'stream'
+                  ? ('stream' as const)
+                  : undefined,
+            inputId:
+              typeof src['inputId'] === 'string' ? src['inputId'] : undefined,
           },
         ];
       }),
@@ -100,14 +112,17 @@ export interface BackupOutputData {
 export interface BackupData {
   id: string;
   name: string;
+  backupType: string;
   sources: BackupSources;
   scheduleType: string;
   scheduleConfig: ScheduleConfig;
   schedule: string | null;
   enabled: boolean;
+  noArchive: boolean;
   archiveFormat: string;
   zipCompression: string;
   zipPassword: string | null;
+  zipPasswordVaultRef: string | null;
   zipFilename: string | null;
   isValidated: boolean;
   validationStatus: string | null;

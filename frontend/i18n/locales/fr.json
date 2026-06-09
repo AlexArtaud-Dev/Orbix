@@ -41,7 +41,15 @@
     "backups": "Sauvegardes",
     "logs": "Historique",
     "settings": "Paramètres",
-    "back": "Retour"
+    "back": "Retour",
+    "input": "Inputs",
+    "httpRestInputs": "Inputs HTTP REST",
+    "variableSets": "Jeux de variables",
+    "categories": {
+      "resources": "Ressources",
+      "automation": "Automatisation",
+      "system": "Système"
+    }
   },
   "dashboard": {
     "title": "Tableau de bord",
@@ -86,7 +94,10 @@
     "zipTarBz2Desc": "Nécessite archiver-tar-bzip2 (cd backend && pnpm add archiver-tar-bzip2)",
     "zipTest": "Tester la création zip",
     "zipTestSuccess": "Test zip réussi",
-    "zipTestFailed": "Test zip échoué"
+    "zipTestFailed": "Test zip échoué",
+    "backupLimits": "Limites de sauvegarde",
+    "maxSourceFileSizeMb": "Taille max par source (Mo)",
+    "maxBackupTotalSizeMb": "Taille max de l'archive finale (Mo)"
   },
   "vault": {
     "selectorTitle": "Coffre",
@@ -97,13 +108,15 @@
       "email": "E-mail",
       "http": "Identifiants HTTP",
       "sshKey": "Clés SSH",
-      "apiToken": "Tokens API"
+      "apiToken": "Tokens API",
+      "variableSet": "Jeux de variables"
     },
     "typeDesc": {
       "email": "Comptes SMTP pour l'envoi d'e-mails",
       "http": "Identifiants pour endpoints HTTP/REST (Bearer, Basic, OAuth2…)",
       "sshKey": "Clés SSH privées pour les connexions distantes",
-      "apiToken": "Tokens API pour les services tiers"
+      "apiToken": "Tokens API pour les services tiers",
+      "variableSet": "Variables clé-valeur chiffrées et réutilisables"
     },
     "emailTitle": "Comptes e-mail",
     "emailSubtitle": "Identifiants SMTP chiffrés en AES-256-GCM.",
@@ -188,6 +201,36 @@
         "entryKey": "Clé",
         "entryValue": "Valeur"
       }
+    },
+    "varset": {
+      "title": "Jeux de variables",
+      "subtitle": "Variables chiffrées réutilisables dans les body/headers des inputs HTTP",
+      "add": "Nouveau jeu",
+      "noItems": "Aucun jeu de variables. Créez-en un pour commencer.",
+      "newTitle": "Nouveau jeu de variables",
+      "newSubtitle": "Les valeurs sont chiffrées en AES-256-GCM avant stockage.",
+      "editTitle": "Modifier le jeu de variables",
+      "editSubtitle": "Remplacez toutes les variables à conserver.",
+      "editWarning": "Attention : les valeurs actuelles ne sont pas affichées. Saisissez à nouveau les variables que vous souhaitez conserver.",
+      "editWarning2": "Les valeurs actuelles sont masquées. Laissez un champ valeur vide pour conserver la valeur existante.",
+      "name": "Nom",
+      "slugHint": "Référence dans les templates :",
+      "namePlaceholder": "ex. : credentials-portainer",
+      "variables": "Variables",
+      "addVariable": "Ajouter une variable",
+      "noVariables": "Aucune variable. Cliquez sur Ajouter une variable.",
+      "keyPlaceholder": "clé",
+      "valuePlaceholder": "valeur (secret)",
+      "valuePlaceholderEdit": "laisser vide pour conserver",
+      "variableCount_one": "{{count}} variable",
+      "variableCount_other": "{{count}} variables",
+      "variableCount": "{{count}} variable(s)",
+      "createSuccess": "Jeu de variables créé",
+      "updateSuccess": "Jeu de variables mis à jour",
+      "deleteSuccess": "Jeu de variables supprimé",
+      "errorNoName": "Veuillez saisir un libellé",
+      "errorEmptyKey": "Toutes les clés doivent être renseignées",
+      "syntaxHint": "Syntaxe de référence : {{vault.var.<id>.<clé>}}"
     }
   },
   "files": {
@@ -287,7 +330,19 @@
     "notValidated": "Non validé",
     "newTitle": "Nouvelle sauvegarde",
     "newSubtitle": "Configurez votre sauvegarde étape par étape",
+    "newLocalTitle": "Nouvelle sauvegarde locale",
+    "newLocalSubtitle": "Sélectionnez des fichiers et dossiers locaux à sauvegarder",
+    "newInputTitle": "Nouvelle sauvegarde Input",
+    "newInputSubtitle": "Sauvegardez des fichiers récupérés depuis une source externe",
     "editTitle": "Modifier la sauvegarde",
+    "typeSelector": {
+      "title": "Nouvelle sauvegarde",
+      "subtitle": "Choisissez le type de sauvegarde à créer",
+      "local": "Sauvegarde locale",
+      "localDesc": "Fichiers et dossiers présents sur le serveur",
+      "input": "Sauvegarde via Input",
+      "inputDesc": "Fichiers récupérés depuis une API ou source externe"
+    },
     "name": "Nom de la sauvegarde",
     "namePlaceholder": "ex. Sauvegarde config quotidienne",
     "enabled": "Statut",
@@ -306,7 +361,8 @@
     "tooltips": {
       "runDisabled": "Validez d'abord la sauvegarde (étape 6) avant de l'exécuter",
       "enableDisabled": "Validez d'abord la sauvegarde (étape 6) pour l'activer",
-      "confirmDelete": "Confirmer la suppression"
+      "confirmDelete": "Confirmer la suppression",
+      "inputNeedsRetest": "Un ou plusieurs inputs ont été modifiés et doivent être retestés avant l'exécution"
     },
     "addOutput": "Ajouter une sortie",
     "outputVault": "Compte SMTP",
@@ -332,7 +388,9 @@
       "stepSchedule": "Planification",
       "stepScheduleDesc": "Quand cette sauvegarde doit-elle s'exécuter ?",
       "stepSources": "Sources",
-      "stepSourcesDesc": "Sélectionnez les fichiers et dossiers à sauvegarder.",
+      "stepSourcesDesc": "Sélectionnez les sources à sauvegarder.",
+      "stepSourcesDescLocal": "Sélectionnez les fichiers et dossiers locaux à inclure dans l'archive.",
+      "stepSourcesDescInput": "Choisissez les inputs dont les fichiers seront récupérés et archivés.",
       "stepZip": "Archive",
       "stepZipDesc": "Configurez la mise en archive des fichiers.",
       "stepOutputs": "Sorties",
@@ -378,8 +436,9 @@
     },
     "sources": {
       "addPath": "Ajouter un chemin",
-      "addUrl": "Ajouter une URL",
-      "noSources": "Aucune source sélectionnée. Ajoutez un fichier, dossier ou URL.",
+      "noSources": "Aucune source sélectionnée.",
+      "noSourcesLocal": "Aucun fichier ou dossier sélectionné.",
+      "noSourcesInput": "Aucun input sélectionné.",
       "folderBadge": "Dossier",
       "fileBadge": "Fichier",
       "urlBadge": "URL",
@@ -404,7 +463,22 @@
       "paramLiteral": "Littéral",
       "paramVault": "Depuis le vault",
       "paramVaultField": "Champ vault",
-      "paramValue": "Valeur"
+      "paramValue": "Valeur",
+      "transferMode": "Mode de transfert",
+      "transferModeStream": "Stream (recommandé)",
+      "transferModeBuffer": "Buffer",
+      "transferModeBufferWarning": "Attention : le fichier est chargé intégralement en RAM avant d'être archivé. Un fichier de 500 Mo en mode buffer nécessite ~500 Mo de RAM disponible en plus de la mémoire utilisée par l'archive en cours de construction.",
+      "addInput": "Ajouter un Input",
+      "inputBadge": "INPUT",
+      "inputTitle": "Sélectionner un Input",
+      "inputSubtitle": "Choisissez l'input dont les fichiers seront ajoutés à l'archive.",
+      "noInputItems": "Aucun input configuré.",
+      "inputStatusOk": "Testé",
+      "inputStatusError": "Échec du test",
+      "inputStatusPending": "Retest requis",
+      "inputNotAvailable": "Doit être testé avant utilisation — allez dans Input → HTTP REST",
+      "inputNeedsRetest": "Retest de l'input requis",
+      "inputChangedWarning": "Configuration modifiée — retest requis"
     },
     "zip": {
       "format": "Format d'archive",
@@ -433,11 +507,100 @@
       "filenamePlaceholder": "{{backup.name}}_{{date}}",
       "filenameHint": "L'extension est ajoutée automatiquement selon le format choisi.",
       "filenamePreview": "Aperçu :",
-      "insertVariable": "Insérer une variable"
+      "insertVariable": "Insérer une variable",
+      "passwordUseVault": "Utiliser une variable vault",
+      "passwordVaultActive": "Variable vault",
+      "passwordSelectVaultVar": "Sélectionner une variable...",
+      "passwordSearchVault": "Rechercher dans les jeux...",
+      "passwordNoVarSets": "Aucun jeu de variables.",
+      "passwordClearVaultRef": "Supprimer la référence vault",
+      "noArchive": "Envoyer sans archiver",
+      "noArchiveDesc": "Si activé et qu'il n'y a qu'un seul fichier, le fichier est envoyé tel quel sans être archivé. Idéal pour les backups Input (ex. Portainer → .tar.gz).",
+      "noArchiveLocalWarning": "Pour une source locale de type fichier uniquement — ne fonctionne pas avec les dossiers.",
+      "noArchiveFilename": "Nom du fichier de sortie (optionnel)",
+      "noArchiveFilenameHint": "Laisser vide pour utiliser le nom de fichier renvoyé par l'endpoint (Content-Disposition). L'extension est conservée automatiquement.",
+      "noArchiveDetectedExt": "Extension détectée lors du dernier test : {{ext}}"
     },
     "outputs": {
       "overrideContent": "Personnaliser le contenu de l'e-mail",
       "selectType": "Choisir le type de sortie"
+    }
+  },
+  "input": {
+    "selectorTitle": "Modules d'entrée",
+    "selectorSubtitle": "Configurez des sources de données externes pour vos sauvegardes",
+    "comingSoon": "Bientôt disponible",
+    "soon": "Bientôt",
+    "type": {
+      "httpRest": "HTTP REST",
+      "digiposte": "Digiposte",
+      "sftp": "SFTP"
+    },
+    "typeDesc": {
+      "httpRest": "Récupérer des fichiers depuis une API REST",
+      "digiposte": "Intégration Digiposte (documents)",
+      "sftp": "Transfert de fichiers via SFTP"
+    },
+    "httpRest": {
+      "title": "Inputs HTTP REST",
+      "subtitle": "Configurez des sources HTTP REST pour importer des fichiers depuis une API",
+      "add": "Ajouter",
+      "newTitle": "Nouvel input HTTP REST",
+      "newSubtitle": "Configurez une nouvelle source HTTP REST",
+      "editTitle": "Modifier l'input HTTP REST",
+      "editSubtitle": "Modifiez les paramètres de cet input",
+      "noItems": "Aucun input HTTP REST configuré",
+      "createSuccess": "Input créé",
+      "updateSuccess": "Input mis à jour",
+      "deleteSuccess": "Input supprimé",
+      "testSuccess": "Test réussi",
+      "testFailed": "Échec du test",
+      "name": "Nom",
+      "namePlaceholder": "Mon API",
+      "baseUrl": "URL de base",
+      "baseUrlPlaceholder": "https://api.example.com",
+      "listEndpoint": "Endpoint de liste (optionnel)",
+      "listEndpointPlaceholder": "/files",
+      "listEndpointHint": "Si défini, liste les éléments avant de les télécharger",
+      "downloadEndpoint": "Endpoint de téléchargement",
+      "downloadEndpointPlaceholder": "/files/{id}",
+      "downloadEndpointHint": "Utilisez {id} pour interpoler l'identifiant de l'élément",
+      "vaultOptional": "Vault d'authentification",
+      "noVault": "Aucune authentification",
+      "enabled": "Activer cet input",
+      "test": "Tester",
+      "testing": "Test en cours…",
+      "testItems": "{{count}} élément(s) trouvé(s)",
+      "testOk": "Endpoint accessible",
+      "general": "Général",
+      "auth": "Authentification",
+      "headers": "Headers",
+      "addHeader": "Ajouter un header",
+      "noHeaders": "Aucun header personnalisé",
+      "headerKey": "Nom du header",
+      "headerValue": "Valeur",
+      "body": "Body",
+      "bodyNone": "Aucun",
+      "noBodyFields": "Aucun champ. Cliquez sur Ajouter.",
+      "addBodyField": "Ajouter un champ",
+      "bodyFieldKey": "Clé",
+      "bodyFieldValue": "Valeur",
+      "rawBodyPlaceholder": "Contenu brut de la requête…",
+      "graphqlQuery": "Requête GraphQL",
+      "graphqlVariables": "Variables (JSON)",
+      "literalValue": "Valeur littérale",
+      "vaultVar": "Variable vault",
+      "selectVaultVar": "Sélectionner une variable…",
+      "selectVaultVarHint": "Sélectionnez un jeu de variables",
+      "insertVariable": "Insérer une variable",
+      "searchVaultVar": "Rechercher une variable…",
+      "noVarSets": "Aucun jeu de variables configuré",
+      "orTypeRef": "Ou saisissez la référence manuellement",
+      "vaultVarSyntax": "Utilisez {{vault.var.<slug>.<clé>}} — slug dérivé du nom du jeu de variables",
+      "mappingIdField": "Champ ID",
+      "mappingNameField": "Champ nom",
+      "insecureSkipVerify": "Ignorer les erreurs SSL",
+      "insecureSkipVerifyHint": "Accepter les certificats auto-signés ou non fiables (serveurs internes)"
     }
   },
   "errors": {
