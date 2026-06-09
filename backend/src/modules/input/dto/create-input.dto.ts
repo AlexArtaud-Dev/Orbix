@@ -5,6 +5,7 @@ import {
   IsObject,
   IsOptional,
   IsString,
+  ValidateIf,
 } from 'class-validator';
 
 export class CreateInputDto {
@@ -16,8 +17,9 @@ export class CreateInputDto {
   type: string;
 
   @IsOptional()
+  @ValidateIf((o: CreateInputDto) => o.vaultId !== null)
   @IsString()
-  vaultId?: string;
+  vaultId?: string | null;
 
   @IsObject()
   config: Record<string, unknown>;

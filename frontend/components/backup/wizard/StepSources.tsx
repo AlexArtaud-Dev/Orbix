@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FolderOpen, Plus, X, Folder, File, Tag, Cpu } from "lucide-react";
+import { FolderOpen, X, Folder, File, Tag, Cpu, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -101,6 +101,7 @@ export function StepSources({
               <InputSourceCard
                 key={`input-${source.inputId ?? idx}`}
                 source={source}
+                inputItem={inputItems.find((i) => i.id === source.inputId)}
                 onRemove={() => removeSource(idx)}
               />
             ) : (
@@ -260,22 +261,68 @@ function SourceCard({ source, onRemove, onAddExclude, onRemoveExclude }: SourceC
   );
 }
 
+// ─── Input status helpers ─────────────────────────────────────────────────────
+
+function inputStatusInfo(status: string | null): {
+  label: string;
+  className: string;
+  icon: React.ReactNode;
+  borderClass: string;
+} {
+  if (status === "ok") return {
+    label: "backups.sources.inputStatusOk",
+    className: "bg-green-500/10 text-green-600 dark:text-green-400",
+    icon: <CheckCircle2 className="size-3" />,
+    borderClass: "",
+  };
+  if (status === "error") return {
+    label: "backups.sources.inputStatusError",
+    className: "bg-red-500/10 text-red-600 dark:text-red-400",
+    icon: <XCircle className="size-3" />,
+    borderClass: "border-destructive/50",
+  };
+  return {
+    label: "backups.sources.inputStatusPending",
+    className: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    icon: <AlertTriangle className="size-3" />,
+    borderClass: "border-amber-500/50",
+  };
+}
+
 // ─── Input source card ────────────────────────────────────────────────────────
 
 interface InputSourceCardProps {
   source: SourceFormItem;
+  inputItem?: InputItem;
   onRemove: () => void;
 }
 
-function InputSourceCard({ source, onRemove }: InputSourceCardProps) {
+function InputSourceCard({ source, inputItem, onRemove }: InputSourceCardProps) {
   const { t } = useTranslation();
+  const status = inputItem?.lastTestStatus ?? null;
+  const info = inputStatusInfo(status);
+  const isBlocked = status !== "ok";
+
   return (
-    <div className="rounded-lg border bg-card">
+    <div className={cn("rounded-lg border bg-card transition-colors", isBlocked && info.borderClass)}>
       <div className="flex items-center gap-2 px-3 py-2.5">
-        <Cpu className="size-4 shrink-0 text-primary" />
-        <span className="flex-1 truncate text-sm font-medium">{source.path}</span>
-        <span className="text-xs text-muted-foreground rounded-full border px-1.5 py-0.5 shrink-0">
-          {t("backups.sources.inputBadge")}
+        <Cpu className={cn("size-4 shrink-0", isBlocked ? "text-muted-foreground" : "text-primary")} />
+        <div className="flex-1 min-w-0">
+          <span className={cn("truncate text-sm font-medium block", isBlocked && "text-muted-foreground")}>
+            {source.path}
+          </span>
+          {isBlocked && (
+            <span className="text-xs text-amber-600 dark:text-amber-400">
+              {t("backups.sources.inputChangedWarning")}
+            </span>
+          )}
+        </div>
+        <span className={cn(
+          "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-xs font-medium shrink-0",
+          info.className,
+        )}>
+          {info.icon}
+          {t(info.label)}
         </span>
         <Button
           type="button"
@@ -327,29 +374,38 @@ function InputSourceDialog({
           <div className="space-y-2 max-h-64 overflow-y-auto">
             {inputItems.map((input) => {
               const already = alreadyAdded.includes(input.id);
+              const notTested = input.lastTestStatus !== "ok";
+              const disabled = already || notTested;
+              const info = inputStatusInfo(input.lastTestStatus ?? null);
               return (
                 <button
                   key={input.id}
                   type="button"
-                  disabled={already}
+                  disabled={disabled}
+                  title={notTested && !already ? t("backups.sources.inputNotAvailable") : undefined}
                   onClick={() => { onAdd(input); onClose(); }}
                   className={cn(
                     "w-full flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors",
-                    already
-                      ? "opacity-40 cursor-not-allowed"
+                    disabled
+                      ? "opacity-50 cursor-not-allowed"
                       : "hover:border-primary/50 hover:bg-muted/30 cursor-pointer",
+                    notTested && !already && info.borderClass,
                   )}
                 >
-                  <Cpu className="size-4 shrink-0 text-primary" />
+                  <Cpu className={cn("size-4 shrink-0", notTested ? "text-muted-foreground" : "text-primary")} />
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-sm">{input.name}</p>
                     <p className="text-xs text-muted-foreground font-mono truncate">
                       {(input.config as { baseUrl?: string }).baseUrl ?? "—"}
                     </p>
                   </div>
-                  {already && (
-                    <span className="text-xs text-muted-foreground shrink-0">✓</span>
-                  )}
+                  <span className={cn(
+                    "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-xs font-medium shrink-0",
+                    info.className,
+                  )}>
+                    {info.icon}
+                    {t(info.label)}
+                  </span>
                 </button>
               );
             })}

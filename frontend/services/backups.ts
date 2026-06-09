@@ -69,6 +69,7 @@ export interface Backup {
   archiveFormat: string;
   zipCompression: string;
   zipPassword: string | null;
+  zipPasswordVaultRef: string | null;
   zipFilename: string | null;
   isValidated: boolean;
   validationStatus: string | null;
@@ -106,6 +107,7 @@ export interface CreateBackupPayload {
   archiveFormat?: string;
   zipCompression?: string;
   zipPassword?: string | null;
+  zipPasswordVaultRef?: string | null;
   zipFilename?: string | null;
   outputs?: BackupOutputPayload[];
 }

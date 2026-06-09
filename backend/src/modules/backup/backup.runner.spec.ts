@@ -38,7 +38,10 @@ describe('BackupRunner', () => {
           provide: SettingsService,
           useValue: { get: jest.fn().mockResolvedValue({ filesRoot: '/tmp' }) },
         },
-        { provide: InputService, useValue: { getOne: jest.fn(), list: jest.fn() } },
+        {
+          provide: InputService,
+          useValue: { getOne: jest.fn(), list: jest.fn() },
+        },
         { provide: LogsWriter, useValue: mockLogs },
       ],
     }).compile();

@@ -6,6 +6,8 @@ export interface HttpRestConfig {
   downloadEndpoint?: string;
   responseMapping?: { id?: string; name?: string };
   filterConfig?: Record<string, unknown>;
+  /** Extension detected from the last successful test (e.g. ".tar.gz"). Used in noArchive mode. */
+  detectedExtension?: string;
 }
 
 export interface InputItem {

@@ -44,7 +44,12 @@
     "back": "Retour",
     "input": "Inputs",
     "httpRestInputs": "Inputs HTTP REST",
-    "variableSets": "Jeux de variables"
+    "variableSets": "Jeux de variables",
+    "categories": {
+      "resources": "Ressources",
+      "automation": "Automatisation",
+      "system": "Système"
+    }
   },
   "dashboard": {
     "title": "Tableau de bord",
@@ -111,7 +116,7 @@
       "http": "Identifiants pour endpoints HTTP/REST (Bearer, Basic, OAuth2…)",
       "sshKey": "Clés SSH privées pour les connexions distantes",
       "apiToken": "Tokens API pour les services tiers",
-      "variableSet": "Variables chiffrées réutilisables dans les body/headers HTTP"
+      "variableSet": "Variables clé-valeur chiffrées et réutilisables"
     },
     "emailTitle": "Comptes e-mail",
     "emailSubtitle": "Identifiants SMTP chiffrés en AES-256-GCM.",
@@ -207,13 +212,16 @@
       "editTitle": "Modifier le jeu de variables",
       "editSubtitle": "Remplacez toutes les variables à conserver.",
       "editWarning": "Attention : les valeurs actuelles ne sont pas affichées. Saisissez à nouveau les variables que vous souhaitez conserver.",
-      "name": "Libellé",
+      "editWarning2": "Les valeurs actuelles sont masquées. Laissez un champ valeur vide pour conserver la valeur existante.",
+      "name": "Nom",
+      "slugHint": "Référence dans les templates :",
       "namePlaceholder": "ex. : credentials-portainer",
       "variables": "Variables",
       "addVariable": "Ajouter une variable",
       "noVariables": "Aucune variable. Cliquez sur Ajouter une variable.",
       "keyPlaceholder": "clé",
       "valuePlaceholder": "valeur (secret)",
+      "valuePlaceholderEdit": "laisser vide pour conserver",
       "variableCount_one": "{{count}} variable",
       "variableCount_other": "{{count}} variables",
       "variableCount": "{{count}} variable(s)",
@@ -353,7 +361,8 @@
     "tooltips": {
       "runDisabled": "Validez d'abord la sauvegarde (étape 6) avant de l'exécuter",
       "enableDisabled": "Validez d'abord la sauvegarde (étape 6) pour l'activer",
-      "confirmDelete": "Confirmer la suppression"
+      "confirmDelete": "Confirmer la suppression",
+      "inputNeedsRetest": "Un ou plusieurs inputs ont été modifiés et doivent être retestés avant l'exécution"
     },
     "addOutput": "Ajouter une sortie",
     "outputVault": "Compte SMTP",
@@ -463,7 +472,13 @@
       "inputBadge": "INPUT",
       "inputTitle": "Sélectionner un Input",
       "inputSubtitle": "Choisissez l'input dont les fichiers seront ajoutés à l'archive.",
-      "noInputItems": "Aucun input configuré."
+      "noInputItems": "Aucun input configuré.",
+      "inputStatusOk": "Testé",
+      "inputStatusError": "Échec du test",
+      "inputStatusPending": "Retest requis",
+      "inputNotAvailable": "Doit être testé avant utilisation — allez dans Input → HTTP REST",
+      "inputNeedsRetest": "Retest de l'input requis",
+      "inputChangedWarning": "Configuration modifiée — retest requis"
     },
     "zip": {
       "format": "Format d'archive",
@@ -493,9 +508,18 @@
       "filenameHint": "L'extension est ajoutée automatiquement selon le format choisi.",
       "filenamePreview": "Aperçu :",
       "insertVariable": "Insérer une variable",
+      "passwordUseVault": "Utiliser une variable vault",
+      "passwordVaultActive": "Variable vault",
+      "passwordSelectVaultVar": "Sélectionner une variable...",
+      "passwordSearchVault": "Rechercher dans les jeux...",
+      "passwordNoVarSets": "Aucun jeu de variables.",
+      "passwordClearVaultRef": "Supprimer la référence vault",
       "noArchive": "Envoyer sans archiver",
       "noArchiveDesc": "Si activé et qu'il n'y a qu'un seul fichier, le fichier est envoyé tel quel sans être archivé. Idéal pour les backups Input (ex. Portainer → .tar.gz).",
-      "noArchiveLocalWarning": "Pour une source locale de type fichier uniquement — ne fonctionne pas avec les dossiers."
+      "noArchiveLocalWarning": "Pour une source locale de type fichier uniquement — ne fonctionne pas avec les dossiers.",
+      "noArchiveFilename": "Nom du fichier de sortie (optionnel)",
+      "noArchiveFilenameHint": "Laisser vide pour utiliser le nom de fichier renvoyé par l'endpoint (Content-Disposition). L'extension est conservée automatiquement.",
+      "noArchiveDetectedExt": "Extension détectée lors du dernier test : {{ext}}"
     },
     "outputs": {
       "overrideContent": "Personnaliser le contenu de l'e-mail",
@@ -566,13 +590,17 @@
       "graphqlVariables": "Variables (JSON)",
       "literalValue": "Valeur littérale",
       "vaultVar": "Variable vault",
-      "selectVaultVar": "Sélectionner…",
+      "selectVaultVar": "Sélectionner une variable…",
       "selectVaultVarHint": "Sélectionnez un jeu de variables",
+      "insertVariable": "Insérer une variable",
+      "searchVaultVar": "Rechercher une variable…",
       "noVarSets": "Aucun jeu de variables configuré",
       "orTypeRef": "Ou saisissez la référence manuellement",
-      "vaultVarSyntax": "Vous pouvez utiliser {{vault.var.<id>.<clé>}} dans les valeurs",
+      "vaultVarSyntax": "Utilisez {{vault.var.<slug>.<clé>}} — slug dérivé du nom du jeu de variables",
       "mappingIdField": "Champ ID",
-      "mappingNameField": "Champ nom"
+      "mappingNameField": "Champ nom",
+      "insecureSkipVerify": "Ignorer les erreurs SSL",
+      "insecureSkipVerifyHint": "Accepter les certificats auto-signés ou non fiables (serveurs internes)"
     }
   },
   "errors": {

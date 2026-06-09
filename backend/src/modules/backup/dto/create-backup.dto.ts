@@ -129,6 +129,10 @@ export class CreateBackupDto {
 
   @IsString()
   @IsOptional()
+  zipPasswordVaultRef?: string | null;
+
+  @IsString()
+  @IsOptional()
   zipFilename?: string | null;
 
   @IsArray()

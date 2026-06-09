@@ -45,6 +45,7 @@ interface BackupRow {
   archiveFormat: string;
   zipCompression: string;
   zipPassword: string | null;
+  zipPasswordVaultRef: string | null;
   zipFilename: string | null;
   isValidated: boolean;
   validationStatus: string | null;
@@ -78,6 +79,7 @@ export class BackupService {
       archiveFormat: backup.archiveFormat,
       zipCompression: backup.zipCompression,
       zipPassword: backup.zipPassword,
+      zipPasswordVaultRef: (backup as BackupRow).zipPasswordVaultRef,
       zipFilename: backup.zipFilename,
       isValidated: backup.isValidated,
       validationStatus: backup.validationStatus,
@@ -168,6 +170,7 @@ export class BackupService {
         archiveFormat: dto.archiveFormat ?? 'zip',
         zipCompression: dto.zipCompression ?? 'default',
         zipPassword: dto.zipPassword ?? null,
+        zipPasswordVaultRef: dto.zipPasswordVaultRef ?? null,
         zipFilename: dto.zipFilename ?? null,
         outputs: dto.outputs
           ? { create: dto.outputs.map((o, i) => this.mapOutputCreate(o, i)) }
@@ -210,6 +213,7 @@ export class BackupService {
       dto.archiveFormat !== undefined ||
       dto.zipCompression !== undefined ||
       dto.zipPassword !== undefined ||
+      dto.zipPasswordVaultRef !== undefined ||
       dto.zipFilename !== undefined ||
       dto.outputs !== undefined;
 
@@ -269,6 +273,10 @@ export class BackupService {
             dto.zipPassword !== undefined
               ? dto.zipPassword
               : (existing as BackupRow).zipPassword,
+          zipPasswordVaultRef:
+            dto.zipPasswordVaultRef !== undefined
+              ? dto.zipPasswordVaultRef
+              : (existing as BackupRow).zipPasswordVaultRef,
           zipFilename:
             dto.zipFilename !== undefined
               ? dto.zipFilename

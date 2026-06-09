@@ -21,6 +21,7 @@ export default function NewHttpRestInputPage() {
   const [form, setForm] = useState<HttpRestInputFormData>(defaultHttpRestInputForm());
   const [httpVaultItems, setHttpVaultItems] = useState<HttpVaultItem[]>([]);
   const [varSetItems, setVarSetItems] = useState<VarSetItem[]>([]);
+  const [isFormValid, setIsFormValid] = useState(true);
 
   useEffect(() => {
     vaultService.listHttp(undefined, 100).then((res) => setHttpVaultItems(res.data)).catch(() => null);
@@ -56,10 +57,10 @@ export default function NewHttpRestInputPage() {
       </div>
 
       <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
-        <HttpRestInputForm form={form} onChange={onChange} httpVaultItems={httpVaultItems} varSetItems={varSetItems} />
+        <HttpRestInputForm form={form} onChange={onChange} httpVaultItems={httpVaultItems} varSetItems={varSetItems} onValidChange={setIsFormValid} />
 
         <div className="flex gap-3">
-          <Button type="submit" disabled={saving || !form.name.trim() || !form.baseUrl.trim()}>
+          <Button type="submit" disabled={saving || !form.name.trim() || !form.baseUrl.trim() || !isFormValid}>
             {saving ? t("common.loading") : t("common.save")}
           </Button>
           <Button type="button" variant="outline" onClick={() => router.back()}>

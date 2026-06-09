@@ -83,7 +83,11 @@ export interface VarSetVariable {
 export interface VarSetItem {
   id: string;
   name: string;
+  /** URL-safe slug used in {{vault.var.<slug>.<key>}} templates */
+  slug: string;
   variableCount: number;
+  /** Variable keys — values are never exposed by the API */
+  variableKeys: string[];
   createdAt: string;
   updatedAt: string;
 }

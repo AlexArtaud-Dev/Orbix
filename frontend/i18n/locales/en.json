@@ -44,7 +44,12 @@
     "back": "Back",
     "input": "Inputs",
     "httpRestInputs": "HTTP REST Inputs",
-    "variableSets": "Variable Sets"
+    "variableSets": "Variable Sets",
+    "categories": {
+      "resources": "Resources",
+      "automation": "Automation",
+      "system": "System"
+    }
   },
   "dashboard": {
     "title": "Dashboard",
@@ -111,7 +116,7 @@
       "http": "Credentials for HTTP/REST endpoints (Bearer, Basic, OAuth2…)",
       "sshKey": "SSH private keys for remote connections",
       "apiToken": "API tokens for third-party services",
-      "variableSet": "Encrypted reusable variables for HTTP body/headers"
+      "variableSet": "Encrypted reusable key-value variables"
     },
     "emailTitle": "Email Configurations",
     "emailSubtitle": "SMTP accounts stored encrypted in the vault",
@@ -207,13 +212,16 @@
       "editTitle": "Edit variable set",
       "editSubtitle": "Re-enter all variables you want to keep.",
       "editWarning": "Warning: current values are not displayed. Re-enter all variables you want to keep.",
-      "name": "Label",
+      "editWarning2": "Current values are hidden. Leave a value field empty to keep the existing value.",
+      "name": "Name",
+      "slugHint": "Template reference:",
       "namePlaceholder": "e.g. portainer-credentials",
       "variables": "Variables",
       "addVariable": "Add variable",
       "noVariables": "No variables yet. Click Add variable.",
       "keyPlaceholder": "key",
       "valuePlaceholder": "value (secret)",
+      "valuePlaceholderEdit": "leave empty to keep current",
       "variableCount": "{{count}} variable(s)",
       "createSuccess": "Variable set created",
       "updateSuccess": "Variable set updated",
@@ -351,7 +359,8 @@
     "tooltips": {
       "runDisabled": "Validate the backup first (step 6) before running",
       "enableDisabled": "Validate the backup first (step 6) to enable it",
-      "confirmDelete": "Confirm deletion"
+      "confirmDelete": "Confirm deletion",
+      "inputNeedsRetest": "One or more input sources were modified and need to be retested before this backup can run"
     },
     "addOutput": "Add output",
     "outputVault": "SMTP account",
@@ -461,7 +470,13 @@
       "inputBadge": "INPUT",
       "inputTitle": "Select an Input",
       "inputSubtitle": "Choose the input whose files will be added to the archive.",
-      "noInputItems": "No inputs configured yet."
+      "noInputItems": "No inputs configured yet.",
+      "inputStatusOk": "Tested",
+      "inputStatusError": "Test failed",
+      "inputStatusPending": "Needs retest",
+      "inputNotAvailable": "Must be tested before use — go to Input → HTTP REST",
+      "inputNeedsRetest": "Input needs retest",
+      "inputChangedWarning": "Configuration changed — retest required"
     },
     "zip": {
       "format": "Archive format",
@@ -491,9 +506,18 @@
       "filenameHint": "Extension is added automatically based on the format.",
       "filenamePreview": "Preview:",
       "insertVariable": "Insert variable",
+      "passwordUseVault": "Use vault variable",
+      "passwordVaultActive": "Vault variable",
+      "passwordSelectVaultVar": "Select a variable...",
+      "passwordSearchVault": "Search variable sets...",
+      "passwordNoVarSets": "No variable sets found.",
+      "passwordClearVaultRef": "Remove vault reference",
       "noArchive": "Send without archiving",
       "noArchiveDesc": "If enabled and there is only one file, it is sent as-is without being archived. Ideal for Input backups (e.g. Portainer → .tar.gz).",
-      "noArchiveLocalWarning": "For a local file source only — does not work with folders."
+      "noArchiveLocalWarning": "For a local file source only — does not work with folders.",
+      "noArchiveFilename": "Output filename (optional)",
+      "noArchiveFilenameHint": "Leave empty to use the filename from the endpoint response (Content-Disposition). Extension is preserved automatically.",
+      "noArchiveDetectedExt": "Extension detected from last test: {{ext}}"
     },
     "outputs": {
       "overrideContent": "Override email content",
@@ -564,13 +588,17 @@
       "graphqlVariables": "Variables (JSON)",
       "literalValue": "Literal value",
       "vaultVar": "Vault variable",
-      "selectVaultVar": "Select…",
+      "selectVaultVar": "Select variable…",
       "selectVaultVarHint": "Select a variable set",
+      "insertVariable": "Insert variable",
+      "searchVaultVar": "Search variable…",
       "noVarSets": "No variable sets configured",
       "orTypeRef": "Or type the reference manually",
-      "vaultVarSyntax": "You can use {{vault.var.<id>.<key>}} in values",
+      "vaultVarSyntax": "You can use {{vault.var.<slug>.<key>}} — slug derived from variable set name",
       "mappingIdField": "ID field",
-      "mappingNameField": "Name field"
+      "mappingNameField": "Name field",
+      "insecureSkipVerify": "Ignore SSL errors",
+      "insecureSkipVerifyHint": "Accept self-signed or untrusted certificates (internal servers)"
     }
   },
   "errors": {

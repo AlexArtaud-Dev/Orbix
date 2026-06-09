@@ -122,6 +122,7 @@ export interface BackupData {
   archiveFormat: string;
   zipCompression: string;
   zipPassword: string | null;
+  zipPasswordVaultRef: string | null;
   zipFilename: string | null;
   isValidated: boolean;
   validationStatus: string | null;

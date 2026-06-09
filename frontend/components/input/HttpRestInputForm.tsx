@@ -1,7 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { Plus, Trash2, ChevronDown } from "lucide-react";
+import { Plus, Trash2, ChevronDown, Lock, Braces } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,6 +20,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import type { HttpVaultItem, VarSetItem } from "@/services/vault";
 
@@ -68,6 +69,7 @@ export interface HttpRestInputFormData {
   responseMappingName: string;
   vaultId: string;
   enabled: boolean;
+  insecureSkipVerify: boolean;
   headers: HttpHeaderField[];
   body: HttpBodyConfig;
 }
@@ -85,6 +87,7 @@ export function defaultHttpRestInputForm(): HttpRestInputFormData {
     responseMappingName: "name",
     vaultId: "",
     enabled: true,
+    insecureSkipVerify: false,
     headers: [],
     body: {
       type: "none",
@@ -103,6 +106,7 @@ export function formToPayload(form: HttpRestInputFormData) {
   const config: Record<string, unknown> = {
     baseUrl: form.baseUrl,
     ...(form.method !== "GET" ? { method: form.method } : {}),
+    ...(form.insecureSkipVerify ? { insecureSkipVerify: true } : {}),
     ...(form.listEndpoint ? { listEndpoint: form.listEndpoint } : {}),
     ...(form.downloadEndpoint
       ? { downloadEndpoint: form.downloadEndpoint }
@@ -154,12 +158,19 @@ export function formToPayload(form: HttpRestInputFormData) {
 
   return {
     name: form.name,
-    type: "http-rest",
+    type: "http-rest" as const,
     vaultId: form.vaultId || null,
     config,
     requestParams: [],
     enabled: form.enabled,
   };
+}
+
+/** PATCH payload — same as formToPayload but without `type` (forbidNonWhitelisted) */
+export function formToUpdatePayload(form: HttpRestInputFormData) {
+  const { type: _type, ...rest } = formToPayload(form);
+  void _type;
+  return rest;
 }
 
 export function itemToForm(item: {
@@ -176,6 +187,7 @@ export function itemToForm(item: {
     responseMapping?: { id?: string; name?: string };
     headers?: HttpHeaderField[];
     body?: Partial<HttpBodyConfig>;
+    insecureSkipVerify?: boolean;
   };
   return {
     name: item.name,
@@ -187,6 +199,7 @@ export function itemToForm(item: {
     responseMappingName: cfg.responseMapping?.name ?? "name",
     vaultId: item.vaultId ?? "",
     enabled: item.enabled,
+    insecureSkipVerify: cfg.insecureSkipVerify ?? false,
     headers: (cfg.headers ?? []).map((h) => ({
       key: h.key ?? "",
       valueType: h.valueType ?? "literal",
@@ -250,7 +263,50 @@ const BODY_TABS: HttpBodyType[] = [
   "graphql",
 ];
 
+// ─── Auth vault → injected headers mapping ────────────────────────────────────
+
+/** What header(s) each HttpVault subtype injects at runtime */
+const VAULT_AUTH_HEADERS: Record<string, Array<{ key: string; preview: string }>> = {
+  token:                      [{ key: "Authorization",    preview: "Bearer ••••••••" }],
+  username_password:          [{ key: "Authorization",    preview: "Basic ••••••••"  }],
+  key_secret:                 [{ key: "Authorization",    preview: "ApiKey ••••••••" }],
+  oauth2_client_credentials:  [{ key: "Authorization",    preview: "Bearer ••••••••" }],
+  oauth2_password_grant:      [{ key: "Authorization",    preview: "Bearer ••••••••" }],
+  jwt_signing_key:            [{ key: "Authorization",    preview: "Bearer ••••••••" }],
+  aws_sigv4:                  [{ key: "Authorization",    preview: "AWS4-HMAC-SHA256 ••••" }],
+  cookie:                     [{ key: "Cookie",           preview: "••••••••"        }],
+  mtls_certificate:           [{ key: "(TLS)",            preview: "Client certificate" }],
+  ssh_key:                    [{ key: "(SSH)",             preview: "SSH private key"    }],
+  custom_kv:                  [{ key: "(multiple)",       preview: "custom headers"     }],
+};
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
+
+/** Read-only row showing a header injected by the selected auth vault */
+function LockedHeaderRow({
+  headerKey,
+  preview,
+  vaultName,
+}: {
+  headerKey: string;
+  preview: string;
+  vaultName: string;
+}) {
+  return (
+    <div className="flex items-center gap-1.5 rounded-md bg-muted/40 border border-dashed px-2 py-1.5 select-none">
+      <Lock className="size-3 shrink-0 text-muted-foreground/60" />
+      <span className="font-mono text-xs flex-1 text-muted-foreground truncate">
+        {headerKey}
+      </span>
+      <span className="text-xs text-muted-foreground/70 font-mono truncate flex-1">
+        {preview}
+      </span>
+      <span className="text-[10px] text-muted-foreground/50 shrink-0 italic">
+        {vaultName}
+      </span>
+    </div>
+  );
+}
 
 function FormFieldRow({
   field,
@@ -313,6 +369,16 @@ function FormFieldRow({
   );
 }
 
+function resolveVarLabel(ref: string, varSets: VarSetItem[]): string {
+  if (!ref) return "";
+  const dotIdx = ref.indexOf(".");
+  if (dotIdx === -1) return ref;
+  const slug = ref.slice(0, dotIdx);
+  const key = ref.slice(dotIdx + 1);
+  const vs = varSets.find((s) => s.slug === slug);
+  return vs ? `${vs.name}.${key}` : ref;
+}
+
 function VaultVarPicker({
   value,
   onChange,
@@ -324,61 +390,226 @@ function VaultVarPicker({
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
 
   const label = value
-    ? `{{vault.var.${value}}}`
+    ? resolveVarLabel(value, varSets)
     : t("input.httpRest.selectVaultVar");
 
+  const lower = search.toLowerCase();
+  const visibleSets = varSets
+    .map((vs) => {
+      const setMatches = !search || vs.name.toLowerCase().includes(lower);
+      const visibleKeys = setMatches
+        ? vs.variableKeys
+        : vs.variableKeys.filter((k) => k.toLowerCase().includes(lower));
+      return { vs, visibleKeys };
+    })
+    .filter(({ vs, visibleKeys }) => visibleKeys.length > 0 || (!search && vs.variableCount === 0));
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (!o) setSearch("");
+      }}
+    >
       <PopoverTrigger asChild>
         <Button
           type="button"
           variant="outline"
           size="sm"
-          className="flex-1 min-w-0 justify-between font-mono text-xs truncate"
+          className="flex-1 min-w-0 justify-between font-mono text-xs"
         >
           <span className="truncate">{label}</span>
-          <ChevronDown className="size-3 shrink-0 ml-1" />
+          <ChevronDown className="size-3 shrink-0 ml-1 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-72 p-2" align="start">
-        <p className="text-xs font-medium text-muted-foreground mb-2 px-1">
-          {t("input.httpRest.selectVaultVarHint")}
-        </p>
-        {varSets.length === 0 ? (
-          <p className="text-xs text-muted-foreground px-1">{t("input.httpRest.noVarSets")}</p>
-        ) : (
-          <div className="space-y-1">
-            {varSets.map((vs) =>
-              Array.from({ length: vs.variableCount }).map((_, i) => (
-                // We only know the count, not the actual keys — show the set name with a placeholder
-                <button
-                  key={`${vs.id}-placeholder-${i}`}
-                  type="button"
-                  className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-muted font-mono"
-                  onClick={() => {
-                    // Without the actual key names we can't generate the full ref automatically;
-                    // show the vault id and let the user type the key
-                    onChange(`${vs.id}.`);
-                    setOpen(false);
-                  }}
-                >
+      <PopoverContent className="w-80 p-2" align="start">
+        {/* Search */}
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={t("input.httpRest.searchVaultVar")}
+          className="text-xs h-7 mb-2"
+          autoFocus
+        />
+
+        {/* Groups */}
+        <div className="max-h-60 overflow-y-auto space-y-0.5">
+          {varSets.length === 0 ? (
+            <p className="text-xs text-muted-foreground px-2 py-1">
+              {t("input.httpRest.noVarSets")}
+            </p>
+          ) : visibleSets.length === 0 ? (
+            <p className="text-xs text-muted-foreground px-2 py-1">
+              {t("common.noResults")}
+            </p>
+          ) : (
+            visibleSets.map(({ vs, visibleKeys }) => (
+              <div key={vs.id}>
+                {/* Category header */}
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-2 pt-2 pb-0.5 select-none">
                   {vs.name}
-                </button>
-              )),
-            )}
-          </div>
-        )}
+                </p>
+                {visibleKeys.length === 0 ? (
+                  <p className="text-xs text-muted-foreground px-3 py-1 italic">
+                    {t("vault.varset.noVariables")}
+                  </p>
+                ) : (
+                  visibleKeys.map((key) => {
+                    const ref = `${vs.slug}.${key}`;
+                    const active = value === ref;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        className={cn(
+                          "w-full text-left text-xs px-3 py-1.5 rounded font-mono transition-colors",
+                          active
+                            ? "bg-primary/10 text-primary font-medium"
+                            : "hover:bg-muted",
+                        )}
+                        onClick={() => {
+                          onChange(ref);
+                          setOpen(false);
+                          setSearch("");
+                        }}
+                      >
+                        {key}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Manual ref fallback */}
         <Separator className="my-2" />
-        <div className="px-1">
-          <p className="text-[10px] text-muted-foreground mb-1">{t("input.httpRest.orTypeRef")}</p>
+        <div>
+          <p className="text-[10px] text-muted-foreground mb-1 px-1">
+            {t("input.httpRest.orTypeRef")}
+          </p>
           <Input
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder="vaultId.keyName"
             className="font-mono text-xs"
           />
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ─── VarInsertPopover — inserts {{vault.var.*}} at textarea cursor ────────────
+
+function VarInsertPopover({
+  textareaRef,
+  value,
+  onChange,
+  varSets,
+}: {
+  textareaRef: React.RefObject<HTMLTextAreaElement>;
+  value: string;
+  onChange: (v: string) => void;
+  varSets: VarSetItem[];
+}) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const cursorRef = useRef(0);
+
+  const handleOpenChange = (o: boolean) => {
+    if (o) {
+      // Capture cursor position before the textarea loses focus
+      cursorRef.current = textareaRef.current?.selectionStart ?? value.length;
+    }
+    setOpen(o);
+    if (!o) setSearch("");
+  };
+
+  const handleInsert = (snippet: string) => {
+    const pos = cursorRef.current;
+    const newValue = value.slice(0, pos) + snippet + value.slice(pos);
+    onChange(newValue);
+    setOpen(false);
+    setSearch("");
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (el) {
+        el.focus();
+        const newPos = pos + snippet.length;
+        el.setSelectionRange(newPos, newPos);
+      }
+    });
+  };
+
+  const lower = search.toLowerCase();
+  const visibleSets = varSets
+    .map((vs) => {
+      const setMatches = !search || vs.name.toLowerCase().includes(lower);
+      const visibleKeys = setMatches
+        ? vs.variableKeys
+        : vs.variableKeys.filter((k) => k.toLowerCase().includes(lower));
+      return { vs, visibleKeys };
+    })
+    .filter(({ visibleKeys }) => visibleKeys.length > 0);
+
+  return (
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-6 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+          title={t("input.httpRest.insertVariable")}
+        >
+          <Braces className="size-3" />
+          {t("input.httpRest.insertVariable")}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-2" align="end">
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={t("input.httpRest.searchVaultVar")}
+          className="text-xs h-7 mb-2"
+          autoFocus
+        />
+        <div className="max-h-60 overflow-y-auto space-y-0.5">
+          {varSets.length === 0 ? (
+            <p className="text-xs text-muted-foreground px-2 py-1">
+              {t("input.httpRest.noVarSets")}
+            </p>
+          ) : visibleSets.length === 0 ? (
+            <p className="text-xs text-muted-foreground px-2 py-1">
+              {t("common.noResults")}
+            </p>
+          ) : (
+            visibleSets.map(({ vs, visibleKeys }) => (
+              <div key={vs.id}>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-2 pt-2 pb-0.5 select-none">
+                  {vs.name}
+                </p>
+                {visibleKeys.map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    className="w-full text-left text-xs px-3 py-1.5 rounded font-mono hover:bg-muted transition-colors"
+                    onClick={() => handleInsert(`{{vault.var.${vs.slug}.${key}}}`)}
+                  >
+                    <span className="text-muted-foreground text-[10px]">{vs.name}.</span>
+                    {key}
+                  </button>
+                ))}
+              </div>
+            ))
+          )}
         </div>
       </PopoverContent>
     </Popover>
@@ -395,6 +626,8 @@ interface Props {
   ) => void;
   httpVaultItems: HttpVaultItem[];
   varSetItems?: VarSetItem[];
+  /** Called whenever the form's overall validity changes (e.g. invalid JSON body) */
+  onValidChange?: (valid: boolean) => void;
 }
 
 export function HttpRestInputForm({
@@ -402,8 +635,29 @@ export function HttpRestInputForm({
   onChange,
   httpVaultItems,
   varSetItems = [],
+  onValidChange,
 }: Props) {
   const { t } = useTranslation();
+
+  const jsonTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const rawTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // ── JSON body validation ──────────────────────────────────────────────────
+  const jsonError = useMemo<string | null>(() => {
+    if (form.body.type !== "json") return null;
+    const src = form.body.json.trim();
+    if (!src) return null; // empty → no error yet
+    try {
+      JSON.parse(src);
+      return null;
+    } catch (e) {
+      return e instanceof Error ? e.message : "Invalid JSON";
+    }
+  }, [form.body.type, form.body.json]);
+
+  useEffect(() => {
+    onValidChange?.(jsonError === null);
+  }, [jsonError, onValidChange]);
 
   const setBody = (partial: Partial<HttpBodyConfig>) =>
     onChange("body", { ...form.body, ...partial });
@@ -492,76 +746,6 @@ export function HttpRestInputForm({
                 />
               </div>
             </Field>
-          </FieldGroup>
-        </CardContent>
-      </Card>
-
-      {/* ── Endpoints ── */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Endpoints</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="listEndpoint">{t("input.httpRest.listEndpoint")}</FieldLabel>
-              <Input
-                id="listEndpoint"
-                value={form.listEndpoint}
-                onChange={(e) => onChange("listEndpoint", e.target.value)}
-                placeholder={t("input.httpRest.listEndpointPlaceholder")}
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                {t("input.httpRest.listEndpointHint")}
-              </p>
-            </Field>
-            {form.listEndpoint && (
-              <>
-                <Field>
-                  <FieldLabel htmlFor="downloadEndpoint">
-                    {t("input.httpRest.downloadEndpoint")}
-                  </FieldLabel>
-                  <Input
-                    id="downloadEndpoint"
-                    value={form.downloadEndpoint}
-                    onChange={(e) => onChange("downloadEndpoint", e.target.value)}
-                    placeholder={t("input.httpRest.downloadEndpointPlaceholder")}
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {t("input.httpRest.downloadEndpointHint")}
-                  </p>
-                </Field>
-                <div className="grid grid-cols-2 gap-3">
-                  <Field>
-                    <FieldLabel>{t("input.httpRest.mappingIdField")}</FieldLabel>
-                    <Input
-                      value={form.responseMappingId}
-                      onChange={(e) => onChange("responseMappingId", e.target.value)}
-                      placeholder="id"
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel>{t("input.httpRest.mappingNameField")}</FieldLabel>
-                    <Input
-                      value={form.responseMappingName}
-                      onChange={(e) => onChange("responseMappingName", e.target.value)}
-                      placeholder="name"
-                    />
-                  </Field>
-                </div>
-              </>
-            )}
-          </FieldGroup>
-        </CardContent>
-      </Card>
-
-      {/* ── Auth ── */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">{t("input.httpRest.auth")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <FieldGroup>
             <Field>
               <FieldLabel>{t("input.httpRest.vaultOptional")}</FieldLabel>
               <Select
@@ -581,6 +765,20 @@ export function HttpRestInputForm({
                 </SelectContent>
               </Select>
             </Field>
+            <Field>
+              <div className="flex items-center justify-between gap-4 py-0.5">
+                <div>
+                  <FieldLabel className="mb-0">{t("input.httpRest.insecureSkipVerify")}</FieldLabel>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    {t("input.httpRest.insecureSkipVerifyHint")}
+                  </p>
+                </div>
+                <Switch
+                  checked={form.insecureSkipVerify}
+                  onCheckedChange={(v) => onChange("insecureSkipVerify", v)}
+                />
+              </div>
+            </Field>
           </FieldGroup>
         </CardContent>
       </Card>
@@ -595,10 +793,31 @@ export function HttpRestInputForm({
           </Button>
         </CardHeader>
         <CardContent className="space-y-2">
-          {form.headers.length === 0 ? (
+          {/* Locked rows injected by the auth vault */}
+          {(() => {
+            const authVault = httpVaultItems.find((v) => v.id === form.vaultId);
+            const authRows = authVault ? (VAULT_AUTH_HEADERS[authVault.subtype] ?? []) : [];
+            if (!authRows.length) return null;
+            return (
+              <>
+                {authRows.map((row) => (
+                  <LockedHeaderRow
+                    key={row.key}
+                    headerKey={row.key}
+                    preview={row.preview}
+                    vaultName={authVault!.name}
+                  />
+                ))}
+                {form.headers.length > 0 && <Separator />}
+              </>
+            );
+          })()}
+
+          {form.headers.length === 0 && !form.vaultId && (
             <p className="text-xs text-muted-foreground">{t("input.httpRest.noHeaders")}</p>
-          ) : (
-            form.headers.map((h, idx) => (
+          )}
+
+          {form.headers.map((h, idx) => (
               <div key={idx} className="flex items-center gap-1.5">
                 {/* Key: combobox with predefined list + free text */}
                 <Popover>
@@ -670,8 +889,7 @@ export function HttpRestInputForm({
                   <Trash2 className="size-3.5" />
                 </Button>
               </div>
-            ))
-          )}
+            ))}
         </CardContent>
       </Card>
 
@@ -703,27 +921,60 @@ export function HttpRestInputForm({
           {/* Body editors */}
           {form.body.type === "json" && (
             <div className="space-y-1">
+              <div className="flex items-center justify-end mb-1">
+                {varSetItems.length > 0 && (
+                  <VarInsertPopover
+                    textareaRef={jsonTextareaRef}
+                    value={form.body.json}
+                    onChange={(v) => setBody({ json: v })}
+                    varSets={varSetItems}
+                  />
+                )}
+              </div>
               <Textarea
+                ref={jsonTextareaRef}
                 value={form.body.json}
                 onChange={(e) => setBody({ json: e.target.value })}
                 rows={8}
                 placeholder={"{\n  \"key\": \"value\"\n}"}
-                className="font-mono text-xs"
+                className={cn(
+                  "font-mono text-xs",
+                  jsonError && "border-destructive focus-visible:ring-destructive",
+                )}
               />
-              <p className="text-[10px] text-muted-foreground">
-                {t("input.httpRest.vaultVarSyntax")}
-              </p>
+              {jsonError ? (
+                <p className="text-xs text-destructive font-mono break-all">
+                  {jsonError}
+                </p>
+              ) : (
+                <p className="text-[10px] text-muted-foreground">
+                  {t("input.httpRest.vaultVarSyntax")}
+                </p>
+              )}
             </div>
           )}
 
           {form.body.type === "raw" && (
-            <Textarea
-              value={form.body.raw}
-              onChange={(e) => setBody({ raw: e.target.value })}
-              rows={8}
-              placeholder={t("input.httpRest.rawBodyPlaceholder")}
-              className="font-mono text-xs"
-            />
+            <div className="space-y-1">
+              <div className="flex items-center justify-end mb-1">
+                {varSetItems.length > 0 && (
+                  <VarInsertPopover
+                    textareaRef={rawTextareaRef}
+                    value={form.body.raw}
+                    onChange={(v) => setBody({ raw: v })}
+                    varSets={varSetItems}
+                  />
+                )}
+              </div>
+              <Textarea
+                ref={rawTextareaRef}
+                value={form.body.raw}
+                onChange={(e) => setBody({ raw: e.target.value })}
+                rows={8}
+                placeholder={t("input.httpRest.rawBodyPlaceholder")}
+                className="font-mono text-xs"
+              />
+            </div>
           )}
 
           {form.body.type === "graphql" && (

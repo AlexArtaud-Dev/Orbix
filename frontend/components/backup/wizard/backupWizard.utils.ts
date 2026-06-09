@@ -29,7 +29,7 @@ export function defaultForm(): WizardForm {
       unit: "hours",
     },
     sources: [],
-    zip: { noArchive: false, archiveFormat: "zip", zipCompression: "default", zipPassword: "", zipFilename: "" },
+    zip: { noArchive: false, archiveFormat: "zip", zipCompression: "default", zipPassword: "", zipPasswordVaultRef: "", zipFilename: "" },
     outputs: [],
   };
 }
@@ -64,6 +64,7 @@ export function backupToForm(backup: Backup): WizardForm {
       zipCompression: (backup.zipCompression as "store" | "fast" | "default" | "best") || "default",
       // null = existing password, do not overwrite; "" = no password
       zipPassword: backup.zipPassword ? null : "",
+      zipPasswordVaultRef: backup.zipPasswordVaultRef || "",
       zipFilename: backup.zipFilename || "",
     },
     outputs: backup.outputs.map((o) => ({
@@ -128,6 +129,7 @@ export function formToPayload(form: WizardForm, enabled: boolean, mode: "local" 
     // null = unchanged (edit mode), send undefined so backend keeps existing value
     // "" = explicitly no password, send null to clear
     zipPassword: form.zip.zipPassword === null ? undefined : (form.zip.zipPassword || null),
+    zipPasswordVaultRef: form.zip.zipPasswordVaultRef || null,
     zipFilename: form.zip.zipFilename || null,
     outputs: form.outputs.map((o, i) => ({
       type: o.type,

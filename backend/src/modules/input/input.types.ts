@@ -49,6 +49,10 @@ export interface HttpRestConfig {
   headers?: HttpHeader[];
   /** Request body config */
   body?: HttpBodyConfig;
+  /** Skip TLS certificate verification (self-signed / internal CAs) */
+  insecureSkipVerify?: boolean;
+  /** Extension detected from the last successful test (e.g. ".tar.gz"). Used in noArchive mode. */
+  detectedExtension?: string;
 }
 
 export interface InputRequestParam {

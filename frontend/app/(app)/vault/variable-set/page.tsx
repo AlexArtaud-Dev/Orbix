@@ -13,22 +13,15 @@ export default function VarSetListPage() {
   const [items, setItems] = useState<VarSetItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const load = async () => {
-    try {
-      const res = await vaultService.listVarSet(undefined, 100);
-      setItems(res.data);
-    } catch {
-      toast.error(t("common.error"));
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    void load();
-  }, []); // eslint-disable-line
+    vaultService
+      .listVarSet(undefined, 100)
+      .then((res) => setItems(res.data))
+      .catch(() => toast.error(t("common.error")))
+      .finally(() => setLoading(false));
+  }, [t]);
 
-  const handleDelete = async (id: string, name: string) => {
+  const handleDelete = async (id: string) => {
     try {
       await vaultService.deleteVarSet(id);
       setItems((prev) => prev.filter((i) => i.id !== id));
@@ -79,7 +72,7 @@ export default function VarSetListPage() {
                     size="icon"
                     variant="ghost"
                     className="text-muted-foreground hover:text-destructive"
-                    onClick={() => void handleDelete(item.id, item.name)}
+                    onClick={() => void handleDelete(item.id)}
                   >
                     <Trash2 className="size-3.5" />
                   </Button>

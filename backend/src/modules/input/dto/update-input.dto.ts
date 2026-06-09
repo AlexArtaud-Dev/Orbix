@@ -1,4 +1,10 @@
-import { IsBoolean, IsObject, IsOptional, IsString } from 'class-validator';
+import {
+  IsBoolean,
+  IsObject,
+  IsOptional,
+  IsString,
+  ValidateIf,
+} from 'class-validator';
 
 export class UpdateInputDto {
   @IsOptional()
@@ -13,8 +19,9 @@ export class UpdateInputDto {
   requestParams?: unknown[];
 
   @IsOptional()
+  @ValidateIf((o: UpdateInputDto) => o.vaultId !== null)
   @IsString()
-  vaultId?: string;
+  vaultId?: string | null;
 
   @IsOptional()
   @IsBoolean()

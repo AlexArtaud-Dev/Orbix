@@ -1,6 +1,7 @@
 import {
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client';
@@ -9,6 +10,7 @@ import { VaultService } from '../vault/vault.service';
 import { LogsWriter } from '../logs/logs.writer';
 import type { CreateInputDto } from './dto/create-input.dto';
 import type { UpdateInputDto } from './dto/update-input.dto';
+import { fetchWithConfig } from './input-http.util';
 import type {
   HttpRestConfig,
   InputRequestParam,
@@ -17,6 +19,8 @@ import type {
 
 @Injectable()
 export class InputService {
+  private readonly logger = new Logger(InputService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly vault: VaultService,
@@ -71,6 +75,13 @@ export class InputService {
   async update(id: string, dto: UpdateInputDto): Promise<InputRow> {
     const existing = await this.prisma.input.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Input not found');
+
+    // Config-affecting fields: invalidate test status so the input must be retested
+    const configChanging =
+      dto.config !== undefined ||
+      dto.requestParams !== undefined ||
+      dto.vaultId !== undefined;
+
     try {
       const updated = await this.prisma.input.update({
         where: { id },
@@ -86,6 +97,9 @@ export class InputService {
             ? { vaultId: dto.vaultId ?? null }
             : {}),
           ...(dto.enabled !== undefined ? { enabled: dto.enabled } : {}),
+          ...(configChanging
+            ? { lastTestStatus: null, lastTestError: null, lastTestAt: null }
+            : {}),
         },
       });
       return updated as unknown as InputRow;
@@ -152,7 +166,71 @@ export class InputService {
         }
       }
 
-      const res = await fetch(url.toString(), { headers });
+      const method = config.method ?? 'GET';
+
+      // ── Build request body ────────────────────────────────────────────────
+      let bodyString: string | undefined;
+      if (config.body && config.body.type !== 'none') {
+        switch (config.body.type) {
+          case 'json':
+            bodyString = config.body.json;
+            if (!headers['Content-Type'] && !headers['content-type'])
+              headers['Content-Type'] = 'application/json';
+            break;
+          case 'raw':
+            bodyString = config.body.raw;
+            break;
+          case 'graphql': {
+            let gqlVars: unknown;
+            try { gqlVars = config.body.graphqlVariables ? JSON.parse(config.body.graphqlVariables) : undefined; }
+            catch { gqlVars = undefined; }
+            bodyString = JSON.stringify({ query: config.body.raw, ...(gqlVars ? { variables: gqlVars } : {}) });
+            if (!headers['Content-Type'] && !headers['content-type'])
+              headers['Content-Type'] = 'application/json';
+            break;
+          }
+          case 'x-www-form-urlencoded': {
+            const params = new URLSearchParams();
+            for (const f of config.body.urlEncoded ?? [])
+              if (f.key && f.valueType === 'literal') params.set(f.key, f.value ?? '');
+            bodyString = params.toString();
+            if (!headers['Content-Type'] && !headers['content-type'])
+              headers['Content-Type'] = 'application/x-www-form-urlencoded';
+            break;
+          }
+          // form-data needs multipart boundaries — skip for test
+        }
+      }
+
+      // ── Resolve vault variables in body ──────────────────────────────────
+      if (bodyString !== undefined) {
+        bodyString = await this.resolveTemplate(bodyString);
+      }
+
+      // ── [TEMP] Full request trace ─────────────────────────────────────────
+      this.logger.warn(
+        `[INPUT TEST] ▶ REQUEST\n` +
+          `  ${method} ${url.toString()}\n` +
+          `  Headers : ${JSON.stringify(headers, null, 2)}\n` +
+          `  Body    : ${bodyString ?? '(none)'}`,
+      );
+
+      const res = await fetchWithConfig(
+        url, method, headers, bodyString, config.insecureSkipVerify ?? false,
+      );
+
+      // Read body once so we can log it and still use it
+      const rawBody = await res.text();
+
+      // ── [TEMP] Full response trace ────────────────────────────────────────
+      const resHeaders: Record<string, string> = {};
+      res.headers.forEach((v, k) => { resHeaders[k] = v; });
+      this.logger.warn(
+        `[INPUT TEST] ◀ RESPONSE ${res.status} ${res.statusText}\n` +
+          `  Headers : ${JSON.stringify(resHeaders, null, 2)}\n` +
+          `  Body    : ${rawBody.slice(0, 2000)}`,
+      );
+
       if (!res.ok) {
         const error = `HTTP ${res.status}`;
         await this.prisma.input.update({
@@ -169,12 +247,19 @@ export class InputService {
       let count: number | undefined;
       if (config.listEndpoint) {
         try {
-          const data = (await res.json()) as unknown;
+          const data = JSON.parse(rawBody) as unknown;
           if (Array.isArray(data)) count = data.length;
         } catch {
           /* not JSON or not an array — that's fine */
         }
       }
+
+      // Detect file extension for noArchive mode filename hint
+      const detectedExtension = this.detectFileExtension(
+        res.headers.get('content-disposition'),
+        res.headers.get('content-type'),
+        config.listEndpoint ? undefined : config.baseUrl,
+      );
 
       await this.prisma.input.update({
         where: { id },
@@ -182,6 +267,14 @@ export class InputService {
           lastTestAt: new Date(),
           lastTestStatus: 'ok',
           lastTestError: null,
+          ...(detectedExtension
+            ? {
+                config: {
+                  ...(input.config as object),
+                  detectedExtension,
+                } as Prisma.InputJsonValue,
+              }
+            : {}),
         },
       });
       return { success: true, count };
@@ -197,6 +290,107 @@ export class InputService {
       });
       return { success: false, error };
     }
+  }
+
+  /**
+   * Replace {{vault.var.<slug>.<key>}} tokens in a template string.
+   * Mirrors the resolution logic used in the backup runner.
+   */
+  private async resolveTemplate(template: string): Promise<string> {
+    const pattern = /\{\{vault\.var\.([^}]+)\}\}/g;
+    const matches = [...template.matchAll(pattern)];
+    if (matches.length === 0) return template;
+
+    // Collect unique slugs and fetch their payloads once
+    const slugs = [
+      ...new Set(
+        matches.map((m) => {
+          const dot = m[1].indexOf('.');
+          return dot >= 0 ? m[1].slice(0, dot) : m[1];
+        }),
+      ),
+    ];
+
+    const payloads = new Map<string, Record<string, string>>();
+    for (const slug of slugs) {
+      try {
+        payloads.set(
+          slug,
+          await this.vault.getVariableSetPayloadBySlug(slug),
+        );
+      } catch {
+        payloads.set(slug, {});
+      }
+    }
+
+    return template.replace(pattern, (_, ref: string) => {
+      const dot = ref.indexOf('.');
+      if (dot < 0) return '';
+      const slug = ref.slice(0, dot);
+      const key = ref.slice(dot + 1);
+      return payloads.get(slug)?.[key] ?? '';
+    });
+  }
+
+  /** Detect file extension from response metadata, best-effort. */
+  private detectFileExtension(
+    contentDisposition: string | null,
+    contentType: string | null,
+    fallbackUrl?: string,
+  ): string {
+    // 1. Content-Disposition: attachment; filename="portainer_backup.tar.gz"
+    if (contentDisposition) {
+      const cdMatch = contentDisposition.match(
+        /filename\*?=(?:UTF-8'')?["']?([^"';\r\n]+)["']?/i,
+      );
+      if (cdMatch) {
+        try {
+          const fname = decodeURIComponent(cdMatch[1].trim().replace(/["']/g, ''));
+          const ext = this.extractExt(fname);
+          if (ext) return ext;
+        } catch {
+          /* decodeURIComponent failed */
+        }
+      }
+    }
+
+    // 2. Content-Type mapping
+    const ct = (contentType ?? '').split(';')[0].trim().toLowerCase();
+    const ctMap: Record<string, string> = {
+      'application/zip': '.zip',
+      'application/x-zip': '.zip',
+      'application/x-zip-compressed': '.zip',
+      'application/x-tar': '.tar',
+      'application/gzip': '.tar.gz',
+      'application/x-gzip': '.tar.gz',
+      'application/x-bzip2': '.tar.bz2',
+      'application/json': '.json',
+      'text/csv': '.csv',
+      'application/sql': '.sql',
+    };
+    if (ctMap[ct]) return ctMap[ct];
+
+    // 3. URL path extension
+    if (fallbackUrl) {
+      try {
+        const urlPath = new URL(fallbackUrl).pathname;
+        const base = urlPath.split('/').pop() ?? '';
+        const ext = this.extractExt(base);
+        if (ext) return ext;
+      } catch {
+        /* invalid URL */
+      }
+    }
+
+    return '';
+  }
+
+  /** Extract compound (.tar.gz) or simple (.json) extension from a filename. */
+  private extractExt(filename: string): string {
+    const compound = filename.match(/\.(tar\.gz|tar\.bz2|tar\.xz)$/i);
+    if (compound) return '.' + compound[1].toLowerCase();
+    const dot = filename.lastIndexOf('.');
+    return dot > 0 ? filename.slice(dot).toLowerCase() : '';
   }
 
   private applySimpleAuth(

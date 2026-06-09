@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { backupsService, type Backup } from "@/services/backups";
-import { vaultService, type EmailVaultItem } from "@/services/vault";
+import { vaultService, type EmailVaultItem, type VarSetItem } from "@/services/vault";
 import { templatesService, type MailTemplate } from "@/services/templates";
 import { contactsService, type Contact } from "@/services/contacts";
 import { inputService, type InputItem } from "@/services/input";
@@ -55,6 +55,10 @@ export function BackupWizard({ mode, initial }: BackupWizardProps) {
   const [inputItems, setInputItems] = useState<InputItem[]>([]);
   const [sourcesDataLoaded, setSourcesDataLoaded] = useState(false);
 
+  // Lazy-loaded var sets for step 3 (zip password vault ref)
+  const [varSets, setVarSets] = useState<VarSetItem[]>([]);
+  const [varSetsLoaded, setVarSetsLoaded] = useState(false);
+
   // Lazy-loaded data for step 4 (outputs)
   const [vaultItems, setVaultItems] = useState<EmailVaultItem[]>([]);
   const [templates, setTemplates] = useState<MailTemplate[]>([]);
@@ -68,6 +72,15 @@ export function BackupWizard({ mode, initial }: BackupWizardProps) {
       setInputItems(res.data);
       setSourcesDataLoaded(true);
     }).catch(() => setSourcesDataLoaded(true));
+  }, [step]); // eslint-disable-line
+
+  // Load variable sets when user reaches step 3 (zip password vault ref picker)
+  useEffect(() => {
+    if (step !== 3 || varSetsLoaded) return;
+    vaultService.listVarSet(undefined, 100).then((res) => {
+      setVarSets(res.data);
+      setVarSetsLoaded(true);
+    }).catch(() => setVarSetsLoaded(true));
   }, [step]); // eslint-disable-line
 
   // Load output data once when user reaches step 4
@@ -106,6 +119,17 @@ export function BackupWizard({ mode, initial }: BackupWizardProps) {
     void load();
   }, [step]); // eslint-disable-line
 
+  // Detected file extension from the single input source (for noArchive filename preview)
+  const detectedExtension = useMemo(() => {
+    if (mode !== "input") return undefined;
+    const inputSources = form.sources.filter((s) => s.type === "input" && s.inputId);
+    if (inputSources.length !== 1) return undefined;
+    const inputItem = inputItems.find((i) => i.id === inputSources[0].inputId);
+    if (!inputItem) return undefined;
+    const cfg = inputItem.config as { detectedExtension?: string };
+    return cfg.detectedExtension || undefined;
+  }, [mode, form.sources, inputItems]);
+
   const handleSave = useCallback(async () => {
     if (!form.basic.name.trim()) {
       toast.error(t("backups.errorNoName"));
@@ -128,7 +152,7 @@ export function BackupWizard({ mode, initial }: BackupWizardProps) {
     } finally {
       setIsSaving(false);
     }
-  }, [form, backupId, t]);
+  }, [form, backupId, t, mode]);
 
   const handleEnableAndFinish = async () => {
     if (!backupId || !backup?.isValidated) return;
@@ -213,6 +237,8 @@ export function BackupWizard({ mode, initial }: BackupWizardProps) {
             data={form.zip}
             backupName={form.basic.name}
             backupMode={mode}
+            detectedExtension={detectedExtension}
+            varSets={varSets}
             onChange={(d) => setForm((f) => ({ ...f, zip: d }))}
           />
         )}

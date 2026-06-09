@@ -15,22 +15,31 @@ import {
   type VarSetVariable,
 } from "@/services/vault";
 
-interface VarSetFormProps {
-  /** Existing item — if provided, the form is in edit mode */
-  initial?: VarSetItem & { _variables?: VarSetVariable[] };
+function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
 }
 
-/** Note: VarSetItem from the list API only has variableCount, not actual values.
- *  The edit page must pass variables separately if it fetches them (not possible with current API
- *  because values are encrypted and not returned). Instead we start with an empty list
- *  in edit mode — the user re-enters the values they want to keep. */
+interface VarSetFormProps {
+  /** Existing item — if provided, the form is in edit mode */
+  initial?: VarSetItem;
+}
+
 export function VarSetForm({ initial }: VarSetFormProps) {
   const { t } = useTranslation();
   const router = useRouter();
 
   const [name, setName] = useState(initial?.name ?? "");
+  // In edit mode, pre-populate with existing keys (values left blank = keep current)
   const [variables, setVariables] = useState<VarSetVariable[]>(
-    initial?._variables ?? [],
+    initial
+      ? (initial.variableKeys ?? []).map((k) => ({ key: k, value: "" }))
+      : [],
   );
   const [isSaving, setIsSaving] = useState(false);
 
@@ -86,12 +95,32 @@ export function VarSetForm({ initial }: VarSetFormProps) {
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="varsetName">{t("vault.varset.name")}</FieldLabel>
-              <Input
-                id="varsetName"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={t("vault.varset.namePlaceholder")}
-              />
+              {initial ? (
+                /* Read-only in edit mode — slug is the template reference, must stay stable */
+                <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2">
+                  <span className="flex-1 text-sm">{name}</span>
+                  <span className="font-mono text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                    {initial.slug}
+                  </span>
+                </div>
+              ) : (
+                <>
+                  <Input
+                    id="varsetName"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder={t("vault.varset.namePlaceholder")}
+                  />
+                  {name && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {t("vault.varset.slugHint")}{" "}
+                      <code className="font-mono bg-muted px-1 py-0.5 rounded text-foreground">
+                        {slugify(name)}
+                      </code>
+                    </p>
+                  )}
+                </>
+              )}
             </Field>
           </FieldGroup>
         </CardContent>
@@ -122,7 +151,11 @@ export function VarSetForm({ initial }: VarSetFormProps) {
                 <Input
                   value={variable.value}
                   onChange={(e) => updateVariable(idx, "value", e.target.value)}
-                  placeholder={t("vault.varset.valuePlaceholder")}
+                  placeholder={
+                    initial
+                      ? t("vault.varset.valuePlaceholderEdit")
+                      : t("vault.varset.valuePlaceholder")
+                  }
                   type="password"
                   className="flex-1"
                 />
@@ -143,7 +176,7 @@ export function VarSetForm({ initial }: VarSetFormProps) {
 
       {initial && (
         <p className="text-xs text-amber-600 dark:text-amber-400">
-          {t("vault.varset.editWarning")}
+          {t("vault.varset.editWarning2")}
         </p>
       )}
 

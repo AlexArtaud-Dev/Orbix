@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import {
   HttpRestInputForm,
   itemToForm,
-  formToPayload,
+  formToUpdatePayload,
   type HttpRestInputFormData,
 } from "@/components/input/HttpRestInputForm";
 
@@ -24,6 +24,7 @@ export default function EditHttpRestInputPage() {
   const [form, setForm] = useState<HttpRestInputFormData | null>(null);
   const [httpVaultItems, setHttpVaultItems] = useState<HttpVaultItem[]>([]);
   const [varSetItems, setVarSetItems] = useState<VarSetItem[]>([]);
+  const [isFormValid, setIsFormValid] = useState(true);
 
   useEffect(() => {
     Promise.all([
@@ -46,7 +47,7 @@ export default function EditHttpRestInputPage() {
     if (!form) return;
     setSaving(true);
     try {
-      await inputService.update(id, formToPayload(form));
+      await inputService.update(id, formToUpdatePayload(form));
       toast.success(t("input.httpRest.updateSuccess"));
       router.push("/input/http-rest");
     } catch (err) {
@@ -66,10 +67,10 @@ export default function EditHttpRestInputPage() {
       </div>
 
       <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
-        <HttpRestInputForm form={form} onChange={onChange} httpVaultItems={httpVaultItems} varSetItems={varSetItems} />
+        <HttpRestInputForm form={form} onChange={onChange} httpVaultItems={httpVaultItems} varSetItems={varSetItems} onValidChange={setIsFormValid} />
 
         <div className="flex gap-3">
-          <Button type="submit" disabled={saving}>
+          <Button type="submit" disabled={saving || !isFormValid}>
             {saving ? t("common.loading") : t("common.save")}
           </Button>
           <Button type="button" variant="outline" onClick={() => router.back()}>

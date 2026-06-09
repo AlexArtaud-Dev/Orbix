@@ -23,6 +23,7 @@ import {
   type BackupSource,
   type RequestParam,
 } from './backup.types';
+import { fetchWithConfig } from '../input/input-http.util';
 import type {
   HttpRestConfig,
   HttpBodyConfig,
@@ -136,12 +137,16 @@ export class BackupRunner {
           : 2000;
 
       const sources = parseBackupSources(backup.sources);
+      const resolvedZipPassword = await this.resolveZipPassword(
+        (backup as { zipPassword: string | null }).zipPassword,
+        (backup as { zipPasswordVaultRef: string | null }).zipPasswordVaultRef,
+      );
       const archive = await this.buildArchive(
         backup.name,
         sources,
         (backup as { archiveFormat: string }).archiveFormat ?? 'zip',
         (backup as { zipCompression: string }).zipCompression,
-        (backup as { zipPassword: string | null }).zipPassword,
+        resolvedZipPassword,
         (backup as { zipFilename: string | null }).zipFilename,
         maxSourceFileSizeMb,
         maxBackupTotalSizeMb,
@@ -228,12 +233,16 @@ export class BackupRunner {
           : 2000;
 
       const sources = parseBackupSources(backup.sources);
+      const resolvedZipPasswordV = await this.resolveZipPassword(
+        (backup as { zipPassword: string | null }).zipPassword,
+        (backup as { zipPasswordVaultRef: string | null }).zipPasswordVaultRef,
+      );
       const archive = await this.buildArchive(
         backup.name,
         sources,
         (backup as { archiveFormat: string }).archiveFormat ?? 'zip',
         (backup as { zipCompression: string }).zipCompression,
-        (backup as { zipPassword: string | null }).zipPassword,
+        resolvedZipPasswordV,
         (backup as { zipFilename: string | null }).zipFilename,
         maxSourceFileSizeMb,
         maxBackupTotalSizeMb,
@@ -376,7 +385,7 @@ export class BackupRunner {
     const level = compressionLevelOf(compression);
 
     const baseVars: Record<string, string> = {
-      'backup.name': name,
+      'backup.name': slug, // slug = name with spaces replaced by underscores
       date: now.toISOString().slice(0, 10),
       datetime: now
         .toISOString()
@@ -420,16 +429,38 @@ export class BackupRunner {
           'noArchive mode does not support streamed sources — use a file or input that buffers',
         );
       }
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-      const buffer = f.buffer !== undefined ? f.buffer : readFileSync(f.abs as string);
+
+      const buffer = f.buffer !== undefined ? f.buffer : readFileSync(f.abs);
       if (buffer.byteLength > maxBackupTotalSizeMb * 1024 * 1024) {
         throw new Error(
           `File size (${Math.round(buffer.byteLength / 1024 / 1024)} MB) exceeds the configured limit of ${maxBackupTotalSizeMb} MB`,
         );
       }
+
+      // Determine output filename for passthrough mode
+      const fileArc = f.arc.split('/').pop() ?? basename(f.arc);
+      let noArchiveFilename: string;
+      if (filenameTemplate) {
+        // Use the configured template + extension extracted from detected filename
+        const compoundMatch = fileArc.match(/\.(tar\.gz|tar\.bz2|tar\.xz)$/i);
+        const detectedExt = compoundMatch
+          ? '.' + compoundMatch[1].toLowerCase()
+          : fileArc.includes('.')
+            ? fileArc.slice(fileArc.lastIndexOf('.')).toLowerCase()
+            : '';
+        const base = resolveBase(filenameTemplate).replace(
+          /\.(zip|tar\.gz|tar\.bz2|tar\.xz|tar)$/i,
+          '',
+        );
+        noArchiveFilename = base + detectedExt;
+      } else {
+        // No template → use filename as-is from Content-Disposition or URL path
+        noArchiveFilename = fileArc;
+      }
+
       return {
         buffer,
-        filename: f.arc.split('/').pop() ?? basename(f.arc),
+        filename: noArchiveFilename,
         size: buffer.byteLength,
         filesCount: 1,
       };
@@ -444,8 +475,8 @@ export class BackupRunner {
       allFiles[0].stream === undefined
     ) {
       const f = allFiles[0];
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-      const buffer = f.buffer !== undefined ? f.buffer : readFileSync(f.abs as string);
+
+      const buffer = f.buffer !== undefined ? f.buffer : readFileSync(f.abs);
       if (buffer.byteLength > maxBackupTotalSizeMb * 1024 * 1024) {
         throw new Error(
           `Archive size (${Math.round(buffer.byteLength / 1024 / 1024)} MB) exceeds the configured limit of ${maxBackupTotalSizeMb} MB`,
@@ -673,12 +704,17 @@ export class BackupRunner {
     if (bodyResult.headers) {
       Object.assign(headers, bodyResult.headers);
     }
-    const bodyInit: { method: string; headers: Record<string, string>; body?: BodyInit } = {
+    const bodyInit: {
+      method: string;
+      headers: Record<string, string>;
+      body?: BodyInit;
+    } = {
       method,
       headers,
       ...(bodyResult.body !== undefined ? { body: bodyResult.body } : {}),
     };
 
+    const skipTls = config.insecureSkipVerify ?? false;
     const results: FileToArchive[] = [];
 
     if (config.listEndpoint) {
@@ -692,7 +728,9 @@ export class BackupRunner {
       );
       baseUrlObj.searchParams.forEach((v, k) => listUrl.searchParams.set(k, v));
 
-      const listRes = await fetch(listUrl.toString(), bodyInit);
+      const listRes = await fetchWithConfig(
+        listUrl, bodyInit.method, bodyInit.headers, bodyInit.body, skipTls,
+      );
       if (!listRes.ok) {
         throw new Error(
           `Input list endpoint returned HTTP ${listRes.status}: ${listUrl.toString()}`,
@@ -735,7 +773,9 @@ export class BackupRunner {
           (downloadPath.startsWith('/') ? '' : '/') +
           downloadPath;
 
-        const dlRes = await fetch(downloadUrl, { method: 'GET', headers });
+        const dlRes = await fetchWithConfig(
+          downloadUrl, 'GET', headers, undefined, skipTls,
+        );
         if (!dlRes.ok) {
           throw new Error(
             `Input download returned HTTP ${dlRes.status} for item '${itemName}' (${downloadUrl})`,
@@ -764,7 +804,9 @@ export class BackupRunner {
       }
     } else {
       // ── Direct single-file download ──
-      const response = await fetch(baseUrlObj.toString(), bodyInit);
+      const response = await fetchWithConfig(
+        baseUrlObj, bodyInit.method, bodyInit.headers, bodyInit.body, skipTls,
+      );
       if (!response.ok) {
         throw new Error(
           `Input source returned HTTP ${response.status}: ${config.baseUrl}`,
@@ -788,8 +830,12 @@ export class BackupRunner {
         );
       }
 
-      const filename =
-        config.baseUrl.split('/').pop()?.split('?')[0] || 'download';
+      // Prefer Content-Disposition filename (preserves extension)
+      const cdFilename = this.parseContentDispositionFilename(
+        response.headers.get('content-disposition'),
+      );
+      const urlBasename = config.baseUrl.split('/').pop()?.split('?')[0] || 'download';
+      const filename = cdFilename || urlBasename;
       results.push({ buffer: buf, arc: filename });
     }
 
@@ -800,33 +846,37 @@ export class BackupRunner {
   private async resolveVaultVarRef(ref: string): Promise<string> {
     const dotIdx = ref.indexOf('.');
     if (dotIdx < 0) return '';
-    const vaultId = ref.slice(0, dotIdx);
+    const slug = ref.slice(0, dotIdx);
     const fieldKey = ref.slice(dotIdx + 1);
-    const payload = await this.vault.getVariableSetPayload(vaultId);
-    return payload[fieldKey] ?? '';
+    try {
+      const payload = await this.vault.getVariableSetPayloadBySlug(slug);
+      return payload[fieldKey] ?? '';
+    } catch {
+      return '';
+    }
   }
 
-  /** Substitute all {{vault.var.<id>.<key>}} tokens in a text string */
+  /** Substitute all {{vault.var.<slug>.<key>}} tokens in a text string */
   private async resolveVaultVarTemplate(text: string): Promise<string> {
     const pattern = /\{\{vault\.var\.([^.}]+)\.([^}]+)\}\}/g;
     const tokens = [...text.matchAll(pattern)];
     if (tokens.length === 0) return text;
 
-    // Batch: collect unique vault IDs to avoid repeated DB calls
-    const vaultIds = [...new Set(tokens.map((m) => m[1]))];
+    // Batch: collect unique slugs to avoid repeated DB calls
+    const slugs = [...new Set(tokens.map((m) => m[1]))];
     const payloads: Record<string, Record<string, string>> = {};
     await Promise.all(
-      vaultIds.map(async (id) => {
+      slugs.map(async (slug) => {
         try {
-          payloads[id] = await this.vault.getVariableSetPayload(id);
+          payloads[slug] = await this.vault.getVariableSetPayloadBySlug(slug);
         } catch {
-          payloads[id] = {};
+          payloads[slug] = {};
         }
       }),
     );
 
-    return text.replace(pattern, (_, vaultId: string, fieldKey: string) => {
-      return payloads[vaultId]?.[fieldKey] ?? '';
+    return text.replace(pattern, (_, slug: string, fieldKey: string) => {
+      return payloads[slug]?.[fieldKey] ?? '';
     });
   }
 
@@ -846,7 +896,9 @@ export class BackupRunner {
         return { body: resolved, headers: extraHeaders };
       }
       case 'raw': {
-        const resolved = await this.resolveVaultVarTemplate(bodyConfig.raw ?? '');
+        const resolved = await this.resolveVaultVarTemplate(
+          bodyConfig.raw ?? '',
+        );
         return { body: resolved, headers: extraHeaders };
       }
       case 'graphql': {
@@ -890,6 +942,39 @@ export class BackupRunner {
       }
       default:
         return {};
+    }
+  }
+
+  /**
+   * Resolve the zip password: returns the literal password, or fetches the
+   * value from a vault variable set when zipPasswordVaultRef is provided.
+   */
+  private async resolveZipPassword(
+    literal: string | null,
+    vaultRef: string | null,
+  ): Promise<string | null> {
+    if (!vaultRef) return literal;
+    const dotIdx = vaultRef.indexOf('.');
+    if (dotIdx <= 0) return literal;
+    const slug = vaultRef.slice(0, dotIdx);
+    const key = vaultRef.slice(dotIdx + 1);
+    try {
+      const payload = await this.vault.getVariableSetPayloadBySlug(slug);
+      return payload[key] ?? null;
+    } catch {
+      return null; // vault resolution failed — no password rather than crash
+    }
+  }
+
+  /** Parse filename from Content-Disposition header, returns null if not found. */
+  private parseContentDispositionFilename(header: string | null): string | null {
+    if (!header) return null;
+    const match = header.match(/filename\*?=(?:UTF-8'')?["']?([^"';\r\n]+)["']?/i);
+    if (!match) return null;
+    try {
+      return decodeURIComponent(match[1].trim().replace(/["']/g, ''));
+    } catch {
+      return match[1].trim().replace(/["']/g, '');
     }
   }
 

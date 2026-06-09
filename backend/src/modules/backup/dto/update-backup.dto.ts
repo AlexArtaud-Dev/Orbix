@@ -85,6 +85,10 @@ export class UpdateBackupDto {
 
   @IsString()
   @IsOptional()
+  zipPasswordVaultRef?: string | null;
+
+  @IsString()
+  @IsOptional()
   zipFilename?: string | null;
 
   @IsArray()

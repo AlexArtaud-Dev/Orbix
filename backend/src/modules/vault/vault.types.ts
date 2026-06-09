@@ -139,8 +139,12 @@ export interface VarSetPayload {
 export interface VarSetResponse {
   id: string;
   name: string;
+  /** URL-safe slug derived from name — used in {{vault.var.<slug>.<key>}} templates */
+  slug: string;
   /** Number of variables stored (values never returned in list/get) */
   variableCount: number;
+  /** Variable keys — values are never exposed */
+  variableKeys: string[];
   createdAt: string;
   updatedAt: string;
 }
