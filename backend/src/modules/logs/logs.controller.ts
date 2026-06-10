@@ -1,17 +1,22 @@
 import { Controller, Delete, Get, Param, Query } from '@nestjs/common';
 import { LogsService } from './logs.service';
-import type { LogCategory, LogLevel } from './logs.writer';
 
 @Controller('api/logs')
 export class LogsController {
   constructor(private readonly logsService: LogsService) {}
 
+  @Get('categories')
+  async categories() {
+    const data = await this.logsService.getCategories();
+    return { data };
+  }
+
   @Get()
   async list(
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
-    @Query('category') category?: LogCategory,
-    @Query('level') level?: LogLevel,
+    @Query('category') category?: string | string[],
+    @Query('level') level?: string | string[],
     @Query('backupId') backupId?: string,
     @Query('from') from?: string,
     @Query('to') to?: string,

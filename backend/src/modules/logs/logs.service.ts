@@ -18,8 +18,16 @@ export class LogsService {
     const limit = Math.min(query.limit ?? 50, 200);
 
     const where: Record<string, unknown> = {};
-    if (query.category) where['category'] = query.category;
-    if (query.level) where['level'] = query.level;
+    if (query.category) {
+      const cats = Array.isArray(query.category)
+        ? query.category
+        : [query.category];
+      where['category'] = cats.length === 1 ? cats[0] : { in: cats };
+    }
+    if (query.level) {
+      const lvls = Array.isArray(query.level) ? query.level : [query.level];
+      where['level'] = lvls.length === 1 ? lvls[0] : { in: lvls };
+    }
     if (query.backupId) where['backupId'] = query.backupId;
     if (query.from || query.to) {
       where['ts'] = {
@@ -52,6 +60,16 @@ export class LogsService {
       })),
       nextCursor: hasNext ? page[page.length - 1].id : null,
     };
+  }
+
+  /** Return distinct categories present in the logs table */
+  async getCategories(): Promise<string[]> {
+    const rows = await this.prisma.log.findMany({
+      select: { category: true },
+      distinct: ['category'],
+      orderBy: { category: 'asc' },
+    });
+    return rows.map((r) => r.category);
   }
 
   /** Count ERROR logs per backup — for sidebar badge */

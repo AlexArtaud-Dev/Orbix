@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
@@ -43,7 +43,7 @@ export default function NewEmailVaultPage() {
       toast.success(t("vault.createSuccess"));
       router.push("/vault/email");
     } catch (err) {
-      toast.error(err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"));
+      toast.error(err instanceof ApiError ? t(`errors.${err.code}`, err.message) : t("common.error"));
     } finally {
       setSaving(false);
     }

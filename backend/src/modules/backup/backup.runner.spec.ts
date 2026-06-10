@@ -5,6 +5,8 @@ import { VaultService } from '../vault/vault.service';
 import { SettingsService } from '../settings/settings.service';
 import { LogsWriter } from '../logs/logs.writer';
 import { InputService } from '../input/input.service';
+import { InputProviderRegistry } from '../../providers/input/input-provider.registry';
+import { OutputProviderRegistry } from '../../providers/output/output-provider.registry';
 
 const mockLogs = { info: jest.fn(), warn: jest.fn(), error: jest.fn() };
 
@@ -17,7 +19,6 @@ function makeMockPrisma() {
 
 /** Exposes private runner methods for unit testing */
 type RunnerPrivate = {
-  parseContentDispositionFilename(header: string | null): string | null;
   resolveZipPassword(
     literal: string | null,
     vaultRef: string | null,
@@ -30,7 +31,6 @@ describe('BackupRunner', () => {
   let mockVault: { getVariableSetPayloadBySlug: jest.Mock };
 
   beforeEach(async () => {
-    // Reset static format registration flags before each test
     (BackupRunner as unknown as Record<string, boolean>)[
       'encryptedFormatRegistered'
     ] = false;
@@ -55,6 +55,14 @@ describe('BackupRunner', () => {
           useValue: { getOne: jest.fn(), list: jest.fn() },
         },
         { provide: LogsWriter, useValue: mockLogs },
+        {
+          provide: InputProviderRegistry,
+          useValue: { get: jest.fn(), all: jest.fn().mockReturnValue([]) },
+        },
+        {
+          provide: OutputProviderRegistry,
+          useValue: { get: jest.fn(), all: jest.fn().mockReturnValue([]) },
+        },
       ],
     }).compile();
 
@@ -83,7 +91,6 @@ describe('BackupRunner', () => {
     });
 
     it('sets encryptedFormatRegistered to true after first encrypted zip creation', async () => {
-      // Only callable when archiver-zip-encrypted is available; skip gracefully if not installed
       const isAvailable = (runner as unknown as Record<string, () => boolean>)[
         'isEncryptedAvailable'
       ]();
@@ -125,7 +132,6 @@ describe('BackupRunner', () => {
       await createEncryptedZip([], 6, 'pw1').catch(() => undefined);
       await createEncryptedZip([], 6, 'pw2').catch(() => undefined);
 
-      // registerFormat must be called at most once
       expect(
         registerSpy.mock.calls.filter((c) => c[0] === 'zip-encrypted').length,
       ).toBeLessThanOrEqual(1);
@@ -195,80 +201,23 @@ describe('BackupRunner', () => {
     });
   });
 
-  // ─── parseContentDispositionFilename ─────────────────────────────────────────
-
-  describe('parseContentDispositionFilename', () => {
-    it('returns null for a null header', () => {
-      expect(priv().parseContentDispositionFilename(null)).toBeNull();
-    });
-
-    it('returns null when the header contains no filename directive', () => {
-      expect(priv().parseContentDispositionFilename('inline')).toBeNull();
-      expect(
-        priv().parseContentDispositionFilename('attachment'),
-      ).toBeNull();
-    });
-
-    it('extracts filename from double-quoted value', () => {
-      expect(
-        priv().parseContentDispositionFilename(
-          'attachment; filename="portainer_backup.tar.gz"',
-        ),
-      ).toBe('portainer_backup.tar.gz');
-    });
-
-    it('extracts filename from single-quoted value', () => {
-      expect(
-        priv().parseContentDispositionFilename(
-          "attachment; filename='my-backup.zip'",
-        ),
-      ).toBe('my-backup.zip');
-    });
-
-    it('extracts filename from unquoted value', () => {
-      expect(
-        priv().parseContentDispositionFilename(
-          'attachment; filename=backup.json',
-        ),
-      ).toBe('backup.json');
-    });
-
-    it('URL-decodes RFC 5987 encoded filename', () => {
-      expect(
-        priv().parseContentDispositionFilename(
-          "attachment; filename*=UTF-8''my%20backup.tar.gz",
-        ),
-      ).toBe('my backup.tar.gz');
-    });
-
-    it('falls back gracefully when URL decoding fails (returns raw name)', () => {
-      // Malformed percent-encoding — should still return something rather than throw
-      const result = priv().parseContentDispositionFilename(
-        'attachment; filename=backup%GG.tar.gz',
-      );
-      expect(result).not.toBeNull();
-    });
-  });
-
   // ─── resolveZipPassword ──────────────────────────────────────────────────────
 
   describe('resolveZipPassword', () => {
     it('returns the literal password when vaultRef is null', async () => {
-      await expect(
-        priv().resolveZipPassword('my-secret', null),
-      ).resolves.toBe('my-secret');
+      await expect(priv().resolveZipPassword('my-secret', null)).resolves.toBe(
+        'my-secret',
+      );
     });
 
     it('returns null when both literal and vaultRef are null', async () => {
-      await expect(
-        priv().resolveZipPassword(null, null),
-      ).resolves.toBeNull();
+      await expect(priv().resolveZipPassword(null, null)).resolves.toBeNull();
     });
 
     it('returns the literal when vaultRef is an empty string (treated as falsy)', async () => {
-      await expect(
-        priv().resolveZipPassword('fallback', ''),
-      ).resolves.toBe('fallback');
+      await expect(priv().resolveZipPassword('fallback', '')).resolves.toBe(
+        'fallback',
+      );
     });
 
     it('resolves the vault variable when vaultRef is "slug.key"', async () => {
@@ -286,7 +235,6 @@ describe('BackupRunner', () => {
     });
 
     it('falls back to the literal when vaultRef has no dot separator (invalid format)', async () => {
-      // resolveZipPassword returns literal as fallback when format is invalid
       await expect(
         priv().resolveZipPassword('fallback', 'nodot'),
       ).resolves.toBe('fallback');

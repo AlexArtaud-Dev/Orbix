@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/authStore";
 import Sidebar from "@/components/layout/Sidebar";
+import "@/providers";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, loading, fetchMe } = useAuthStore();

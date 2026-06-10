@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Plus, Trash2, KeySquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { SkeletonListItems } from "@/components/ui/skeleton";
 import { vaultService, type VarSetItem } from "@/services/vault";
 
 export default function VarSetListPage() {
@@ -47,9 +48,13 @@ export default function VarSetListPage() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
+        <SkeletonListItems />
       ) : items.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{t("vault.varset.noItems")}</p>
+        <Card>
+          <CardContent className="py-12 text-center text-sm text-muted-foreground">
+            {t("vault.varset.noItems")}
+          </CardContent>
+        </Card>
       ) : (
         <div className="space-y-2">
           {items.map((item) => (

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { LogsWriter } from '../logs/logs.writer';
 import { VaultService } from './vault.service';
+import { OrbixException } from '../../common/exceptions';
 
 @Injectable()
 export class VaultScheduler {
@@ -25,13 +26,17 @@ export class VaultScheduler {
         'SMTP health check completed',
       );
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unknown error';
-      this.logs.error(
-        'vault',
-        'VAULT_SMTP_CRON_ERROR',
-        'SMTP health check failed',
-        msg,
-      );
+      if (err instanceof OrbixException) {
+        this.logs.exception('vault', err, 'SMTP health check failed');
+      } else {
+        const msg = err instanceof Error ? err.message : 'Unknown error';
+        this.logs.error(
+          'vault',
+          'VAULT_SMTP_CRON_ERROR',
+          'SMTP health check failed',
+          msg,
+        );
+      }
     }
   }
 }

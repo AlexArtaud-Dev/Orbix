@@ -1,15 +1,23 @@
-"use client";
+﻿"use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Check, X, FlaskConical, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import {
+  Plus, Pencil, Trash2, Check, X,
+  FlaskConical, CheckCircle2, XCircle, Loader2,
+} from "lucide-react";
 import { inputService, type InputItem } from "@/services/input";
 import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-export default function HttpRestInputListPage() {
+interface Props {
+  /** Provider type — used to build the "new" and "edit" URLs. */
+  type: string;
+}
+
+export function HttpRestListPage({ type }: Props) {
   const { t } = useTranslation();
   const [items, setItems] = useState<InputItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -20,7 +28,8 @@ export default function HttpRestInputListPage() {
     setLoading(true);
     try {
       const result = await inputService.list(reset ? undefined : cursor);
-      setItems((prev) => (reset ? result.data : [...prev, ...result.data]));
+      const filtered = result.data.filter((i) => i.type === type);
+      setItems((prev) => (reset ? filtered : [...prev, ...filtered]));
       setNextCursor(result.nextCursor);
     } finally {
       setLoading(false);
@@ -36,7 +45,7 @@ export default function HttpRestInputListPage() {
       toast.success(t("input.httpRest.deleteSuccess"));
       setItems((prev) => prev.filter((item) => item.id !== id));
     } catch (err) {
-      toast.error(err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"));
+      toast.error(err instanceof ApiError ? t(`errors.${err.code}`, err.message) : t("common.error"));
     } finally {
       setDeletingId(null);
     }
@@ -50,7 +59,7 @@ export default function HttpRestInputListPage() {
           <p className="text-muted-foreground">{t("input.httpRest.subtitle")}</p>
         </div>
         <Button asChild>
-          <Link href="/input/http-rest/new">
+          <Link href={`/input/${type}/new`}>
             <Plus className="size-4" />
             {t("input.httpRest.add")}
           </Link>
@@ -74,12 +83,11 @@ export default function HttpRestInputListPage() {
           <InputItemCard
             key={item.id}
             item={item}
+            type={type}
             deleting={deletingId === item.id}
             onDelete={() => void handleDelete(item.id)}
             onTestResult={(updated) =>
-              setItems((prev) =>
-                prev.map((i) => (i.id === updated.id ? updated : i)),
-              )
+              setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)))
             }
           />
         ))}
@@ -101,12 +109,13 @@ export default function HttpRestInputListPage() {
 
 interface InputItemCardProps {
   item: InputItem;
+  type: string;
   deleting: boolean;
   onDelete: () => void;
   onTestResult: (updated: InputItem) => void;
 }
 
-function InputItemCard({ item, deleting, onDelete, onTestResult }: InputItemCardProps) {
+function InputItemCard({ item, type, deleting, onDelete, onTestResult }: InputItemCardProps) {
   const { t } = useTranslation();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -124,22 +133,22 @@ function InputItemCard({ item, deleting, onDelete, onTestResult }: InputItemCard
       } else {
         toast.error(`${t("input.httpRest.testFailed")}: ${result.error ?? ""}`);
       }
-      // Refresh item to reflect lastTestStatus
       const fresh = await inputService.getOne(item.id);
       onTestResult(fresh);
     } catch (err) {
-      toast.error(err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"));
+      toast.error(err instanceof ApiError ? t(`errors.${err.code}`, err.message) : t("common.error"));
     } finally {
       setTesting(false);
     }
   };
 
   const cfg = item.config as { baseUrl?: string };
-  const statusIcon = item.lastTestStatus === "ok"
-    ? <CheckCircle2 className="size-3.5 text-green-500 shrink-0" />
-    : item.lastTestStatus === "error"
-    ? <XCircle className="size-3.5 text-destructive shrink-0" />
-    : null;
+  const statusIcon =
+    item.lastTestStatus === "ok" ? (
+      <CheckCircle2 className="size-3.5 text-green-500 shrink-0" />
+    ) : item.lastTestStatus === "error" ? (
+      <XCircle className="size-3.5 text-destructive shrink-0" />
+    ) : null;
 
   return (
     <Card>
@@ -180,7 +189,7 @@ function InputItemCard({ item, deleting, onDelete, onTestResult }: InputItemCard
           </Button>
 
           <Button variant="ghost" size="icon-sm" asChild aria-label={t("common.edit")}>
-            <Link href={`/input/http-rest/${item.id}`}>
+            <Link href={`/input/${type}/${item.id}`}>
               <Pencil className="size-3.5" />
             </Link>
           </Button>

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
@@ -69,7 +69,7 @@ export default function FilesPage() {
       const data = await filesService.list(currentPath);
       setEntries(data);
     } catch (err) {
-      toast.error(err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"));
+      toast.error(err instanceof ApiError ? t(`errors.${err.code}`, err.message) : t("common.error"));
     } finally {
       setLoading(false);
     }
@@ -81,7 +81,7 @@ export default function FilesPage() {
       const data = await filesService.list(currentPath);
       setEntries(data);
     } catch (err) {
-      toast.error(err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"));
+      toast.error(err instanceof ApiError ? t(`errors.${err.code}`, err.message) : t("common.error"));
     } finally {
       setRefreshing(false);
     }

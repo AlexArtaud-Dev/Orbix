@@ -17,52 +17,38 @@ import { VaultService } from '../vault/vault.service';
 import { SettingsService } from '../settings/settings.service';
 import { InputService } from '../input/input.service';
 import { LogsWriter } from '../logs/logs.writer';
+import { InputProviderRegistry } from '../../providers/input/input-provider.registry';
+import { OutputProviderRegistry } from '../../providers/output/output-provider.registry';
 import {
   parseBackupSources,
   type BackupSources,
   type BackupSource,
   type RequestParam,
 } from './backup.types';
-import { fetchWithConfig } from '../input/input-http.util';
 import type {
-  HttpRestConfig,
-  HttpBodyConfig,
-  InputRequestParam,
-} from '../input/input.types';
-
-interface OutputRow {
-  id: string;
-  backupId: string;
-  type: string;
-  vaultId: string;
-  templateId: string | null;
-  recipientsTo: string[];
-  recipientsCc: string[];
-  recipientsBcc: string[];
-  overrideSubject: string | null;
-  overrideBody: string | null;
-  overrideBodyType: string | null;
-  order: number;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-interface ArchiveResult {
-  buffer: Buffer;
-  filename: string;
-  size: number;
-  filesCount: number;
-}
-
-type FileToArchive =
-  | { abs: string; arc: string; buffer?: never; stream?: never }
-  | { buffer: Buffer; arc: string; abs?: never; stream?: never }
-  | { stream: Readable; arc: string; abs?: never; buffer?: never };
+  FileToArchive,
+  ArchiveResult,
+  OutputRow,
+} from '../../providers/providers.types';
+import {
+  OrbixException,
+  InputProviderNotFoundException,
+  OutputProviderNotFoundException,
+  ArchiveSizeExceededException,
+  ArchiveNoArchiveMultiFileException,
+  ArchiveNoArchiveStreamException,
+  UrlSourceHttpException,
+  UrlSourceSizeExceededException,
+  UrlSourceNoBodyException,
+  VaultAuthUnsupportedTypeException,
+  VaultOAuth2TokenFailedException,
+  VaultOAuth2MissingTokenException,
+} from '../../common/exceptions';
 
 export interface ZipInfo {
-  basic: boolean; // zip + tar + tar-gz always available
-  encrypted: boolean; // archiver-zip-encrypted
-  tarBz2: boolean; // archiver-tar-bzip2
+  basic: boolean;
+  encrypted: boolean;
+  tarBz2: boolean;
   platform: string;
   node: string;
 }
@@ -83,7 +69,7 @@ function compressionLevelOf(c: string): number {
     case 'best':
       return 9;
     default:
-      return 6; // 'default'
+      return 6;
   }
 }
 
@@ -98,6 +84,8 @@ export class BackupRunner {
     private readonly settings: SettingsService,
     private readonly inputService: InputService,
     private readonly logs: LogsWriter,
+    private readonly inputRegistry: InputProviderRegistry,
+    private readonly outputRegistry: OutputProviderRegistry,
   ) {}
 
   async run(backupId: string): Promise<void> {
@@ -164,7 +152,6 @@ export class BackupRunner {
         data: { lastRunAt: new Date(), lastStatus: 'success' },
       });
 
-      // One-shot: auto-disable after running
       if ((backup as { scheduleType: string }).scheduleType === 'oneshoot') {
         await this.prisma.backup.update({
           where: { id: backupId },
@@ -180,18 +167,24 @@ export class BackupRunner {
         { backupId },
       );
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unknown error';
       await this.prisma.backup.update({
         where: { id: backupId },
         data: { lastRunAt: new Date(), lastStatus: 'error' },
       });
-      this.logs.error(
-        'backup',
-        'BACKUP_RUN_ERROR',
-        `Backup failed: ${backup.name}`,
-        msg,
-        { backupId },
-      );
+      if (err instanceof OrbixException) {
+        this.logs.exception('backup', err, `Backup failed: ${backup.name}`, {
+          backupId,
+        });
+      } else {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logs.error(
+          'backup',
+          'BACKUP_RUN_ERROR',
+          `Backup failed: ${backup.name}`,
+          msg,
+          { backupId },
+        );
+      }
       throw err;
     }
   }
@@ -274,7 +267,7 @@ export class BackupRunner {
         { backupId },
       );
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unknown error';
+      const msg = err instanceof Error ? err.message : String(err);
       await this.prisma.backup.update({
         where: { id: backupId },
         data: {
@@ -285,13 +278,22 @@ export class BackupRunner {
           lastStatus: 'error',
         },
       });
-      this.logs.error(
-        'backup',
-        'BACKUP_VALIDATE_ERROR',
-        `Validation failed: ${backup.name}`,
-        msg,
-        { backupId },
-      );
+      if (err instanceof OrbixException) {
+        this.logs.exception(
+          'backup',
+          err,
+          `Validation failed: ${backup.name}`,
+          { backupId },
+        );
+      } else {
+        this.logs.error(
+          'backup',
+          'BACKUP_VALIDATE_ERROR',
+          `Validation failed: ${backup.name}`,
+          msg,
+          { backupId },
+        );
+      }
     }
   }
 
@@ -385,7 +387,7 @@ export class BackupRunner {
     const level = compressionLevelOf(compression);
 
     const baseVars: Record<string, string> = {
-      'backup.name': slug, // slug = name with spaces replaced by underscores
+      'backup.name': slug,
       date: now.toISOString().slice(0, 10),
       datetime: now
         .toISOString()
@@ -403,7 +405,6 @@ export class BackupRunner {
         (_, key: string) => baseVars[key] ?? `{{${key}}}`,
       );
 
-    // Filename: resolve template (base name), append correct extension
     const base = filenameTemplate
       ? resolveBase(filenameTemplate).replace(
           /\.(zip|tar\.gz|tar\.bz2|tar)$/i,
@@ -416,32 +417,26 @@ export class BackupRunner {
       return { buffer: Buffer.alloc(0), filename, size: 0, filesCount: 0 };
     }
 
-    // noArchive: bypass archiving entirely — send the single file as-is
     if (noArchive) {
       if (allFiles.length !== 1) {
-        throw new Error(
-          `noArchive mode requires exactly 1 file, but ${allFiles.length} were collected`,
-        );
+        throw new ArchiveNoArchiveMultiFileException(allFiles.length);
       }
       const f = allFiles[0];
       if (f.stream !== undefined) {
-        throw new Error(
-          'noArchive mode does not support streamed sources — use a file or input that buffers',
-        );
+        throw new ArchiveNoArchiveStreamException();
       }
 
       const buffer = f.buffer !== undefined ? f.buffer : readFileSync(f.abs);
       if (buffer.byteLength > maxBackupTotalSizeMb * 1024 * 1024) {
-        throw new Error(
-          `File size (${Math.round(buffer.byteLength / 1024 / 1024)} MB) exceeds the configured limit of ${maxBackupTotalSizeMb} MB`,
+        throw new ArchiveSizeExceededException(
+          Math.round(buffer.byteLength / 1024 / 1024),
+          maxBackupTotalSizeMb,
         );
       }
 
-      // Determine output filename for passthrough mode
       const fileArc = f.arc.split('/').pop() ?? basename(f.arc);
       let noArchiveFilename: string;
       if (filenameTemplate) {
-        // Use the configured template + extension extracted from detected filename
         const compoundMatch = fileArc.match(/\.(tar\.gz|tar\.bz2|tar\.xz)$/i);
         const detectedExt = compoundMatch
           ? '.' + compoundMatch[1].toLowerCase()
@@ -454,7 +449,6 @@ export class BackupRunner {
         );
         noArchiveFilename = base + detectedExt;
       } else {
-        // No template → use filename as-is from Content-Disposition or URL path
         noArchiveFilename = fileArc;
       }
 
@@ -466,7 +460,6 @@ export class BackupRunner {
       };
     }
 
-    // Single file with no password and non-compressed format → send raw (buffer/file only, not stream)
     if (
       allFiles.length === 1 &&
       !zipPassword &&
@@ -475,11 +468,11 @@ export class BackupRunner {
       allFiles[0].stream === undefined
     ) {
       const f = allFiles[0];
-
       const buffer = f.buffer !== undefined ? f.buffer : readFileSync(f.abs);
       if (buffer.byteLength > maxBackupTotalSizeMb * 1024 * 1024) {
-        throw new Error(
-          `Archive size (${Math.round(buffer.byteLength / 1024 / 1024)} MB) exceeds the configured limit of ${maxBackupTotalSizeMb} MB`,
+        throw new ArchiveSizeExceededException(
+          Math.round(buffer.byteLength / 1024 / 1024),
+          maxBackupTotalSizeMb,
         );
       }
       return {
@@ -498,8 +491,9 @@ export class BackupRunner {
     );
 
     if (buffer.byteLength > maxBackupTotalSizeMb * 1024 * 1024) {
-      throw new Error(
-        `Archive size (${Math.round(buffer.byteLength / 1024 / 1024)} MB) exceeds the configured limit of ${maxBackupTotalSizeMb} MB`,
+      throw new ArchiveSizeExceededException(
+        Math.round(buffer.byteLength / 1024 / 1024),
+        maxBackupTotalSizeMb,
       );
     }
 
@@ -512,12 +506,23 @@ export class BackupRunner {
   }
 
   private async resolveSourcePath(sourcePath: string): Promise<string> {
-    if (isAbsolute(sourcePath)) return sourcePath;
     const s = await this.settings.get();
-    return resolve(s.filesRoot, sourcePath);
+    const resolved = isAbsolute(sourcePath)
+      ? resolve(sourcePath)
+      : resolve(s.filesRoot, sourcePath);
+
+    // Prevent path traversal outside filesRoot for relative paths
+    if (!isAbsolute(sourcePath)) {
+      const root = resolve(s.filesRoot);
+      if (!resolved.startsWith(root + sep) && resolved !== root) {
+        throw new Error(
+          `Path traversal detected: "${sourcePath}" escapes filesRoot`,
+        );
+      }
+    }
+    return resolved;
   }
 
-  /** Collect all files with their archive paths, preserving folder structure. */
   private async collectFiles(
     sources: BackupSources,
     maxSourceFileSizeMb: number,
@@ -533,7 +538,6 @@ export class BackupRunner {
       });
     };
 
-    // Cross-platform: normalize OS path separators to forward slashes for zip
     const toArcPath = (p: string): string => p.split(sep).join('/');
 
     for (const source of sources.sources) {
@@ -569,9 +573,6 @@ export class BackupRunner {
         continue;
       }
 
-      // Folder: preserve structure relative to the folder's PARENT
-      // e.g., source = /data/files/toto, file = /data/files/toto/sub/f.txt
-      //       arc = toto/sub/f.txt
       const sourceParent = dirname(absPath);
 
       const walk = async (p: string) => {
@@ -597,7 +598,7 @@ export class BackupRunner {
     return results;
   }
 
-  // ─── URL source helpers ──────────────────────────────────────────────────────
+  // ─── Source fetchers ─────────────────────────────────────────────────────────
 
   private async fetchUrlSource(
     source: BackupSource,
@@ -620,9 +621,7 @@ export class BackupRunner {
 
     const response = await fetch(url.toString(), { headers });
     if (!response.ok) {
-      throw new Error(
-        `URL source returned HTTP ${response.status}: ${source.path}`,
-      );
+      throw new UrlSourceHttpException(source.path, response.status);
     }
 
     const maxBytes = maxSizeMb * 1024 * 1024;
@@ -630,381 +629,60 @@ export class BackupRunner {
     if (contentLength) {
       const bytes = parseInt(contentLength, 10);
       if (!isNaN(bytes) && bytes > maxBytes) {
-        throw new Error(
-          `Source file size (${Math.round(bytes / 1024 / 1024)} MB) exceeds the configured limit of ${maxSizeMb} MB: ${source.path}`,
+        throw new UrlSourceSizeExceededException(
+          Math.round(bytes / 1024 / 1024),
+          maxSizeMb,
+          source.path,
         );
       }
     }
 
-    // stream is the default: pipe response body directly to archiver without buffering
     if ((source.transferMode ?? 'stream') === 'stream') {
       if (!response.body) {
-        throw new Error(`URL source returned no body: ${source.path}`);
+        throw new UrlSourceNoBodyException(source.path);
       }
-      // response.body is WHATWG ReadableStream; Readable.fromWeb expects stream/web type
       return Readable.fromWeb(
         response.body as unknown as Parameters<typeof Readable.fromWeb>[0],
       );
     }
 
-    // buffer mode: load entirely in RAM
     const buf = Buffer.from(await response.arrayBuffer());
     if (buf.byteLength > maxBytes) {
-      throw new Error(
-        `Source file size (${Math.round(buf.byteLength / 1024 / 1024)} MB) exceeds the configured limit of ${maxSizeMb} MB: ${source.path}`,
+      throw new UrlSourceSizeExceededException(
+        Math.round(buf.byteLength / 1024 / 1024),
+        maxSizeMb,
+        source.path,
       );
     }
     return buf;
   }
-
-  // ─── Input source helpers ────────────────────────────────────────────────────
 
   private async fetchInputSource(
     inputId: string,
     maxSizeMb: number,
   ): Promise<FileToArchive[]> {
     const input = await this.inputService.getOne(inputId);
-    if (input.type !== 'http-rest') {
-      throw new Error(
-        `Input type '${input.type}' is not yet supported in the backup runner`,
-      );
+    const provider = this.inputRegistry.get(input.type);
+    if (!provider) {
+      throw new InputProviderNotFoundException(input.type);
     }
-
-    const config = input.config as unknown as HttpRestConfig;
-    const headers: Record<string, string> = {};
-    const maxBytes = maxSizeMb * 1024 * 1024;
-    const method = config.method ?? 'GET';
-
-    // Apply vault auth
-    if (input.vaultId) {
-      await this.applyVaultAuth(headers, input.vaultId);
-    }
-
-    // Apply request params (literal only; vault refs resolved via resolveInputParamValue)
-    const params = input.requestParams ?? [];
-    const baseUrlObj = new URL(config.baseUrl);
-    for (const param of params) {
-      const value = await this.resolveInputParamValue(param);
-      if (param.in === 'header') headers[param.key] = value;
-      else if (param.in === 'query')
-        baseUrlObj.searchParams.set(param.key, value);
-    }
-
-    // Apply custom config headers (0..N, may reference vault variable sets)
-    for (const h of config.headers ?? []) {
-      const value =
-        h.valueType === 'vault_var' && h.vaultVarRef
-          ? await this.resolveVaultVarRef(h.vaultVarRef)
-          : (h.value ?? '');
-      if (h.key) headers[h.key] = value;
-    }
-
-    // Build request body (and collect any body-implied Content-Type header)
-    const bodyResult = await this.buildInputBody(config.body);
-    if (bodyResult.headers) {
-      Object.assign(headers, bodyResult.headers);
-    }
-    const bodyInit: {
-      method: string;
-      headers: Record<string, string>;
-      body?: BodyInit;
-    } = {
-      method,
-      headers,
-      ...(bodyResult.body !== undefined ? { body: bodyResult.body } : {}),
-    };
-
-    const skipTls = config.insecureSkipVerify ?? false;
-    const results: FileToArchive[] = [];
-
-    if (config.listEndpoint) {
-      // ── List + download mode ──
-      const listUrl = new URL(
-        config.listEndpoint.startsWith('http')
-          ? config.listEndpoint
-          : config.baseUrl.replace(/\/$/, '') +
-              (config.listEndpoint.startsWith('/') ? '' : '/') +
-              config.listEndpoint,
-      );
-      baseUrlObj.searchParams.forEach((v, k) => listUrl.searchParams.set(k, v));
-
-      const listRes = await fetchWithConfig(
-        listUrl,
-        bodyInit.method,
-        bodyInit.headers,
-        bodyInit.body,
-        skipTls,
-      );
-      if (!listRes.ok) {
-        throw new Error(
-          `Input list endpoint returned HTTP ${listRes.status}: ${listUrl.toString()}`,
-        );
-      }
-
-      const items = (await listRes.json()) as unknown[];
-      if (!Array.isArray(items)) {
-        throw new Error(`Input list endpoint did not return a JSON array`);
-      }
-
-      const idField = config.responseMapping?.id ?? 'id';
-      const nameField = config.responseMapping?.name ?? 'name';
-
-      for (const item of items) {
-        const rec = item as Record<string, unknown>;
-        const rawId = rec[idField];
-        const rawName = rec[nameField];
-        const itemId =
-          typeof rawId === 'string'
-            ? rawId
-            : typeof rawId === 'number'
-              ? String(rawId)
-              : '';
-        const itemName =
-          typeof rawName === 'string'
-            ? rawName
-            : typeof rawName === 'number'
-              ? String(rawName)
-              : itemId || 'file';
-        if (!itemId) continue;
-        if (!config.downloadEndpoint) continue;
-
-        const downloadPath = config.downloadEndpoint.replace(
-          '{id}',
-          encodeURIComponent(itemId),
-        );
-        const downloadUrl =
-          config.baseUrl.replace(/\/$/, '') +
-          (downloadPath.startsWith('/') ? '' : '/') +
-          downloadPath;
-
-        const dlRes = await fetchWithConfig(
-          downloadUrl,
-          'GET',
-          headers,
-          undefined,
-          skipTls,
-        );
-        if (!dlRes.ok) {
-          throw new Error(
-            `Input download returned HTTP ${dlRes.status} for item '${itemName}' (${downloadUrl})`,
-          );
-        }
-
-        const contentLength = dlRes.headers.get('content-length');
-        if (contentLength) {
-          const bytes = parseInt(contentLength, 10);
-          if (!isNaN(bytes) && bytes > maxBytes) {
-            throw new Error(
-              `Input item '${itemName}' (${Math.round(bytes / 1024 / 1024)} MB) exceeds limit of ${maxSizeMb} MB`,
-            );
-          }
-        }
-
-        const buf = Buffer.from(await dlRes.arrayBuffer());
-        if (buf.byteLength > maxBytes) {
-          throw new Error(
-            `Input item '${itemName}' (${Math.round(buf.byteLength / 1024 / 1024)} MB) exceeds limit of ${maxSizeMb} MB`,
-          );
-        }
-
-        const safeName = itemName.replace(/[/\\]/g, '_');
-        results.push({ buffer: buf, arc: safeName });
-      }
-    } else {
-      // ── Direct single-file download ──
-      const response = await fetchWithConfig(
-        baseUrlObj,
-        bodyInit.method,
-        bodyInit.headers,
-        bodyInit.body,
-        skipTls,
-      );
-      if (!response.ok) {
-        throw new Error(
-          `Input source returned HTTP ${response.status}: ${config.baseUrl}`,
-        );
-      }
-
-      const contentLength = response.headers.get('content-length');
-      if (contentLength) {
-        const bytes = parseInt(contentLength, 10);
-        if (!isNaN(bytes) && bytes > maxBytes) {
-          throw new Error(
-            `Input source size (${Math.round(bytes / 1024 / 1024)} MB) exceeds limit of ${maxSizeMb} MB`,
-          );
-        }
-      }
-
-      const buf = Buffer.from(await response.arrayBuffer());
-      if (buf.byteLength > maxBytes) {
-        throw new Error(
-          `Input source size (${Math.round(buf.byteLength / 1024 / 1024)} MB) exceeds limit of ${maxSizeMb} MB`,
-        );
-      }
-
-      // Prefer Content-Disposition filename (preserves extension)
-      const cdFilename = this.parseContentDispositionFilename(
-        response.headers.get('content-disposition'),
-      );
-      const urlBasename =
-        config.baseUrl.split('/').pop()?.split('?')[0] || 'download';
-      const filename = cdFilename || urlBasename;
-      results.push({ buffer: buf, arc: filename });
-    }
-
-    return results;
+    return provider.fetch(input, { maxSizeMb });
   }
 
-  /** Resolve "vaultId.fieldKey" vault variable set reference */
-  private async resolveVaultVarRef(ref: string): Promise<string> {
-    const dotIdx = ref.indexOf('.');
-    if (dotIdx < 0) return '';
-    const slug = ref.slice(0, dotIdx);
-    const fieldKey = ref.slice(dotIdx + 1);
-    try {
-      const payload = await this.vault.getVariableSetPayloadBySlug(slug);
-      return payload[fieldKey] ?? '';
-    } catch {
-      return '';
+  private async sendOutput(
+    backupName: string,
+    backupId: string,
+    output: OutputRow,
+    archive: ArchiveResult,
+  ): Promise<void> {
+    const provider = this.outputRegistry.get(output.type);
+    if (!provider) {
+      throw new OutputProviderNotFoundException(output.type);
     }
+    await provider.send(output, archive, backupName, backupId);
   }
 
-  /** Substitute all {{vault.var.<slug>.<key>}} tokens in a text string */
-  private async resolveVaultVarTemplate(text: string): Promise<string> {
-    const pattern = /\{\{vault\.var\.([^.}]+)\.([^}]+)\}\}/g;
-    const tokens = [...text.matchAll(pattern)];
-    if (tokens.length === 0) return text;
-
-    // Batch: collect unique slugs to avoid repeated DB calls
-    const slugs = [...new Set(tokens.map((m) => m[1]))];
-    const payloads: Record<string, Record<string, string>> = {};
-    await Promise.all(
-      slugs.map(async (slug) => {
-        try {
-          payloads[slug] = await this.vault.getVariableSetPayloadBySlug(slug);
-        } catch {
-          payloads[slug] = {};
-        }
-      }),
-    );
-
-    return text.replace(pattern, (_, slug: string, fieldKey: string) => {
-      return payloads[slug]?.[fieldKey] ?? '';
-    });
-  }
-
-  /** Build the fetch body (and set Content-Type header if needed) */
-  private async buildInputBody(
-    bodyConfig: HttpBodyConfig | undefined,
-  ): Promise<{ body?: BodyInit; headers?: Record<string, string> }> {
-    if (!bodyConfig || bodyConfig.type === 'none') return {};
-
-    const extraHeaders: Record<string, string> = {};
-
-    switch (bodyConfig.type) {
-      case 'json': {
-        const raw = bodyConfig.json ?? '{}';
-        const resolved = await this.resolveVaultVarTemplate(raw);
-        extraHeaders['Content-Type'] = 'application/json';
-        return { body: resolved, headers: extraHeaders };
-      }
-      case 'raw': {
-        const resolved = await this.resolveVaultVarTemplate(
-          bodyConfig.raw ?? '',
-        );
-        return { body: resolved, headers: extraHeaders };
-      }
-      case 'graphql': {
-        const query = bodyConfig.raw ?? '';
-        const variables = bodyConfig.graphqlVariables
-          ? await this.resolveVaultVarTemplate(bodyConfig.graphqlVariables)
-          : undefined;
-        extraHeaders['Content-Type'] = 'application/json';
-        const payload: Record<string, unknown> = { query };
-        if (variables) {
-          try {
-            payload['variables'] = JSON.parse(variables) as unknown;
-          } catch {
-            payload['variables'] = variables;
-          }
-        }
-        return { body: JSON.stringify(payload), headers: extraHeaders };
-      }
-      case 'form-data': {
-        const fd = new FormData();
-        for (const field of bodyConfig.formData ?? []) {
-          const value =
-            field.valueType === 'vault_var' && field.vaultVarRef
-              ? await this.resolveVaultVarRef(field.vaultVarRef)
-              : await this.resolveVaultVarTemplate(field.value ?? '');
-          fd.append(field.key, value);
-        }
-        return { body: fd, headers: extraHeaders };
-      }
-      case 'x-www-form-urlencoded': {
-        const params = new URLSearchParams();
-        for (const field of bodyConfig.urlEncoded ?? []) {
-          const value =
-            field.valueType === 'vault_var' && field.vaultVarRef
-              ? await this.resolveVaultVarRef(field.vaultVarRef)
-              : await this.resolveVaultVarTemplate(field.value ?? '');
-          params.append(field.key, value);
-        }
-        extraHeaders['Content-Type'] = 'application/x-www-form-urlencoded';
-        return { body: params.toString(), headers: extraHeaders };
-      }
-      default:
-        return {};
-    }
-  }
-
-  /**
-   * Resolve the zip password: returns the literal password, or fetches the
-   * value from a vault variable set when zipPasswordVaultRef is provided.
-   */
-  private async resolveZipPassword(
-    literal: string | null,
-    vaultRef: string | null,
-  ): Promise<string | null> {
-    if (!vaultRef) return literal;
-    const dotIdx = vaultRef.indexOf('.');
-    if (dotIdx <= 0) return literal;
-    const slug = vaultRef.slice(0, dotIdx);
-    const key = vaultRef.slice(dotIdx + 1);
-    try {
-      const payload = await this.vault.getVariableSetPayloadBySlug(slug);
-      return payload[key] ?? null;
-    } catch {
-      return null; // vault resolution failed — no password rather than crash
-    }
-  }
-
-  /** Parse filename from Content-Disposition header, returns null if not found. */
-  private parseContentDispositionFilename(
-    header: string | null,
-  ): string | null {
-    if (!header) return null;
-    const match = header.match(
-      /filename\*?=(?:UTF-8'')?["']?([^"';\r\n]+)["']?/i,
-    );
-    if (!match) return null;
-    try {
-      return decodeURIComponent(match[1].trim().replace(/["']/g, ''));
-    } catch {
-      return match[1].trim().replace(/["']/g, '');
-    }
-  }
-
-  private async resolveInputParamValue(
-    param: InputRequestParam,
-  ): Promise<string> {
-    if (param.valueType === 'literal') return param.value ?? '';
-    if (!param.vaultId) return '';
-    const payload = await this.vault.getHttpPayload(param.vaultId);
-    const field = param.vaultField ?? '';
-    const raw = (payload as unknown as Record<string, unknown>)[field];
-    return typeof raw === 'string' ? raw : '';
-  }
+  // ─── Vault helpers (URL sources only) ───────────────────────────────────────
 
   private async applyVaultAuth(
     headers: Record<string, string>,
@@ -1023,23 +701,49 @@ export class BackupRunner {
         headers[payload.key] = payload.secret;
         break;
       case 'oauth2_client_credentials': {
-        const token = await this.fetchOAuth2ClientToken(
-          payload.tokenUrl,
-          payload.clientId,
-          payload.clientSecret,
-          payload.scope,
-        );
-        headers['Authorization'] = `Bearer ${token}`;
+        const body = new URLSearchParams({
+          grant_type: 'client_credentials',
+          client_id: payload.clientId,
+          client_secret: payload.clientSecret,
+          ...(payload.scope ? { scope: payload.scope } : {}),
+        });
+        const res = await fetch(payload.tokenUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: body.toString(),
+        });
+        if (!res.ok)
+          throw new VaultOAuth2TokenFailedException(
+            res.status,
+            payload.tokenUrl,
+          );
+        const json = (await res.json()) as { access_token?: string };
+        if (!json.access_token)
+          throw new VaultOAuth2MissingTokenException(payload.tokenUrl);
+        headers['Authorization'] = `Bearer ${json.access_token}`;
         break;
       }
       case 'oauth2_password_grant': {
-        const token = await this.fetchOAuth2PasswordToken(
-          payload.tokenUrl,
-          payload.clientId,
-          payload.username,
-          payload.password,
-        );
-        headers['Authorization'] = `Bearer ${token}`;
+        const pwBody = new URLSearchParams({
+          grant_type: 'password',
+          client_id: payload.clientId,
+          username: payload.username,
+          password: payload.password,
+        });
+        const pwRes = await fetch(payload.tokenUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: pwBody.toString(),
+        });
+        if (!pwRes.ok)
+          throw new VaultOAuth2TokenFailedException(
+            pwRes.status,
+            payload.tokenUrl,
+          );
+        const pwJson = (await pwRes.json()) as { access_token?: string };
+        if (!pwJson.access_token)
+          throw new VaultOAuth2MissingTokenException(payload.tokenUrl);
+        headers['Authorization'] = `Bearer ${pwJson.access_token}`;
         break;
       }
       case 'cookie':
@@ -1049,62 +753,8 @@ export class BackupRunner {
         for (const { key, value } of payload.entries) headers[key] = value;
         break;
       default:
-        // mtls_certificate, ssh_key, jwt_signing_key, aws_sigv4 — not yet supported in runner
-        throw new Error(
-          `HTTP auth type '${payload.subtype}' is not supported in the backup runner`,
-        );
+        throw new VaultAuthUnsupportedTypeException(payload.subtype);
     }
-  }
-
-  private async fetchOAuth2ClientToken(
-    tokenUrl: string,
-    clientId: string,
-    clientSecret: string,
-    scope?: string,
-  ): Promise<string> {
-    const body = new URLSearchParams({
-      grant_type: 'client_credentials',
-      client_id: clientId,
-      client_secret: clientSecret,
-      ...(scope ? { scope } : {}),
-    });
-    const res = await fetch(tokenUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: body.toString(),
-    });
-    if (!res.ok) throw new Error(`OAuth2 token request failed: ${res.status}`);
-    const json = (await res.json()) as { access_token?: string };
-    if (!json.access_token)
-      throw new Error('OAuth2 response missing access_token');
-    return json.access_token;
-  }
-
-  private async fetchOAuth2PasswordToken(
-    tokenUrl: string,
-    clientId: string,
-    username: string,
-    password: string,
-  ): Promise<string> {
-    const body = new URLSearchParams({
-      grant_type: 'password',
-      client_id: clientId,
-      username,
-      password,
-    });
-    const res = await fetch(tokenUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: body.toString(),
-    });
-    if (!res.ok)
-      throw new Error(
-        `OAuth2 password grant token request failed: ${res.status}`,
-      );
-    const json = (await res.json()) as { access_token?: string };
-    if (!json.access_token)
-      throw new Error('OAuth2 response missing access_token');
-    return json.access_token;
   }
 
   private async resolveParamValue(param: RequestParam): Promise<string> {
@@ -1112,12 +762,28 @@ export class BackupRunner {
     if (!param.vaultId) return '';
     const payload = await this.vault.getHttpPayload(param.vaultId);
     const field = param.vaultField ?? '';
-
     const raw = (payload as unknown as Record<string, unknown>)[field];
     return typeof raw === 'string' ? raw : '';
   }
 
-  // ─── Archive building ────────────────────────────────────────────────────────
+  private async resolveZipPassword(
+    literal: string | null,
+    vaultRef: string | null,
+  ): Promise<string | null> {
+    if (!vaultRef) return literal;
+    const dotIdx = vaultRef.indexOf('.');
+    if (dotIdx <= 0) return literal;
+    const slug = vaultRef.slice(0, dotIdx);
+    const key = vaultRef.slice(dotIdx + 1);
+    try {
+      const payload = await this.vault.getVariableSetPayloadBySlug(slug);
+      return payload[key] ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  // ─── Archive creation ────────────────────────────────────────────────────────
 
   private createArchive(
     files: FileToArchive[],
@@ -1125,7 +791,6 @@ export class BackupRunner {
     level: number,
     password: string | null,
   ): Promise<Buffer> {
-    // Encrypted ZIP (password only supported for zip format)
     if (format === 'zip' && password && this.isEncryptedAvailable()) {
       return this.createEncryptedZip(files, level, password);
     }
@@ -1142,12 +807,11 @@ export class BackupRunner {
         if (this.isBzip2Available()) {
           return this.createTarBz2(files, level);
         }
-        // Fallback to tar-gz if bzip2 unavailable
         return this.buildArchiverBuffer(
           archiver('tar', { gzip: true, gzipOptions: { level } }),
           files,
         );
-      default: // zip
+      default:
         return this.buildArchiverBuffer(
           archiver('zip', { zlib: { level } }),
           files,
@@ -1163,7 +827,10 @@ export class BackupRunner {
       const chunks: Buffer[] = [];
       arc.on('data', (chunk: Buffer) => chunks.push(chunk));
       arc.on('end', () => resolve(Buffer.concat(chunks)));
-      arc.on('error', reject);
+      arc.on('error', (err) => {
+        arc.destroy();
+        reject(err);
+      });
       for (const f of files) {
         if (f.stream !== undefined) {
           arc.append(f.stream, { name: f.arc });
@@ -1209,7 +876,6 @@ export class BackupRunner {
         }
         void arc.finalize();
       } catch {
-        // Fallback to standard zip if plugin fails at runtime
         resolve(
           this.buildArchiverBuffer(archiver('zip', { zlib: { level } }), files),
         );
@@ -1246,149 +912,5 @@ export class BackupRunner {
         reject(new Error('archiver-tar-bzip2 not installed'));
       }
     });
-  }
-
-  private async sendOutput(
-    backupName: string,
-    backupId: string,
-    output: OutputRow,
-    archive: ArchiveResult,
-  ): Promise<void> {
-    if (output.type !== 'mail') return;
-
-    const smtpPayload = await this.vault.getEmailPayload(output.vaultId);
-    const toContacts = await this.resolveContacts(output.recipientsTo);
-    const ccContacts = await this.resolveContacts(output.recipientsCc);
-    const bccContacts = await this.resolveContacts(output.recipientsBcc);
-
-    let subject = '{{backup.name}} backup completed';
-    let body = 'Backup {{backup.name}} completed successfully.';
-    let bodyType: 'text' | 'html' = 'text';
-
-    if (output.templateId) {
-      const template = await this.prisma.mailTemplate.findUnique({
-        where: { id: output.templateId },
-      });
-      if (template) {
-        subject = template.subject;
-        body = template.body;
-        bodyType = template.bodyType as 'text' | 'html';
-      }
-    }
-
-    if (output.overrideSubject) subject = output.overrideSubject;
-    if (output.overrideBody) body = output.overrideBody;
-    if (output.overrideBodyType)
-      bodyType = output.overrideBodyType as 'text' | 'html';
-
-    const now = new Date();
-    const baseVars: Record<string, string> = {
-      'backup.name': backupName,
-      'backup.size': this.formatSize(archive.size),
-      'backup.archive': archive.filename,
-      'backup.files_count': String(archive.filesCount),
-      date: now.toLocaleDateString('en-US'),
-      time: now.toLocaleTimeString('en-US'),
-      datetime: now.toLocaleString('en-US'),
-    };
-
-    const resolveVars = (tpl: string, extra: Record<string, string>): string =>
-      tpl.replace(
-        /\{\{([^}]+)\}\}/g,
-        (_, key: string) => extra[key] ?? baseVars[key] ?? `{{${key}}}`,
-      );
-
-    const nodemailer = await import('nodemailer');
-    const transporter = nodemailer.createTransport({
-      host: smtpPayload.host,
-      port: smtpPayload.port,
-      secure: smtpPayload.secure,
-      auth: { user: smtpPayload.user, pass: smtpPayload.password },
-    });
-
-    const from = smtpPayload.fromName
-      ? `"${smtpPayload.fromName}" <${smtpPayload.fromAddr}>`
-      : smtpPayload.fromAddr;
-
-    const attachments =
-      archive.size > 0
-        ? [{ filename: archive.filename, content: archive.buffer }]
-        : [];
-
-    const recipients =
-      toContacts.length > 0 ? toContacts : [{ name: '', email: '' }];
-    const ccEmails = ccContacts.map((c) => c.email);
-    const bccEmails = bccContacts.map((c) => c.email);
-
-    for (const contact of recipients) {
-      const contactVars = {
-        'recipient.name': contact.name,
-        'recipient.email': contact.email,
-      };
-      const resolvedSubject = resolveVars(subject, contactVars);
-      const resolvedBody = resolveVars(body, contactVars);
-
-      try {
-        await transporter.sendMail({
-          from,
-          to: contact.email || undefined,
-          cc: ccEmails.length > 0 ? ccEmails.join(', ') : undefined,
-          bcc: bccEmails.length > 0 ? bccEmails.join(', ') : undefined,
-          subject: resolvedSubject,
-          ...(bodyType === 'html'
-            ? { html: resolvedBody }
-            : { text: resolvedBody }),
-          attachments,
-        });
-        await this.prisma.mailLog.create({
-          data: {
-            vaultId: output.vaultId,
-            toAddrs: contact.email ? [contact.email] : [],
-            subject: resolvedSubject,
-            status: 'sent',
-          },
-        });
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Send failed';
-        await this.prisma.mailLog.create({
-          data: {
-            vaultId: output.vaultId,
-            toAddrs: contact.email ? [contact.email] : [],
-            subject: resolvedSubject,
-            status: 'error',
-            errorMsg: msg,
-          },
-        });
-        this.logs.error(
-          'backup',
-          'BACKUP_MAIL_ERROR',
-          `Mail send failed for backup ${backupName}`,
-          msg,
-          { backupId },
-        );
-      }
-    }
-  }
-
-  private async resolveContacts(
-    ids: string[],
-  ): Promise<{ name: string; email: string }[]> {
-    if (ids.length === 0) return [];
-    const contacts = await this.prisma.contact.findMany({
-      where: { id: { in: ids } },
-      select: { id: true, name: true, email: true },
-    });
-    return ids
-      .map((id) => contacts.find((c) => c.id === id))
-      .filter(
-        (c): c is { id: string; name: string; email: string } => c != null,
-      );
-  }
-
-  private formatSize(bytes: number): string {
-    if (bytes === 0) return '0 B';
-    const units = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(1024));
-    return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
   }
 }

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { CheckCircle2, XCircle, Loader2, PlayCircle, AlertTriangle } from "lucide-react";
@@ -48,7 +48,7 @@ export function StepValidate({ backupId, backup, sourcesCount, onBackupUpdated }
       const updated = await backupsService.getOne(backupId);
       onBackupUpdated(updated);
     } catch (err) {
-      toast.error(err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"));
+      toast.error(err instanceof ApiError ? t(`errors.${err.code}`, err.message) : t("common.error"));
     }
   };
 

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton, SkeletonForm } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -51,7 +52,7 @@ export default function SettingsPage() {
       setSettings(updated);
       toast.success(t("settings.saved"));
     } catch (err) {
-      toast.error(err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"));
+      toast.error(err instanceof ApiError ? t(`errors.${err.code}`, err.message) : t("common.error"));
     } finally {
       setSaving(false);
     }
@@ -73,7 +74,7 @@ export default function SettingsPage() {
   };
 
   if (!settings)
-    return <p className="text-muted-foreground">{t("common.loading")}</p>;
+    return <SkeletonForm blocks={3} />;
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -223,7 +224,10 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           {!zipInfo ? (
-            <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-48" />
+              <Skeleton className="h-4 w-64" />
+            </div>
           ) : (
             <>
               {/* Info row */}

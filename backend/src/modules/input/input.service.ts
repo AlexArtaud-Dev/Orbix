@@ -16,6 +16,7 @@ import type {
   InputRequestParam,
   InputRow,
 } from './input.types';
+import { OrbixException } from '../../common/exceptions';
 
 @Injectable()
 export class InputService {
@@ -123,9 +124,12 @@ export class InputService {
     );
   }
 
-  async test(
-    id: string,
-  ): Promise<{ success: boolean; count?: number; error?: string }> {
+  async test(id: string): Promise<{
+    success: boolean;
+    count?: number;
+    error?: string;
+    errorCode?: string;
+  }> {
     const input = await this.prisma.input.findUnique({ where: { id } });
     if (!input) throw new NotFoundException('Input not found');
 
@@ -236,6 +240,12 @@ export class InputService {
             lastTestError: error,
           },
         });
+        this.logs.error(
+          'input',
+          'INPUT_FETCH_HTTP_ERROR',
+          `Input test failed: ${input.name}`,
+          error,
+        );
         return { success: false, error };
       }
 
@@ -274,7 +284,13 @@ export class InputService {
       });
       return { success: true, count };
     } catch (err) {
-      const error = err instanceof Error ? err.message : 'Unknown error';
+      const isTyped = err instanceof OrbixException;
+      const errorCode = isTyped ? err.code : undefined;
+      const error = isTyped
+        ? `[${err.code}] ${err.message}`
+        : err instanceof Error
+          ? err.message
+          : 'Unknown error';
       await this.prisma.input.update({
         where: { id },
         data: {
@@ -283,7 +299,17 @@ export class InputService {
           lastTestError: error,
         },
       });
-      return { success: false, error };
+      if (err instanceof OrbixException) {
+        this.logs.exception('input', err, `Input test failed: ${input.name}`);
+      } else {
+        this.logs.error(
+          'input',
+          'INPUT_FETCH_HTTP_ERROR',
+          `Input test failed: ${input.name}`,
+          error,
+        );
+      }
+      return { success: false, error, errorCode };
     }
   }
 
