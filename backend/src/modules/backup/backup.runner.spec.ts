@@ -205,21 +205,19 @@ describe('BackupRunner', () => {
 
   describe('resolveZipPassword', () => {
     it('returns the literal password when vaultRef is null', async () => {
-      await expect(
-        priv().resolveZipPassword('my-secret', null),
-      ).resolves.toBe('my-secret');
+      await expect(priv().resolveZipPassword('my-secret', null)).resolves.toBe(
+        'my-secret',
+      );
     });
 
     it('returns null when both literal and vaultRef are null', async () => {
-      await expect(
-        priv().resolveZipPassword(null, null),
-      ).resolves.toBeNull();
+      await expect(priv().resolveZipPassword(null, null)).resolves.toBeNull();
     });
 
     it('returns the literal when vaultRef is an empty string (treated as falsy)', async () => {
-      await expect(
-        priv().resolveZipPassword('fallback', ''),
-      ).resolves.toBe('fallback');
+      await expect(priv().resolveZipPassword('fallback', '')).resolves.toBe(
+        'fallback',
+      );
     });
 
     it('resolves the vault variable when vaultRef is "slug.key"', async () => {

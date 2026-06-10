@@ -19,7 +19,9 @@ export class LogsService {
 
     const where: Record<string, unknown> = {};
     if (query.category) {
-      const cats = Array.isArray(query.category) ? query.category : [query.category];
+      const cats = Array.isArray(query.category)
+        ? query.category
+        : [query.category];
       where['category'] = cats.length === 1 ? cats[0] : { in: cats };
     }
     if (query.level) {

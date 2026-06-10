@@ -67,7 +67,11 @@ export class MailService {
           errorMsg: cause,
         },
       });
-      this.logs.exception('mail', mailErr, `Email send failed: "${dto.subject}"`);
+      this.logs.exception(
+        'mail',
+        mailErr,
+        `Email send failed: "${dto.subject}"`,
+      );
       throw mailErr;
     }
   }

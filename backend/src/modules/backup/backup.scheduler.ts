@@ -129,10 +129,21 @@ export class BackupScheduler implements OnModuleInit, OnModuleDestroy {
       () => {
         this.runner.run(backupId).catch((err: unknown) => {
           if (err instanceof OrbixException) {
-            this.logs.exception('scheduler', err, `Cron job failed: ${backupName}`, { backupId });
+            this.logs.exception(
+              'scheduler',
+              err,
+              `Cron job failed: ${backupName}`,
+              { backupId },
+            );
           } else {
             const msg = err instanceof Error ? err.message : 'Unknown error';
-            this.logs.error('scheduler', 'SCHEDULER_JOB_ERROR', `Cron job failed: ${backupName}`, msg, { backupId });
+            this.logs.error(
+              'scheduler',
+              'SCHEDULER_JOB_ERROR',
+              `Cron job failed: ${backupName}`,
+              msg,
+              { backupId },
+            );
           }
         });
       },

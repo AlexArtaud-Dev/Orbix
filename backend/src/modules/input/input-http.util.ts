@@ -23,7 +23,10 @@ export async function fetchWithConfig(
   // If no bypass needed, use native fetch
   if (!insecureSkipVerify || urlObj.protocol !== 'https:') {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(new Error('Request timeout')), timeoutMs);
+    const timer = setTimeout(
+      () => controller.abort(new Error('Request timeout')),
+      timeoutMs,
+    );
     try {
       return await fetch(urlObj.toString(), {
         method,

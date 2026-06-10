@@ -31,7 +31,10 @@ import type {
   VarSetResponse,
   VaultRow,
 } from './vault.types';
-import { VaultSmtpTestFailedException, VaultDecryptionFailedException } from '../../common/exceptions';
+import {
+  VaultSmtpTestFailedException,
+  VaultDecryptionFailedException,
+} from '../../common/exceptions';
 export type {
   EmailVaultResponse,
   HttpVaultResponse,
@@ -475,7 +478,8 @@ export class VaultService {
         `SMTP test OK: ${entity.name}`,
       );
     } catch (err) {
-      const cause = err instanceof Error ? err.message : 'SMTP connection failed';
+      const cause =
+        err instanceof Error ? err.message : 'SMTP connection failed';
       const smtpErr = new VaultSmtpTestFailedException(entity.name, cause);
       await this.prisma.vaultEntity.update({
         where: { id },

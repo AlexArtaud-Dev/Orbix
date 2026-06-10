@@ -3,7 +3,11 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { VaultService } from '../../../modules/vault/vault.service';
 import { LogsWriter } from '../../../modules/logs/logs.writer';
 import type { IOutputProvider } from '../output-provider.interface';
-import type { ProviderMeta, ArchiveResult, OutputRow } from '../../providers.types';
+import type {
+  ProviderMeta,
+  ArchiveResult,
+  OutputRow,
+} from '../../providers.types';
 import { MailSendFailedException } from '../../../common/exceptions';
 
 @Injectable()
@@ -122,7 +126,10 @@ export class MailOutputProvider implements IOutputProvider {
         });
       } catch (err) {
         const cause = err instanceof Error ? err.message : 'Send failed';
-        const mailErr = new MailSendFailedException(contact.email || '(no recipient)', cause);
+        const mailErr = new MailSendFailedException(
+          contact.email || '(no recipient)',
+          cause,
+        );
         await this.prisma.mailLog.create({
           data: {
             vaultId: output.vaultId,
@@ -132,7 +139,12 @@ export class MailOutputProvider implements IOutputProvider {
             errorMsg: cause,
           },
         });
-        this.logs.exception('mail', mailErr, `Mail send failed for backup ${backupName}`, { backupId });
+        this.logs.exception(
+          'mail',
+          mailErr,
+          `Mail send failed for backup ${backupName}`,
+          { backupId },
+        );
       }
     }
   }

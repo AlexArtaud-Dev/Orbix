@@ -35,12 +35,9 @@ export class VaultOAuth2MissingTokenException extends OrbixException {
 
 export class VaultSmtpTestFailedException extends OrbixException {
   constructor(name: string, cause: string) {
-    super(
-      'VAULT_SMTP_TEST_FAILED',
-      `SMTP test failed for '${name}'`,
-      cause,
-      { name },
-    );
+    super('VAULT_SMTP_TEST_FAILED', `SMTP test failed for '${name}'`, cause, {
+      name,
+    });
   }
 }
 

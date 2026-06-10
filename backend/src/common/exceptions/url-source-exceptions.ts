@@ -24,8 +24,13 @@ export class UrlSourceSizeExceededException extends OrbixException {
 
 export class UrlSourceNoBodyException extends OrbixException {
   constructor(url: string) {
-    super('URL_SOURCE_NO_BODY', `URL source returned no body: ${url}`, undefined, {
-      url,
-    });
+    super(
+      'URL_SOURCE_NO_BODY',
+      `URL source returned no body: ${url}`,
+      undefined,
+      {
+        url,
+      },
+    );
   }
 }

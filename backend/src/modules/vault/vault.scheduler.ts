@@ -30,7 +30,12 @@ export class VaultScheduler {
         this.logs.exception('vault', err, 'SMTP health check failed');
       } else {
         const msg = err instanceof Error ? err.message : 'Unknown error';
-        this.logs.error('vault', 'VAULT_SMTP_CRON_ERROR', 'SMTP health check failed', msg);
+        this.logs.error(
+          'vault',
+          'VAULT_SMTP_CRON_ERROR',
+          'SMTP health check failed',
+          msg,
+        );
       }
     }
   }

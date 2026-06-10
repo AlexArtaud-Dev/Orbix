@@ -1,4 +1,8 @@
-import type { ProviderMeta, ArchiveResult, OutputRow } from '../providers.types';
+import type {
+  ProviderMeta,
+  ArchiveResult,
+  OutputRow,
+} from '../providers.types';
 
 export interface IOutputProvider {
   readonly type: string;

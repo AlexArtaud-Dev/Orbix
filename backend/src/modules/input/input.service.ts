@@ -124,9 +124,12 @@ export class InputService {
     );
   }
 
-  async test(
-    id: string,
-  ): Promise<{ success: boolean; count?: number; error?: string; errorCode?: string }> {
+  async test(id: string): Promise<{
+    success: boolean;
+    count?: number;
+    error?: string;
+    errorCode?: string;
+  }> {
     const input = await this.prisma.input.findUnique({ where: { id } });
     if (!input) throw new NotFoundException('Input not found');
 
@@ -237,7 +240,12 @@ export class InputService {
             lastTestError: error,
           },
         });
-        this.logs.error('input', 'INPUT_FETCH_HTTP_ERROR', `Input test failed: ${input.name}`, error);
+        this.logs.error(
+          'input',
+          'INPUT_FETCH_HTTP_ERROR',
+          `Input test failed: ${input.name}`,
+          error,
+        );
         return { success: false, error };
       }
 
@@ -294,7 +302,12 @@ export class InputService {
       if (err instanceof OrbixException) {
         this.logs.exception('input', err, `Input test failed: ${input.name}`);
       } else {
-        this.logs.error('input', 'INPUT_FETCH_HTTP_ERROR', `Input test failed: ${input.name}`, error);
+        this.logs.error(
+          'input',
+          'INPUT_FETCH_HTTP_ERROR',
+          `Input test failed: ${input.name}`,
+          error,
+        );
       }
       return { success: false, error, errorCode };
     }

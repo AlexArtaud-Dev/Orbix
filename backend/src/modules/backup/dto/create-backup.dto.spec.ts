@@ -22,12 +22,16 @@ describe('CreateBackupDto', () => {
 
   it('fails when name is missing', async () => {
     const errors = await validateDto({});
-    expect(constraintNames(errors)).toEqual(expect.arrayContaining(['isNotEmpty']));
+    expect(constraintNames(errors)).toEqual(
+      expect.arrayContaining(['isNotEmpty']),
+    );
   });
 
   it('fails when name is empty string', async () => {
     const errors = await validateDto({ name: '' });
-    expect(constraintNames(errors)).toEqual(expect.arrayContaining(['isNotEmpty']));
+    expect(constraintNames(errors)).toEqual(
+      expect.arrayContaining(['isNotEmpty']),
+    );
   });
 
   it('fails when scheduleType is not an accepted value', async () => {
@@ -68,7 +72,9 @@ describe('CreateBackupDto', () => {
 
   it('fails when noArchive is not a boolean', async () => {
     const errors = await validateDto({ ...base, noArchive: 'yes' });
-    expect(constraintNames(errors)).toEqual(expect.arrayContaining(['isBoolean']));
+    expect(constraintNames(errors)).toEqual(
+      expect.arrayContaining(['isBoolean']),
+    );
   });
 
   it('passes with noArchive = true', async () => {

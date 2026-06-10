@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { VaultService } from '../../../modules/vault/vault.service';
 import { fetchWithConfig } from '../../../modules/input/input-http.util';
-import type { IInputProvider, InputFetchContext } from '../input-provider.interface';
+import type {
+  IInputProvider,
+  InputFetchContext,
+} from '../input-provider.interface';
 import type { FileToArchive, ProviderMeta } from '../../providers.types';
 import type { InputRow } from '../../../modules/input/input.types';
 import type {
@@ -94,7 +97,11 @@ export class HttpRestInputProvider implements IInputProvider {
         skipTls,
       );
       if (!listRes.ok) {
-        throw new InputFetchHttpException(listUrl.toString(), listRes.status, 'Input list endpoint');
+        throw new InputFetchHttpException(
+          listUrl.toString(),
+          listRes.status,
+          'Input list endpoint',
+        );
       }
 
       const items = (await listRes.json()) as unknown[];
@@ -144,7 +151,11 @@ export class HttpRestInputProvider implements IInputProvider {
           skipTls,
         );
         if (!dlRes.ok) {
-          throw new InputFetchHttpException(downloadUrl, dlRes.status, `Input download for '${itemName}'`);
+          throw new InputFetchHttpException(
+            downloadUrl,
+            dlRes.status,
+            `Input download for '${itemName}'`,
+          );
         }
 
         const contentLength = dlRes.headers.get('content-length');
@@ -396,9 +407,11 @@ export class HttpRestInputProvider implements IInputProvider {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: body.toString(),
     });
-    if (!res.ok) throw new VaultOAuth2TokenFailedException(res.status, tokenUrl);
+    if (!res.ok)
+      throw new VaultOAuth2TokenFailedException(res.status, tokenUrl);
     const json = (await res.json()) as { access_token?: string };
-    if (!json.access_token) throw new VaultOAuth2MissingTokenException(tokenUrl);
+    if (!json.access_token)
+      throw new VaultOAuth2MissingTokenException(tokenUrl);
     return json.access_token;
   }
 
@@ -419,9 +432,11 @@ export class HttpRestInputProvider implements IInputProvider {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: body.toString(),
     });
-    if (!res.ok) throw new VaultOAuth2TokenFailedException(res.status, tokenUrl);
+    if (!res.ok)
+      throw new VaultOAuth2TokenFailedException(res.status, tokenUrl);
     const json = (await res.json()) as { access_token?: string };
-    if (!json.access_token) throw new VaultOAuth2MissingTokenException(tokenUrl);
+    if (!json.access_token)
+      throw new VaultOAuth2MissingTokenException(tokenUrl);
     return json.access_token;
   }
 

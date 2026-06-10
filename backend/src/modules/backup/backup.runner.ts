@@ -25,7 +25,11 @@ import {
   type BackupSource,
   type RequestParam,
 } from './backup.types';
-import type { FileToArchive, ArchiveResult, OutputRow } from '../../providers/providers.types';
+import type {
+  FileToArchive,
+  ArchiveResult,
+  OutputRow,
+} from '../../providers/providers.types';
 import {
   OrbixException,
   InputProviderNotFoundException,
@@ -168,10 +172,18 @@ export class BackupRunner {
         data: { lastRunAt: new Date(), lastStatus: 'error' },
       });
       if (err instanceof OrbixException) {
-        this.logs.exception('backup', err, `Backup failed: ${backup.name}`, { backupId });
+        this.logs.exception('backup', err, `Backup failed: ${backup.name}`, {
+          backupId,
+        });
       } else {
         const msg = err instanceof Error ? err.message : String(err);
-        this.logs.error('backup', 'BACKUP_RUN_ERROR', `Backup failed: ${backup.name}`, msg, { backupId });
+        this.logs.error(
+          'backup',
+          'BACKUP_RUN_ERROR',
+          `Backup failed: ${backup.name}`,
+          msg,
+          { backupId },
+        );
       }
       throw err;
     }
@@ -267,9 +279,20 @@ export class BackupRunner {
         },
       });
       if (err instanceof OrbixException) {
-        this.logs.exception('backup', err, `Validation failed: ${backup.name}`, { backupId });
+        this.logs.exception(
+          'backup',
+          err,
+          `Validation failed: ${backup.name}`,
+          { backupId },
+        );
       } else {
-        this.logs.error('backup', 'BACKUP_VALIDATE_ERROR', `Validation failed: ${backup.name}`, msg, { backupId });
+        this.logs.error(
+          'backup',
+          'BACKUP_VALIDATE_ERROR',
+          `Validation failed: ${backup.name}`,
+          msg,
+          { backupId },
+        );
       }
     }
   }
@@ -492,7 +515,9 @@ export class BackupRunner {
     if (!isAbsolute(sourcePath)) {
       const root = resolve(s.filesRoot);
       if (!resolved.startsWith(root + sep) && resolved !== root) {
-        throw new Error(`Path traversal detected: "${sourcePath}" escapes filesRoot`);
+        throw new Error(
+          `Path traversal detected: "${sourcePath}" escapes filesRoot`,
+        );
       }
     }
     return resolved;
@@ -688,7 +713,10 @@ export class BackupRunner {
           body: body.toString(),
         });
         if (!res.ok)
-          throw new VaultOAuth2TokenFailedException(res.status, payload.tokenUrl);
+          throw new VaultOAuth2TokenFailedException(
+            res.status,
+            payload.tokenUrl,
+          );
         const json = (await res.json()) as { access_token?: string };
         if (!json.access_token)
           throw new VaultOAuth2MissingTokenException(payload.tokenUrl);
@@ -708,7 +736,10 @@ export class BackupRunner {
           body: pwBody.toString(),
         });
         if (!pwRes.ok)
-          throw new VaultOAuth2TokenFailedException(pwRes.status, payload.tokenUrl);
+          throw new VaultOAuth2TokenFailedException(
+            pwRes.status,
+            payload.tokenUrl,
+          );
         const pwJson = (await pwRes.json()) as { access_token?: string };
         if (!pwJson.access_token)
           throw new VaultOAuth2MissingTokenException(payload.tokenUrl);
@@ -796,7 +827,10 @@ export class BackupRunner {
       const chunks: Buffer[] = [];
       arc.on('data', (chunk: Buffer) => chunks.push(chunk));
       arc.on('end', () => resolve(Buffer.concat(chunks)));
-      arc.on('error', (err) => { arc.destroy(); reject(err); });
+      arc.on('error', (err) => {
+        arc.destroy();
+        reject(err);
+      });
       for (const f of files) {
         if (f.stream !== undefined) {
           arc.append(f.stream, { name: f.arc });
@@ -879,5 +913,4 @@ export class BackupRunner {
       }
     });
   }
-
 }
