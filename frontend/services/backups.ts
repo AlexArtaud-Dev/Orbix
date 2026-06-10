@@ -156,19 +156,43 @@ export function describeSchedule(backup: Pick<Backup, "scheduleType" | "schedule
       }
     }
     case "recurring": {
+      const tz = cfg && "timezone" in cfg ? ` (${String(cfg.timezone)})` : "";
+      // day 0 = Sun, kept last in display (Mon…Sat, Sun)
+      const dayNames: Record<number, string> = { 0: "Sun", 1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu", 5: "Fri", 6: "Sat" };
+      const fmtDays = (days: number[]) =>
+        days.length === 0 || days.length === 7
+          ? "Every day"
+          : days.map((d) => dayNames[d] ?? String(d)).join(", ");
+      const fmtTime = (h: number, m: number) =>
+        `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+
+      // New format: { rules: [{ days, hour, minute }] }
+      const rules =
+        cfg && "rules" in cfg && Array.isArray(cfg.rules) && cfg.rules.length > 0
+          ? (cfg.rules as Array<{ days: number[]; hour: number; minute: number }>)
+          : null;
+
+      if (rules) {
+        const parts = rules.map((r) => `${fmtDays(r.days)} at ${fmtTime(r.hour, r.minute)}`);
+        const joined = parts.join(" · ");
+        return joined.length <= 72 ? `${joined}${tz}` : `${rules.length} time slots${tz}`;
+      }
+
+      // Legacy flat format
       const days = cfg && "days" in cfg && Array.isArray(cfg.days) ? (cfg.days as number[]) : [];
       const hour = cfg && "hour" in cfg ? Number(cfg.hour) : 0;
       const minute = cfg && "minute" in cfg ? Number(cfg.minute) : 0;
-      const tz = cfg && "timezone" in cfg ? ` (${String(cfg.timezone)})` : "";
-      const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-      const daysStr = days.length === 7 ? "Every day" : days.map((d) => dayNames[d] ?? d).join(", ");
-      const time = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-      return `${daysStr} at ${time}${tz}`;
+      return `${fmtDays(days)} at ${fmtTime(hour, minute)}${tz}`;
     }
     case "interval": {
       const every = cfg && "every" in cfg ? Number(cfg.every) : 1;
       const unit = cfg && "unit" in cfg ? String(cfg.unit) : "hours";
-      return `Every ${every} ${unit}`;
+      const startDate = cfg && "startDate" in cfg ? String(cfg.startDate) : null;
+      const endDate = cfg && "endDate" in cfg ? String(cfg.endDate) : null;
+      let label = `Every ${every} ${unit}`;
+      if (startDate) label += ` from ${new Date(startDate).toLocaleDateString()}`;
+      if (endDate) label += ` to ${new Date(endDate).toLocaleDateString()}`;
+      return label;
     }
     default: return backup.schedule ?? "Manual only";
   }
