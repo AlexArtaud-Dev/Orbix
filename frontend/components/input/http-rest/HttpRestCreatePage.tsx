@@ -14,7 +14,12 @@ import {
   type HttpRestInputFormData,
 } from "@/components/input/HttpRestInputForm";
 
-export default function NewHttpRestInputPage() {
+interface Props {
+  /** Provider type — determines the success redirect URL. */
+  type: string;
+}
+
+export function HttpRestCreatePage({ type }: Props) {
   const { t } = useTranslation();
   const router = useRouter();
   const [saving, setSaving] = useState(false);
@@ -41,7 +46,7 @@ export default function NewHttpRestInputPage() {
     try {
       await inputService.create(formToPayload(form));
       toast.success(t("input.httpRest.createSuccess"));
-      router.push("/input/http-rest");
+      router.push(`/input/${type}`);
     } catch (err) {
       toast.error(err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"));
     } finally {
@@ -57,8 +62,13 @@ export default function NewHttpRestInputPage() {
       </div>
 
       <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
-        <HttpRestInputForm form={form} onChange={onChange} httpVaultItems={httpVaultItems} varSetItems={varSetItems} onValidChange={setIsFormValid} />
-
+        <HttpRestInputForm
+          form={form}
+          onChange={onChange}
+          httpVaultItems={httpVaultItems}
+          varSetItems={varSetItems}
+          onValidChange={setIsFormValid}
+        />
         <div className="flex gap-3">
           <Button type="submit" disabled={saving || !form.name.trim() || !form.baseUrl.trim() || !isFormValid}>
             {saving ? t("common.loading") : t("common.save")}

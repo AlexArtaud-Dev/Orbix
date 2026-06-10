@@ -47,6 +47,22 @@ export interface InputTestResult {
   error?: string;
 }
 
+export interface ProviderMeta {
+  type: string;
+  label: string;
+  icon: string;
+  description: string;
+}
+
+export interface ProvidersResponse {
+  inputs: ProviderMeta[];
+  outputs: ProviderMeta[];
+}
+
+export const providersService = {
+  list: () => api.get<ProvidersResponse>("/api/providers"),
+};
+
 export const inputService = {
   list: (cursor?: string, limit = 100) => {
     const params = new URLSearchParams({ limit: String(limit) });

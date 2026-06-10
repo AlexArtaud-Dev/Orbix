@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { inputService, type InputItem } from "@/services/input";
@@ -14,10 +14,16 @@ import {
   type HttpRestInputFormData,
 } from "@/components/input/HttpRestInputForm";
 
-export default function EditHttpRestInputPage() {
+interface Props {
+  /** Provider type — determines the success redirect URL. */
+  type: string;
+  /** Input record ID to edit. */
+  id: string;
+}
+
+export function HttpRestEditPage({ type, id }: Props) {
   const { t } = useTranslation();
   const router = useRouter();
-  const { id } = useParams<{ id: string }>();
 
   const [item, setItem] = useState<InputItem | null>(null);
   const [saving, setSaving] = useState(false);
@@ -31,16 +37,29 @@ export default function EditHttpRestInputPage() {
       inputService.getOne(id),
       vaultService.listHttp(undefined, 100),
       vaultService.listVarSet(undefined, 100),
-    ]).then(([inputData, vaultData, varSetData]) => {
-      setItem(inputData);
-      setForm(itemToForm(inputData as unknown as { name: string; vaultId: string | null; config: Record<string, unknown>; enabled: boolean }));
-      setHttpVaultItems(vaultData.data);
-      setVarSetItems(varSetData.data);
-    }).catch(() => toast.error(t("common.error")));
+    ])
+      .then(([inputData, vaultData, varSetData]) => {
+        setItem(inputData);
+        setForm(
+          itemToForm(
+            inputData as unknown as {
+              name: string;
+              vaultId: string | null;
+              config: Record<string, unknown>;
+              enabled: boolean;
+            },
+          ),
+        );
+        setHttpVaultItems(vaultData.data);
+        setVarSetItems(varSetData.data);
+      })
+      .catch(() => toast.error(t("common.error")));
   }, [id]); // eslint-disable-line
 
-  const onChange = <K extends keyof HttpRestInputFormData>(key: K, value: HttpRestInputFormData[K]) =>
-    setForm((f) => f ? { ...f, [key]: value } : f);
+  const onChange = <K extends keyof HttpRestInputFormData>(
+    key: K,
+    value: HttpRestInputFormData[K],
+  ) => setForm((f) => (f ? { ...f, [key]: value } : f));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,7 +68,7 @@ export default function EditHttpRestInputPage() {
     try {
       await inputService.update(id, formToUpdatePayload(form));
       toast.success(t("input.httpRest.updateSuccess"));
-      router.push("/input/http-rest");
+      router.push(`/input/${type}`);
     } catch (err) {
       toast.error(err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"));
     } finally {
@@ -57,7 +76,8 @@ export default function EditHttpRestInputPage() {
     }
   };
 
-  if (!item || !form) return <p className="text-sm text-muted-foreground">{t("common.loading")}</p>;
+  if (!item || !form)
+    return <p className="text-sm text-muted-foreground">{t("common.loading")}</p>;
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -67,8 +87,13 @@ export default function EditHttpRestInputPage() {
       </div>
 
       <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
-        <HttpRestInputForm form={form} onChange={onChange} httpVaultItems={httpVaultItems} varSetItems={varSetItems} onValidChange={setIsFormValid} />
-
+        <HttpRestInputForm
+          form={form}
+          onChange={onChange}
+          httpVaultItems={httpVaultItems}
+          varSetItems={varSetItems}
+          onValidChange={setIsFormValid}
+        />
         <div className="flex gap-3">
           <Button type="submit" disabled={saving || !isFormValid}>
             {saving ? t("common.loading") : t("common.save")}
