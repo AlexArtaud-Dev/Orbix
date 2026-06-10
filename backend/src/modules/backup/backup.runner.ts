@@ -26,6 +26,20 @@ import {
   type RequestParam,
 } from './backup.types';
 import type { FileToArchive, ArchiveResult, OutputRow } from '../../providers/providers.types';
+import {
+  OrbixException,
+  InputProviderNotFoundException,
+  OutputProviderNotFoundException,
+  ArchiveSizeExceededException,
+  ArchiveNoArchiveMultiFileException,
+  ArchiveNoArchiveStreamException,
+  UrlSourceHttpException,
+  UrlSourceSizeExceededException,
+  UrlSourceNoBodyException,
+  VaultAuthUnsupportedTypeException,
+  VaultOAuth2TokenFailedException,
+  VaultOAuth2MissingTokenException,
+} from '../../common/exceptions';
 
 export interface ZipInfo {
   basic: boolean;
@@ -149,18 +163,16 @@ export class BackupRunner {
         { backupId },
       );
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unknown error';
       await this.prisma.backup.update({
         where: { id: backupId },
         data: { lastRunAt: new Date(), lastStatus: 'error' },
       });
-      this.logs.error(
-        'backup',
-        'BACKUP_RUN_ERROR',
-        `Backup failed: ${backup.name}`,
-        msg,
-        { backupId },
-      );
+      if (err instanceof OrbixException) {
+        this.logs.exception('backup', err, `Backup failed: ${backup.name}`, { backupId });
+      } else {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logs.error('backup', 'BACKUP_RUN_ERROR', `Backup failed: ${backup.name}`, msg, { backupId });
+      }
       throw err;
     }
   }
@@ -243,7 +255,7 @@ export class BackupRunner {
         { backupId },
       );
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unknown error';
+      const msg = err instanceof Error ? err.message : String(err);
       await this.prisma.backup.update({
         where: { id: backupId },
         data: {
@@ -254,13 +266,11 @@ export class BackupRunner {
           lastStatus: 'error',
         },
       });
-      this.logs.error(
-        'backup',
-        'BACKUP_VALIDATE_ERROR',
-        `Validation failed: ${backup.name}`,
-        msg,
-        { backupId },
-      );
+      if (err instanceof OrbixException) {
+        this.logs.exception('backup', err, `Validation failed: ${backup.name}`, { backupId });
+      } else {
+        this.logs.error('backup', 'BACKUP_VALIDATE_ERROR', `Validation failed: ${backup.name}`, msg, { backupId });
+      }
     }
   }
 
@@ -386,21 +396,18 @@ export class BackupRunner {
 
     if (noArchive) {
       if (allFiles.length !== 1) {
-        throw new Error(
-          `noArchive mode requires exactly 1 file, but ${allFiles.length} were collected`,
-        );
+        throw new ArchiveNoArchiveMultiFileException(allFiles.length);
       }
       const f = allFiles[0];
       if (f.stream !== undefined) {
-        throw new Error(
-          'noArchive mode does not support streamed sources — use a file or input that buffers',
-        );
+        throw new ArchiveNoArchiveStreamException();
       }
 
       const buffer = f.buffer !== undefined ? f.buffer : readFileSync(f.abs);
       if (buffer.byteLength > maxBackupTotalSizeMb * 1024 * 1024) {
-        throw new Error(
-          `File size (${Math.round(buffer.byteLength / 1024 / 1024)} MB) exceeds the configured limit of ${maxBackupTotalSizeMb} MB`,
+        throw new ArchiveSizeExceededException(
+          Math.round(buffer.byteLength / 1024 / 1024),
+          maxBackupTotalSizeMb,
         );
       }
 
@@ -440,8 +447,9 @@ export class BackupRunner {
       const f = allFiles[0];
       const buffer = f.buffer !== undefined ? f.buffer : readFileSync(f.abs);
       if (buffer.byteLength > maxBackupTotalSizeMb * 1024 * 1024) {
-        throw new Error(
-          `Archive size (${Math.round(buffer.byteLength / 1024 / 1024)} MB) exceeds the configured limit of ${maxBackupTotalSizeMb} MB`,
+        throw new ArchiveSizeExceededException(
+          Math.round(buffer.byteLength / 1024 / 1024),
+          maxBackupTotalSizeMb,
         );
       }
       return {
@@ -460,8 +468,9 @@ export class BackupRunner {
     );
 
     if (buffer.byteLength > maxBackupTotalSizeMb * 1024 * 1024) {
-      throw new Error(
-        `Archive size (${Math.round(buffer.byteLength / 1024 / 1024)} MB) exceeds the configured limit of ${maxBackupTotalSizeMb} MB`,
+      throw new ArchiveSizeExceededException(
+        Math.round(buffer.byteLength / 1024 / 1024),
+        maxBackupTotalSizeMb,
       );
     }
 
@@ -577,9 +586,7 @@ export class BackupRunner {
 
     const response = await fetch(url.toString(), { headers });
     if (!response.ok) {
-      throw new Error(
-        `URL source returned HTTP ${response.status}: ${source.path}`,
-      );
+      throw new UrlSourceHttpException(source.path, response.status);
     }
 
     const maxBytes = maxSizeMb * 1024 * 1024;
@@ -587,15 +594,17 @@ export class BackupRunner {
     if (contentLength) {
       const bytes = parseInt(contentLength, 10);
       if (!isNaN(bytes) && bytes > maxBytes) {
-        throw new Error(
-          `Source file size (${Math.round(bytes / 1024 / 1024)} MB) exceeds the configured limit of ${maxSizeMb} MB: ${source.path}`,
+        throw new UrlSourceSizeExceededException(
+          Math.round(bytes / 1024 / 1024),
+          maxSizeMb,
+          source.path,
         );
       }
     }
 
     if ((source.transferMode ?? 'stream') === 'stream') {
       if (!response.body) {
-        throw new Error(`URL source returned no body: ${source.path}`);
+        throw new UrlSourceNoBodyException(source.path);
       }
       return Readable.fromWeb(
         response.body as unknown as Parameters<typeof Readable.fromWeb>[0],
@@ -604,8 +613,10 @@ export class BackupRunner {
 
     const buf = Buffer.from(await response.arrayBuffer());
     if (buf.byteLength > maxBytes) {
-      throw new Error(
-        `Source file size (${Math.round(buf.byteLength / 1024 / 1024)} MB) exceeds the configured limit of ${maxSizeMb} MB: ${source.path}`,
+      throw new UrlSourceSizeExceededException(
+        Math.round(buf.byteLength / 1024 / 1024),
+        maxSizeMb,
+        source.path,
       );
     }
     return buf;
@@ -618,9 +629,7 @@ export class BackupRunner {
     const input = await this.inputService.getOne(inputId);
     const provider = this.inputRegistry.get(input.type);
     if (!provider) {
-      throw new Error(
-        `No input provider registered for type '${input.type}'. Register one in ProvidersModule.`,
-      );
+      throw new InputProviderNotFoundException(input.type);
     }
     return provider.fetch(input, { maxSizeMb });
   }
@@ -633,14 +642,7 @@ export class BackupRunner {
   ): Promise<void> {
     const provider = this.outputRegistry.get(output.type);
     if (!provider) {
-      this.logs.error(
-        'backup',
-        'BACKUP_OUTPUT_UNKNOWN',
-        `No output provider registered for type '${output.type}'`,
-        undefined,
-        { backupId },
-      );
-      return;
+      throw new OutputProviderNotFoundException(output.type);
     }
     await provider.send(output, archive, backupName, backupId);
   }
@@ -676,10 +678,10 @@ export class BackupRunner {
           body: body.toString(),
         });
         if (!res.ok)
-          throw new Error(`OAuth2 token request failed: ${res.status}`);
+          throw new VaultOAuth2TokenFailedException(res.status, payload.tokenUrl);
         const json = (await res.json()) as { access_token?: string };
         if (!json.access_token)
-          throw new Error('OAuth2 response missing access_token');
+          throw new VaultOAuth2MissingTokenException(payload.tokenUrl);
         headers['Authorization'] = `Bearer ${json.access_token}`;
         break;
       }
@@ -696,12 +698,10 @@ export class BackupRunner {
           body: pwBody.toString(),
         });
         if (!pwRes.ok)
-          throw new Error(
-            `OAuth2 password grant token request failed: ${pwRes.status}`,
-          );
+          throw new VaultOAuth2TokenFailedException(pwRes.status, payload.tokenUrl);
         const pwJson = (await pwRes.json()) as { access_token?: string };
         if (!pwJson.access_token)
-          throw new Error('OAuth2 response missing access_token');
+          throw new VaultOAuth2MissingTokenException(payload.tokenUrl);
         headers['Authorization'] = `Bearer ${pwJson.access_token}`;
         break;
       }
@@ -712,9 +712,7 @@ export class BackupRunner {
         for (const { key, value } of payload.entries) headers[key] = value;
         break;
       default:
-        throw new Error(
-          `HTTP auth type '${payload.subtype}' is not supported for URL sources`,
-        );
+        throw new VaultAuthUnsupportedTypeException(payload.subtype);
     }
   }
 

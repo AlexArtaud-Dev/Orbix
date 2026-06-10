@@ -9,6 +9,14 @@ import type {
   HttpBodyConfig,
   InputRequestParam,
 } from '../../../modules/input/input.types';
+import {
+  InputFetchHttpException,
+  InputFetchSizeExceededException,
+  InputFetchInvalidResponseException,
+  VaultAuthUnsupportedTypeException,
+  VaultOAuth2TokenFailedException,
+  VaultOAuth2MissingTokenException,
+} from '../../../common/exceptions';
 
 @Injectable()
 export class HttpRestInputProvider implements IInputProvider {
@@ -86,14 +94,15 @@ export class HttpRestInputProvider implements IInputProvider {
         skipTls,
       );
       if (!listRes.ok) {
-        throw new Error(
-          `Input list endpoint returned HTTP ${listRes.status}: ${listUrl.toString()}`,
-        );
+        throw new InputFetchHttpException(listUrl.toString(), listRes.status, 'Input list endpoint');
       }
 
       const items = (await listRes.json()) as unknown[];
       if (!Array.isArray(items)) {
-        throw new Error(`Input list endpoint did not return a JSON array`);
+        throw new InputFetchInvalidResponseException(
+          'Input list endpoint did not return a JSON array',
+          { url: listUrl.toString() },
+        );
       }
 
       const idField = config.responseMapping?.id ?? 'id';
@@ -135,25 +144,27 @@ export class HttpRestInputProvider implements IInputProvider {
           skipTls,
         );
         if (!dlRes.ok) {
-          throw new Error(
-            `Input download returned HTTP ${dlRes.status} for item '${itemName}' (${downloadUrl})`,
-          );
+          throw new InputFetchHttpException(downloadUrl, dlRes.status, `Input download for '${itemName}'`);
         }
 
         const contentLength = dlRes.headers.get('content-length');
         if (contentLength) {
           const bytes = parseInt(contentLength, 10);
           if (!isNaN(bytes) && bytes > maxBytes) {
-            throw new Error(
-              `Input item '${itemName}' (${Math.round(bytes / 1024 / 1024)} MB) exceeds limit of ${context.maxSizeMb} MB`,
+            throw new InputFetchSizeExceededException(
+              itemName,
+              Math.round(bytes / 1024 / 1024),
+              context.maxSizeMb,
             );
           }
         }
 
         const buf = Buffer.from(await dlRes.arrayBuffer());
         if (buf.byteLength > maxBytes) {
-          throw new Error(
-            `Input item '${itemName}' (${Math.round(buf.byteLength / 1024 / 1024)} MB) exceeds limit of ${context.maxSizeMb} MB`,
+          throw new InputFetchSizeExceededException(
+            itemName,
+            Math.round(buf.byteLength / 1024 / 1024),
+            context.maxSizeMb,
           );
         }
 
@@ -169,25 +180,27 @@ export class HttpRestInputProvider implements IInputProvider {
         skipTls,
       );
       if (!response.ok) {
-        throw new Error(
-          `Input source returned HTTP ${response.status}: ${config.baseUrl}`,
-        );
+        throw new InputFetchHttpException(config.baseUrl, response.status);
       }
 
       const contentLength = response.headers.get('content-length');
       if (contentLength) {
         const bytes = parseInt(contentLength, 10);
         if (!isNaN(bytes) && bytes > maxBytes) {
-          throw new Error(
-            `Input source size (${Math.round(bytes / 1024 / 1024)} MB) exceeds limit of ${context.maxSizeMb} MB`,
+          throw new InputFetchSizeExceededException(
+            'source',
+            Math.round(bytes / 1024 / 1024),
+            context.maxSizeMb,
           );
         }
       }
 
       const buf = Buffer.from(await response.arrayBuffer());
       if (buf.byteLength > maxBytes) {
-        throw new Error(
-          `Input source size (${Math.round(buf.byteLength / 1024 / 1024)} MB) exceeds limit of ${context.maxSizeMb} MB`,
+        throw new InputFetchSizeExceededException(
+          'source',
+          Math.round(buf.byteLength / 1024 / 1024),
+          context.maxSizeMb,
         );
       }
 
@@ -248,9 +261,7 @@ export class HttpRestInputProvider implements IInputProvider {
         for (const { key, value } of payload.entries) headers[key] = value;
         break;
       default:
-        throw new Error(
-          `HTTP auth type '${payload.subtype}' is not supported in the backup runner`,
-        );
+        throw new VaultAuthUnsupportedTypeException(payload.subtype);
     }
   }
 
@@ -385,10 +396,9 @@ export class HttpRestInputProvider implements IInputProvider {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: body.toString(),
     });
-    if (!res.ok) throw new Error(`OAuth2 token request failed: ${res.status}`);
+    if (!res.ok) throw new VaultOAuth2TokenFailedException(res.status, tokenUrl);
     const json = (await res.json()) as { access_token?: string };
-    if (!json.access_token)
-      throw new Error('OAuth2 response missing access_token');
+    if (!json.access_token) throw new VaultOAuth2MissingTokenException(tokenUrl);
     return json.access_token;
   }
 
@@ -409,13 +419,9 @@ export class HttpRestInputProvider implements IInputProvider {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: body.toString(),
     });
-    if (!res.ok)
-      throw new Error(
-        `OAuth2 password grant token request failed: ${res.status}`,
-      );
+    if (!res.ok) throw new VaultOAuth2TokenFailedException(res.status, tokenUrl);
     const json = (await res.json()) as { access_token?: string };
-    if (!json.access_token)
-      throw new Error('OAuth2 response missing access_token');
+    if (!json.access_token) throw new VaultOAuth2MissingTokenException(tokenUrl);
     return json.access_token;
   }
 

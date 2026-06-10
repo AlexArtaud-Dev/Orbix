@@ -4,6 +4,7 @@ import { VaultService } from '../../../modules/vault/vault.service';
 import { LogsWriter } from '../../../modules/logs/logs.writer';
 import type { IOutputProvider } from '../output-provider.interface';
 import type { ProviderMeta, ArchiveResult, OutputRow } from '../../providers.types';
+import { MailSendFailedException } from '../../../common/exceptions';
 
 @Injectable()
 export class MailOutputProvider implements IOutputProvider {
@@ -120,23 +121,18 @@ export class MailOutputProvider implements IOutputProvider {
           },
         });
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Send failed';
+        const cause = err instanceof Error ? err.message : 'Send failed';
+        const mailErr = new MailSendFailedException(contact.email || '(no recipient)', cause);
         await this.prisma.mailLog.create({
           data: {
             vaultId: output.vaultId,
             toAddrs: contact.email ? [contact.email] : [],
             subject: resolvedSubject,
             status: 'error',
-            errorMsg: msg,
+            errorMsg: cause,
           },
         });
-        this.logs.error(
-          'backup',
-          'BACKUP_MAIL_ERROR',
-          `Mail send failed for backup ${backupName}`,
-          msg,
-          { backupId },
-        );
+        this.logs.exception('mail', mailErr, `Mail send failed for backup ${backupName}`, { backupId });
       }
     }
   }

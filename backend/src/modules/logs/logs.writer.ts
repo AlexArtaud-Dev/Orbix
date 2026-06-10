@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { OrbixException } from '../../common/exceptions';
 
 export type LogLevel = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
 export type LogCategory =
@@ -97,5 +98,21 @@ export class LogsWriter {
       detail,
       backupId: ctx?.backupId,
     });
+  }
+
+  /** Log a typed OrbixException — embeds the exception class name in the detail field for easy tracing. */
+  exception(
+    category: LogCategory,
+    err: OrbixException,
+    msg: string,
+    ctx?: LogContext,
+  ) {
+    this.error(
+      category,
+      err.code,
+      msg,
+      `[${err.name}] ${err.detail ?? err.message}`,
+      ctx,
+    );
   }
 }
