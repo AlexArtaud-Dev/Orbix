@@ -1,7 +1,9 @@
 "use client";
 import { useTranslation } from "react-i18next";
+import { Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import {
   Select,
@@ -13,15 +15,21 @@ import {
 
 export type ScheduleType = "manual" | "oneshoot" | "recurring" | "interval";
 
+export interface RecurringRule {
+  days: number[];
+  hour: number;
+  minute: number;
+}
+
 export interface StepScheduleData {
   type: ScheduleType;
   datetime: string;
   timezone: string;
-  days: number[];
-  hour: number;
-  minute: number;
+  recurringRules: RecurringRule[];
   every: number;
   unit: "minutes" | "hours";
+  intervalStartDate: string;
+  intervalEndDate: string;
 }
 
 interface StepScheduleProps {
@@ -43,7 +51,11 @@ const TIMEZONES = [
   "Africa/Cairo", "Africa/Johannesburg",
 ];
 
-const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+// Mon→Sun display order (Sun=0 last, matching ISO week convention)
+const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
+const DAY_LABELS: Record<number, string> = {
+  1: "Lun", 2: "Mar", 3: "Mer", 4: "Jeu", 5: "Ven", 6: "Sam", 0: "Dim",
+};
 
 export function StepSchedule({ data, onChange }: StepScheduleProps) {
   const { t } = useTranslation();
@@ -51,19 +63,32 @@ export function StepSchedule({ data, onChange }: StepScheduleProps) {
   const set = (partial: Partial<StepScheduleData>) =>
     onChange({ ...data, ...partial });
 
-  const toggleDay = (day: number) => {
-    const next = data.days.includes(day)
-      ? data.days.filter((d) => d !== day)
-      : [...data.days, day].sort((a, b) => a - b);
-    set({ days: next });
-  };
-
   const TYPES: { value: ScheduleType; label: string; desc: string }[] = [
     { value: "manual", label: t("backups.schedule.manual"), desc: t("backups.schedule.manualDesc") },
     { value: "oneshoot", label: t("backups.schedule.oneshoot"), desc: t("backups.schedule.oneshotDesc") },
     { value: "recurring", label: t("backups.schedule.recurring"), desc: t("backups.schedule.recurringDesc") },
     { value: "interval", label: t("backups.schedule.interval"), desc: t("backups.schedule.intervalDesc") },
   ];
+
+  // ── Recurring helpers ────────────────────────────────────────────────────────
+
+  const updateRule = (index: number, updated: RecurringRule) => {
+    const next = data.recurringRules.map((r, i) => (i === index ? updated : r));
+    set({ recurringRules: next });
+  };
+
+  const addRule = () => {
+    set({
+      recurringRules: [
+        ...data.recurringRules,
+        { days: [1, 2, 3, 4, 5], hour: 3, minute: 0 },
+      ],
+    });
+  };
+
+  const removeRule = (index: number) => {
+    set({ recurringRules: data.recurringRules.filter((_, i) => i !== index) });
+  };
 
   return (
     <div className="space-y-6">
@@ -110,69 +135,36 @@ export function StepSchedule({ data, onChange }: StepScheduleProps) {
         </FieldGroup>
       )}
 
-      {/* Recurring config */}
+      {/* Recurring config — multi-rule */}
       {data.type === "recurring" && (
-        <FieldGroup>
-          <Field>
-            <FieldLabel>{t("backups.schedule.days")}</FieldLabel>
-            <div className="flex gap-1.5 flex-wrap">
-              {DAY_LABELS.map((label, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => toggleDay(idx)}
-                  className={cn(
-                    "h-8 w-10 rounded-md text-xs font-medium border transition-colors",
-                    data.days.includes(idx)
-                      ? "bg-primary border-primary text-primary-foreground"
-                      : "border-input hover:border-muted-foreground/50",
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </Field>
+        <div className="space-y-3">
+          {data.recurringRules.map((rule, i) => (
+            <RecurringRuleRow
+              key={i}
+              rule={rule}
+              index={i}
+              total={data.recurringRules.length}
+              onUpdate={(r) => updateRule(i, r)}
+              onRemove={() => removeRule(i)}
+            />
+          ))}
 
-          <div className="grid grid-cols-3 gap-4">
-            <Field>
-              <FieldLabel>{t("backups.schedule.hour")}</FieldLabel>
-              <Select
-                value={String(data.hour)}
-                onValueChange={(v) => set({ hour: Number(v) })}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: 24 }, (_, i) => (
-                    <SelectItem key={i} value={String(i)}>
-                      {String(i).padStart(2, "0")}h
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field>
-              <FieldLabel>{t("backups.schedule.minute")}</FieldLabel>
-              <Select
-                value={String(data.minute)}
-                onValueChange={(v) => set({ minute: Number(v) })}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((m) => (
-                    <SelectItem key={m} value={String(m)}>
-                      {String(m).padStart(2, "0")}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field>
-              <FieldLabel>{t("backups.schedule.timezone")}</FieldLabel>
-              <TimezoneSelect value={data.timezone} onChange={(v) => set({ timezone: v })} />
-            </Field>
-          </div>
-        </FieldGroup>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={addRule}
+            className="w-full border-dashed text-muted-foreground hover:text-foreground"
+          >
+            <Plus className="size-3.5" />
+            {t("backups.schedule.addTimeSlot")}
+          </Button>
+
+          <Field>
+            <FieldLabel>{t("backups.schedule.timezone")}</FieldLabel>
+            <TimezoneSelect value={data.timezone} onChange={(v) => set({ timezone: v })} />
+          </Field>
+        </div>
       )}
 
       {/* Interval config */}
@@ -203,11 +195,145 @@ export function StepSchedule({ data, onChange }: StepScheduleProps) {
           <p className="text-xs text-muted-foreground">
             {t("backups.schedule.intervalMin")}
           </p>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Field>
+              <FieldLabel>{t("backups.schedule.startDate")}</FieldLabel>
+              <Input
+                type="datetime-local"
+                value={data.intervalStartDate}
+                onChange={(e) => set({ intervalStartDate: e.target.value })}
+              />
+            </Field>
+            <Field>
+              <FieldLabel className="flex items-center gap-2">
+                {t("backups.schedule.endDate")}
+                <span className="text-[10px] text-muted-foreground font-normal">(optionnelle)</span>
+              </FieldLabel>
+              <div className="relative">
+                <Input
+                  type="datetime-local"
+                  value={data.intervalEndDate}
+                  onChange={(e) => set({ intervalEndDate: e.target.value })}
+                />
+                {data.intervalEndDate && (
+                  <button
+                    type="button"
+                    onClick={() => set({ intervalEndDate: "" })}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {t("backups.schedule.endDateOptional")}
+                  </button>
+                )}
+              </div>
+            </Field>
+          </div>
         </FieldGroup>
       )}
     </div>
   );
 }
+
+// ─── Recurring rule card ──────────────────────────────────────────────────────
+
+interface RecurringRuleRowProps {
+  rule: RecurringRule;
+  index: number;
+  total: number;
+  onUpdate: (r: RecurringRule) => void;
+  onRemove: () => void;
+}
+
+function RecurringRuleRow({ rule, index, total, onUpdate, onRemove }: RecurringRuleRowProps) {
+  const { t } = useTranslation();
+  const toggleDay = (day: number) => {
+    const next = rule.days.includes(day)
+      ? rule.days.filter((d) => d !== day)
+      : [...rule.days, day].sort((a, b) => {
+          // Keep Sun (0) last in the internal array
+          const a2 = a === 0 ? 7 : a;
+          const b2 = b === 0 ? 7 : b;
+          return a2 - b2;
+        });
+    onUpdate({ ...rule, days: next });
+  };
+
+  return (
+    <div className="rounded-lg border border-border/50 bg-muted/20 p-3 space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-muted-foreground">
+          {t("backups.schedule.timeSlot")} {index + 1}
+        </span>
+        {total > 1 && (
+          <button
+            type="button"
+            onClick={onRemove}
+            className="flex size-6 items-center justify-center rounded-md text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors"
+          >
+            <Trash2 className="size-3" />
+          </button>
+        )}
+      </div>
+
+      {/* Day picker */}
+      <div className="flex gap-1.5 flex-wrap">
+        {DAY_ORDER.map((dayNum) => (
+          <button
+            key={dayNum}
+            type="button"
+            onClick={() => toggleDay(dayNum)}
+            className={cn(
+              "h-8 w-10 rounded-md text-xs font-medium border transition-colors",
+              rule.days.includes(dayNum)
+                ? "bg-primary border-primary text-primary-foreground"
+                : "border-input hover:border-muted-foreground/50 text-muted-foreground",
+            )}
+          >
+            {DAY_LABELS[dayNum]}
+          </button>
+        ))}
+      </div>
+
+      {/* Time pickers */}
+      <div className="flex gap-3">
+        <Field className="flex-1">
+          <FieldLabel>{t("backups.schedule.hour")}</FieldLabel>
+          <Select
+            value={String(rule.hour)}
+            onValueChange={(v) => onUpdate({ ...rule, hour: Number(v) })}
+          >
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {Array.from({ length: 24 }, (_, i) => (
+                <SelectItem key={i} value={String(i)}>
+                  {String(i).padStart(2, "0")}h
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field className="flex-1">
+          <FieldLabel>{t("backups.schedule.minute")}</FieldLabel>
+          <Select
+            value={String(rule.minute)}
+            onValueChange={(v) => onUpdate({ ...rule, minute: Number(v) })}
+          >
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((m) => (
+                <SelectItem key={m} value={String(m)}>
+                  {String(m).padStart(2, "0")}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      </div>
+    </div>
+  );
+}
+
+// ─── Timezone select ──────────────────────────────────────────────────────────
 
 function TimezoneSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const { t } = useTranslation();
