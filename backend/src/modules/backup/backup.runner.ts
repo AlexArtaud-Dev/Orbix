@@ -483,9 +483,19 @@ export class BackupRunner {
   }
 
   private async resolveSourcePath(sourcePath: string): Promise<string> {
-    if (isAbsolute(sourcePath)) return sourcePath;
     const s = await this.settings.get();
-    return resolve(s.filesRoot, sourcePath);
+    const resolved = isAbsolute(sourcePath)
+      ? resolve(sourcePath)
+      : resolve(s.filesRoot, sourcePath);
+
+    // Prevent path traversal outside filesRoot for relative paths
+    if (!isAbsolute(sourcePath)) {
+      const root = resolve(s.filesRoot);
+      if (!resolved.startsWith(root + sep) && resolved !== root) {
+        throw new Error(`Path traversal detected: "${sourcePath}" escapes filesRoot`);
+      }
+    }
+    return resolved;
   }
 
   private async collectFiles(
@@ -786,7 +796,7 @@ export class BackupRunner {
       const chunks: Buffer[] = [];
       arc.on('data', (chunk: Buffer) => chunks.push(chunk));
       arc.on('end', () => resolve(Buffer.concat(chunks)));
-      arc.on('error', reject);
+      arc.on('error', (err) => { arc.destroy(); reject(err); });
       for (const f of files) {
         if (f.stream !== undefined) {
           arc.append(f.stream, { name: f.arc });

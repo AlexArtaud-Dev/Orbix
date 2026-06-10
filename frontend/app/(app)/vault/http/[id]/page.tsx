@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { vaultService, type HttpVaultItem } from "@/services/vault";
 import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { SkeletonForm } from "@/components/ui/skeleton";
 import {
   HttpVaultForm,
   formToData,
@@ -44,13 +45,13 @@ export default function EditHttpVaultPage() {
       toast.success(t("vault.http.updateSuccess"));
       router.push("/vault/http");
     } catch (err) {
-      toast.error(err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"));
+      toast.error(err instanceof ApiError ? t(`errors.${err.code}`, err.message) : t("common.error"));
     } finally {
       setSaving(false);
     }
   };
 
-  if (!item) return <p className="text-sm text-muted-foreground">{t("common.loading")}</p>;
+  if (!item) return <SkeletonForm />;
 
   return (
     <div className="max-w-2xl space-y-6">

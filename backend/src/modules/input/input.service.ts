@@ -237,6 +237,7 @@ export class InputService {
             lastTestError: error,
           },
         });
+        this.logs.error('input', 'INPUT_FETCH_HTTP_ERROR', `Input test failed: ${input.name}`, error);
         return { success: false, error };
       }
 
@@ -290,6 +291,11 @@ export class InputService {
           lastTestError: error,
         },
       });
+      if (err instanceof OrbixException) {
+        this.logs.exception('input', err, `Input test failed: ${input.name}`);
+      } else {
+        this.logs.error('input', 'INPUT_FETCH_HTTP_ERROR', `Input test failed: ${input.name}`, error);
+      }
       return { success: false, error, errorCode };
     }
   }

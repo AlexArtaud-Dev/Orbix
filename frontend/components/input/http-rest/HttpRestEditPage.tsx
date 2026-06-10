@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
@@ -70,7 +70,7 @@ export function HttpRestEditPage({ type, id }: Props) {
       toast.success(t("input.httpRest.updateSuccess"));
       router.push(`/input/${type}`);
     } catch (err) {
-      toast.error(err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"));
+      toast.error(err instanceof ApiError ? t(`errors.${err.code}`, err.message) : t("common.error"));
     } finally {
       setSaving(false);
     }

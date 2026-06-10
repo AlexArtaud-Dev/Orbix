@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
@@ -148,7 +148,7 @@ export function BackupWizard({ mode, initial }: BackupWizardProps) {
       setBackup(saved);
       toast.success(backupId ? t("backups.updateSuccess") : t("backups.createSuccess"));
     } catch (err) {
-      toast.error(err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"));
+      toast.error(err instanceof ApiError ? t(`errors.${err.code}`, err.message) : t("common.error"));
     } finally {
       setIsSaving(false);
     }
@@ -162,7 +162,7 @@ export function BackupWizard({ mode, initial }: BackupWizardProps) {
       toast.success(t("backups.enabledSuccess"));
       router.push("/backups");
     } catch (err) {
-      toast.error(err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"));
+      toast.error(err instanceof ApiError ? t(`errors.${err.code}`, err.message) : t("common.error"));
     } finally {
       setIsSaving(false);
     }

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
@@ -8,6 +8,7 @@ import { vaultService, type HttpVaultItem, type HttpVaultSubtype } from "@/servi
 import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { SkeletonListItems } from "@/components/ui/skeleton";
 
 const SUBTYPE_BADGE_CLASS: Record<HttpVaultSubtype, string> = {
   token: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
@@ -50,7 +51,7 @@ export default function VaultHttpListPage() {
       toast.success(t("vault.http.deleteSuccess"));
       setItems((prev) => prev.filter((item) => item.id !== id));
     } catch (err) {
-      toast.error(err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"));
+      toast.error(err instanceof ApiError ? t(`errors.${err.code}`, err.message) : t("common.error"));
     } finally {
       setDeletingId(null);
     }
@@ -71,9 +72,7 @@ export default function VaultHttpListPage() {
         </Button>
       </div>
 
-      {loading && items.length === 0 && (
-        <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
-      )}
+      {loading && items.length === 0 && <SkeletonListItems />}
 
       {!loading && items.length === 0 && (
         <Card>

@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { backupsService, type Backup } from "@/services/backups";
 import { BackupWizard } from "@/components/backup/wizard/BackupWizard";
+import { SkeletonForm } from "@/components/ui/skeleton";
 
 export default function EditBackupPage() {
   const { t } = useTranslation();
@@ -31,7 +32,7 @@ export default function EditBackupPage() {
   if (loading) {
     return (
       <div className="max-w-4xl">
-        <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
+        <SkeletonForm blocks={3} />
       </div>
     );
   }

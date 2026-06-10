@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
@@ -13,6 +13,7 @@ import { backupsService, describeSchedule, type Backup } from "@/services/backup
 import { inputService, type InputItem } from "@/services/input";
 import { logsService, type LogEntry } from "@/services/logs";
 import { ApiError } from "@/lib/api";
+import { SkeletonListItems } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -72,9 +73,7 @@ export default function BackupsPage() {
           </Button>
         </div>
 
-        {loading && items.length === 0 && (
-          <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
-        )}
+        {loading && items.length === 0 && <SkeletonListItems />}
 
         {!loading && items.length === 0 && (
           <Card>
@@ -171,7 +170,7 @@ function BackupCard({ item, inputMap, onUpdated, onRemoved }: BackupCardProps) {
       await backupsService.run(item.id);
       toast.success(t("backups.runSuccess"));
     } catch (err) {
-      toast.error(err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"));
+      toast.error(err instanceof ApiError ? t(`errors.${err.code}`, err.message) : t("common.error"));
     } finally {
       setBusy(null);
     }
@@ -185,7 +184,7 @@ function BackupCard({ item, inputMap, onUpdated, onRemoved }: BackupCardProps) {
       onUpdated(updated);
       toast.success(item.enabled ? t("backups.disabledSuccess") : t("backups.enabledSuccess"));
     } catch (err) {
-      toast.error(err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"));
+      toast.error(err instanceof ApiError ? t(`errors.${err.code}`, err.message) : t("common.error"));
     } finally {
       setBusy(null);
     }
@@ -198,7 +197,7 @@ function BackupCard({ item, inputMap, onUpdated, onRemoved }: BackupCardProps) {
       toast.success(t("backups.deleteSuccess"));
       onRemoved();
     } catch (err) {
-      toast.error(err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"));
+      toast.error(err instanceof ApiError ? t(`errors.${err.code}`, err.message) : t("common.error"));
     } finally {
       setBusy(null);
       setConfirmDelete(false);

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
@@ -45,7 +45,7 @@ export function HttpRestListPage({ type }: Props) {
       toast.success(t("input.httpRest.deleteSuccess"));
       setItems((prev) => prev.filter((item) => item.id !== id));
     } catch (err) {
-      toast.error(err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"));
+      toast.error(err instanceof ApiError ? t(`errors.${err.code}`, err.message) : t("common.error"));
     } finally {
       setDeletingId(null);
     }
@@ -136,7 +136,7 @@ function InputItemCard({ item, type, deleting, onDelete, onTestResult }: InputIt
       const fresh = await inputService.getOne(item.id);
       onTestResult(fresh);
     } catch (err) {
-      toast.error(err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"));
+      toast.error(err instanceof ApiError ? t(`errors.${err.code}`, err.message) : t("common.error"));
     } finally {
       setTesting(false);
     }

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Post, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -6,12 +6,14 @@ import type { JwtPayload } from '../../common/decorators/current-user.decorator'
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { SetupDto } from './dto/setup.dto';
+import { RateLimitGuard } from '../../common/guards/rate-limit.guard';
 
 @Controller('api/auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Public()
+  @UseGuards(RateLimitGuard)
   @Post('setup')
   async setup(
     @Body() dto: SetupDto,
@@ -22,6 +24,7 @@ export class AuthController {
   }
 
   @Public()
+  @UseGuards(RateLimitGuard)
   @Post('login')
   @HttpCode(200)
   async login(

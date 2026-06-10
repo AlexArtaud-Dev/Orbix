@@ -7,6 +7,7 @@ import { Wifi } from "lucide-react";
 import { vaultService, type EmailVaultItem } from "@/services/vault";
 import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { SkeletonForm } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -66,7 +67,7 @@ export default function EditEmailVaultPage() {
       toast.success(t("vault.updateSuccess"));
       router.push("/vault/email");
     } catch (err) {
-      toast.error(err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"));
+      toast.error(err instanceof ApiError ? t(`errors.${err.code}`, err.message) : t("common.error"));
     } finally {
       setSaving(false);
     }
@@ -78,7 +79,7 @@ export default function EditEmailVaultPage() {
       await vaultService.testEmail(id);
       toast.success(t("vault.testSuccess"));
     } catch (err) {
-      toast.error(err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"));
+      toast.error(err instanceof ApiError ? t(`errors.${err.code}`, err.message) : t("common.error"));
     }
     try {
       const updated = await vaultService.getEmail(id);
@@ -87,7 +88,7 @@ export default function EditEmailVaultPage() {
     setTesting(false);
   };
 
-  if (!item) return <p className="text-sm text-muted-foreground">{t("common.loading")}</p>;
+  if (!item) return <SkeletonForm />;
 
   return (
     <div className="max-w-2xl space-y-6">

@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { VarSetForm } from "@/components/vault/VarSetForm";
 import { vaultService, type VarSetItem } from "@/services/vault";
+import { SkeletonForm } from "@/components/ui/skeleton";
 
 export default function EditVarSetPage() {
   const { t } = useTranslation();
@@ -25,7 +26,7 @@ export default function EditVarSetPage() {
   }, [id]); // eslint-disable-line
 
   if (loading) {
-    return <p className="text-sm text-muted-foreground">{t("common.loading")}</p>;
+    return <SkeletonForm />;
   }
   if (!item) return null;
 

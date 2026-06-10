@@ -16,16 +16,24 @@ export async function fetchWithConfig(
   headers: Record<string, string>,
   body?: BodyInit,
   insecureSkipVerify = false,
+  timeoutMs = 30_000,
 ): Promise<Response> {
   const urlObj = typeof url === 'string' ? new URL(url) : url;
 
   // If no bypass needed, use native fetch
   if (!insecureSkipVerify || urlObj.protocol !== 'https:') {
-    return fetch(urlObj.toString(), {
-      method,
-      headers,
-      ...(body !== undefined ? { body } : {}),
-    });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(new Error('Request timeout')), timeoutMs);
+    try {
+      return await fetch(urlObj.toString(), {
+        method,
+        headers,
+        ...(body !== undefined ? { body } : {}),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   // TLS bypass path — convert body to string when possible
@@ -47,7 +55,7 @@ export async function fetchWithConfig(
     });
   }
 
-  return fetchInsecure(urlObj, method, headers, bodyStr);
+  return fetchInsecure(urlObj, method, headers, bodyStr, timeoutMs);
 }
 
 function fetchInsecure(
@@ -55,6 +63,7 @@ function fetchInsecure(
   method: string,
   headers: Record<string, string>,
   body?: string,
+  timeoutMs = 30_000,
 ): Promise<Response> {
   return new Promise((resolve, reject) => {
     const isHttps = url.protocol === 'https:';
@@ -75,6 +84,7 @@ function fetchInsecure(
       path: url.pathname + url.search,
       method,
       headers: reqHeaders,
+      timeout: timeoutMs,
       ...(isHttps
         ? { agent: new https.Agent({ rejectUnauthorized: false }) }
         : {}),
@@ -100,6 +110,7 @@ function fetchInsecure(
     });
 
     req.on('error', reject);
+    req.on('timeout', () => req.destroy(new Error('Request timeout')));
     if (body !== undefined) req.write(body);
     req.end();
   });

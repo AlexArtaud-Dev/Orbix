@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
@@ -8,6 +8,7 @@ import { vaultService, type EmailVaultItem } from "@/services/vault";
 import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { SkeletonListItems } from "@/components/ui/skeleton";
 
 export default function VaultEmailListPage() {
   const { t } = useTranslation();
@@ -37,7 +38,7 @@ export default function VaultEmailListPage() {
       toast.success(t("vault.deleteSuccess"));
       setItems((prev) => prev.filter((item) => item.id !== id));
     } catch (err) {
-      toast.error(err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"));
+      toast.error(err instanceof ApiError ? t(`errors.${err.code}`, err.message) : t("common.error"));
     } finally {
       setDeletingId(null);
     }
@@ -49,7 +50,7 @@ export default function VaultEmailListPage() {
       await vaultService.testEmail(id);
       toast.success(t("vault.testSuccess"));
     } catch (err) {
-      toast.error(err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"));
+      toast.error(err instanceof ApiError ? t(`errors.${err.code}`, err.message) : t("common.error"));
     }
     // Always refresh status and stop spinner, even if test or refresh fails
     try {
@@ -74,9 +75,7 @@ export default function VaultEmailListPage() {
         </Button>
       </div>
 
-      {loading && items.length === 0 && (
-        <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
-      )}
+      {loading && items.length === 0 && <SkeletonListItems />}
 
       {!loading && items.length === 0 && (
         <Card>

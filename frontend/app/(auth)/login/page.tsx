@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
@@ -35,7 +35,7 @@ export default function LoginPage() {
       router.replace("/");
     } catch (err) {
       toast.error(
-        err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"),
+        err instanceof ApiError ? t(`errors.${err.code}`, err.message) : t("common.error"),
       );
     } finally {
       setLoading(false);

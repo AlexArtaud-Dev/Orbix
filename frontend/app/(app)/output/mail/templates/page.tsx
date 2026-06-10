@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
@@ -8,6 +8,7 @@ import { templatesService, type MailTemplate } from "@/services/templates";
 import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { SkeletonListItems } from "@/components/ui/skeleton";
 
 export default function TemplatesPage() {
   const { t } = useTranslation();
@@ -34,7 +35,7 @@ export default function TemplatesPage() {
       toast.success(t("templates.deleteSuccess"));
       setTemplates((prev) => prev.filter((t) => t.id !== id));
     } catch (err) {
-      toast.error(err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"));
+      toast.error(err instanceof ApiError ? t(`errors.${err.code}`, err.message) : t("common.error"));
     }
   };
 
@@ -53,9 +54,7 @@ export default function TemplatesPage() {
         </Button>
       </div>
 
-      {loading && templates.length === 0 && (
-        <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
-      )}
+      {loading && templates.length === 0 && <SkeletonListItems />}
       {!loading && templates.length === 0 && (
         <Card>
           <CardContent className="py-12 text-center text-sm text-muted-foreground">

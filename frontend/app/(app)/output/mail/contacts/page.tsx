@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -7,6 +7,7 @@ import { contactsService, type Contact } from "@/services/contacts";
 import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { SkeletonListItems } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -58,7 +59,7 @@ export default function ContactsPage() {
       toast.success(t("contacts.deleteSuccess"));
       setContacts((prev) => prev.filter((c) => c.id !== id));
     } catch (err) {
-      toast.error(err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"));
+      toast.error(err instanceof ApiError ? t(`errors.${err.code}`, err.message) : t("common.error"));
     }
   };
 
@@ -75,9 +76,7 @@ export default function ContactsPage() {
         </Button>
       </div>
 
-      {loading && contacts.length === 0 && (
-        <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
-      )}
+      {loading && contacts.length === 0 && <SkeletonListItems />}
       {!loading && contacts.length === 0 && (
         <Card>
           <CardContent className="py-12 text-center text-sm text-muted-foreground">
@@ -209,7 +208,7 @@ function ContactDialog({ open, contact, onOpenChange, onSaved }: ContactDialogPr
       onSaved(saved);
       onOpenChange(false);
     } catch (err) {
-      toast.error(err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"));
+      toast.error(err instanceof ApiError ? t(`errors.${err.code}`, err.message) : t("common.error"));
     } finally {
       setSaving(false);
     }

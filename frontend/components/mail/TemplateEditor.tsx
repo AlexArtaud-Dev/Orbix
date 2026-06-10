@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -121,7 +121,7 @@ export function TemplateEditor({ initial }: TemplateEditorProps) {
       toast.success(initial ? t("templates.updateSuccess") : t("templates.createSuccess"));
       router.push("/output/mail/templates");
     } catch (err) {
-      toast.error(err instanceof ApiError ? t(`errors.${err.code}`) : t("common.error"));
+      toast.error(err instanceof ApiError ? t(`errors.${err.code}`, err.message) : t("common.error"));
     } finally {
       setSaving(false);
     }
