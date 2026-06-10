@@ -113,7 +113,7 @@ export default function VaultEmailListPage() {
 }
 
 interface SmtpStatusBadgeProps {
-  status: string | null;
+  status: string | null | undefined;
 }
 
 function SmtpStatusBadge({ status }: SmtpStatusBadgeProps) {
@@ -156,7 +156,7 @@ function EmailConfigCard({ item, deleting, testing, onDelete, onTest }: EmailCon
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="font-medium">{item.name}</span>
-            <SmtpStatusBadge status={item.smtpStatus} />
+            <SmtpStatusBadge status={item.healthCheck?.status} />
           </div>
           <p className="mt-1.5 truncate text-xs text-muted-foreground">
             {item.host}:{item.port} · {item.user}

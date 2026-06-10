@@ -30,6 +30,7 @@ import type {
   VarSetPayload,
   VarSetResponse,
   VaultRow,
+  VaultRowWithHealth,
 } from './vault.types';
 import {
   VaultSmtpTestFailedException,
@@ -84,7 +85,7 @@ export class VaultService {
     return decrypted.toString('utf8');
   }
 
-  private toResponse(entity: VaultRow): EmailVaultResponse {
+  private toResponse(entity: VaultRowWithHealth): EmailVaultResponse {
     const payload = JSON.parse(
       this.decrypt(entity.encryptedPayload),
     ) as EmailPayload;
@@ -97,9 +98,13 @@ export class VaultService {
       fromAddr: payload.fromAddr,
       fromName: payload.fromName,
       secure: payload.secure,
-      smtpStatus: entity.smtpStatus,
-      smtpStatusMsg: entity.smtpStatusMsg,
-      smtpCheckedAt: entity.smtpCheckedAt?.toISOString() ?? null,
+      healthCheck: entity.healthCheck
+        ? {
+            status: entity.healthCheck.status,
+            statusMsg: entity.healthCheck.statusMsg,
+            checkedAt: entity.healthCheck.checkedAt.toISOString(),
+          }
+        : null,
       createdAt: entity.createdAt.toISOString(),
       updatedAt: entity.updatedAt.toISOString(),
     };
@@ -115,6 +120,7 @@ export class VaultService {
       take: take + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       orderBy: { name: 'asc' },
+      include: { healthCheck: true },
     });
     const hasNext = items.length > take;
     const page = items.slice(0, take);
@@ -146,6 +152,7 @@ export class VaultService {
         type: 'email',
         encryptedPayload: this.encrypt(JSON.stringify(payload)),
       },
+      include: { healthCheck: true },
     });
     this.logs.info(
       'vault',
@@ -156,7 +163,10 @@ export class VaultService {
   }
 
   async getEmail(id: string): Promise<EmailVaultResponse> {
-    const entity = await this.prisma.vaultEntity.findUnique({ where: { id } });
+    const entity = await this.prisma.vaultEntity.findUnique({
+      where: { id },
+      include: { healthCheck: true },
+    });
     if (!entity || entity.type !== 'email') throw new NotFoundException();
     return this.toResponse(entity);
   }
@@ -195,6 +205,7 @@ export class VaultService {
         name: dto.name ?? entity.name,
         encryptedPayload: this.encrypt(JSON.stringify(updated)),
       },
+      include: { healthCheck: true },
     });
     return this.toResponse(result);
   }
@@ -464,13 +475,10 @@ export class VaultService {
 
     try {
       await transporter.verify();
-      await this.prisma.vaultEntity.update({
-        where: { id },
-        data: {
-          smtpStatus: 'ok',
-          smtpStatusMsg: null,
-          smtpCheckedAt: new Date(),
-        },
+      await this.prisma.vaultHealthCheck.upsert({
+        where: { vaultId: id },
+        create: { vaultId: id, status: 'ok', statusMsg: null, checkedAt: new Date() },
+        update: { status: 'ok', statusMsg: null, checkedAt: new Date() },
       });
       this.logs.info(
         'vault',
@@ -481,13 +489,10 @@ export class VaultService {
       const cause =
         err instanceof Error ? err.message : 'SMTP connection failed';
       const smtpErr = new VaultSmtpTestFailedException(entity.name, cause);
-      await this.prisma.vaultEntity.update({
-        where: { id },
-        data: {
-          smtpStatus: 'error',
-          smtpStatusMsg: cause,
-          smtpCheckedAt: new Date(),
-        },
+      await this.prisma.vaultHealthCheck.upsert({
+        where: { vaultId: id },
+        create: { vaultId: id, status: 'error', statusMsg: cause, checkedAt: new Date() },
+        update: { status: 'error', statusMsg: cause, checkedAt: new Date() },
       });
       this.logs.exception('vault', smtpErr, `SMTP test failed: ${entity.name}`);
       throw new HttpException(

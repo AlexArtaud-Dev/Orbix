@@ -1,11 +1,18 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { ConflictException, HttpException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { VaultService } from './vault.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LogsWriter } from '../logs/logs.writer';
 
-const mockLogs = { info: jest.fn(), warn: jest.fn(), error: jest.fn() };
+jest.mock('nodemailer', () => ({
+  createTransport: jest.fn(),
+}));
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const mockNodemailer = require('nodemailer') as { createTransport: jest.Mock };
+
+const mockLogs = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), exception: jest.fn() };
 
 const TEST_KEY = 'test-vault-key-must-be-32-chars!!';
 
@@ -19,6 +26,9 @@ function makeMockPrisma() {
       delete: jest.fn(),
       count: jest.fn(),
     },
+    vaultHealthCheck: {
+      upsert: jest.fn(),
+    },
   };
 }
 
@@ -29,9 +39,7 @@ function makeRow(id: string, name: string, encryptedPayload: string) {
     name,
     type: 'email',
     encryptedPayload,
-    smtpStatus: null,
-    smtpStatusMsg: null,
-    smtpCheckedAt: null,
+    healthCheck: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -251,6 +259,80 @@ describe('VaultService', () => {
       await expect(service.deleteEmail('ghost-id')).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  describe('testEmail', () => {
+    async function setupEncryptedEntity(name: string, id: string) {
+      let encryptedPayload = '';
+      mockPrisma.vaultEntity.findUnique.mockResolvedValueOnce(null);
+      mockPrisma.vaultEntity.create.mockImplementationOnce(
+        ({ data }: { data: Record<string, unknown> }) => {
+          encryptedPayload = data.encryptedPayload as string;
+          return Promise.resolve(makeRow(id, name, encryptedPayload));
+        },
+      );
+      await service.createEmail({
+        name,
+        host: 'smtp.test.com',
+        port: 587,
+        user: 'u@test.com',
+        password: 'pw',
+        fromAddr: 'f@test.com',
+      });
+      return encryptedPayload;
+    }
+
+    it('upserts healthCheck with status ok when SMTP verify succeeds', async () => {
+      const encryptedPayload = await setupEncryptedEntity('smtp-ok', 'id-ok');
+      const mockVerify = jest.fn().mockResolvedValue(undefined);
+      mockNodemailer.createTransport.mockReturnValue({ verify: mockVerify });
+      mockPrisma.vaultEntity.findUnique.mockResolvedValue(
+        makeRow('id-ok', 'smtp-ok', encryptedPayload),
+      );
+      mockPrisma.vaultHealthCheck.upsert.mockResolvedValue({});
+
+      await service.testEmail('id-ok');
+
+      expect(mockPrisma.vaultHealthCheck.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { vaultId: 'id-ok' },
+          create: expect.objectContaining({ status: 'ok', statusMsg: null }),
+          update: expect.objectContaining({ status: 'ok', statusMsg: null }),
+        }),
+      );
+    });
+
+    it('upserts healthCheck with status error and throws HttpException when SMTP verify fails', async () => {
+      const encryptedPayload = await setupEncryptedEntity('smtp-err', 'id-err');
+      const mockVerify = jest.fn().mockRejectedValue(new Error('Connection refused'));
+      mockNodemailer.createTransport.mockReturnValue({ verify: mockVerify });
+      mockPrisma.vaultEntity.findUnique.mockResolvedValue(
+        makeRow('id-err', 'smtp-err', encryptedPayload),
+      );
+      mockPrisma.vaultHealthCheck.upsert.mockResolvedValue({});
+
+      await expect(service.testEmail('id-err')).rejects.toThrow(HttpException);
+
+      expect(mockPrisma.vaultHealthCheck.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { vaultId: 'id-err' },
+          create: expect.objectContaining({
+            status: 'error',
+            statusMsg: 'Connection refused',
+          }),
+          update: expect.objectContaining({
+            status: 'error',
+            statusMsg: 'Connection refused',
+          }),
+        }),
+      );
+    });
+
+    it('throws NotFoundException for unknown vault id', async () => {
+      mockPrisma.vaultEntity.findUnique.mockResolvedValue(null);
+      await expect(service.testEmail('ghost-id')).rejects.toThrow(NotFoundException);
+      expect(mockPrisma.vaultHealthCheck.upsert).not.toHaveBeenCalled();
     });
   });
 
