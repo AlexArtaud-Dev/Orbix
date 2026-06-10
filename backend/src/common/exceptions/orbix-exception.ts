@@ -21,7 +21,9 @@ export type OrbixErrorCode =
   // ── Vault / Auth ───────────────────────────────────────────────────────────
   | 'VAULT_AUTH_UNSUPPORTED_TYPE'
   | 'VAULT_OAUTH2_TOKEN_FAILED'
-  | 'VAULT_OAUTH2_MISSING_TOKEN';
+  | 'VAULT_OAUTH2_MISSING_TOKEN'
+  | 'VAULT_SMTP_TEST_FAILED'
+  | 'VAULT_DECRYPTION_FAILED';
 
 export class OrbixException extends Error {
   constructor(

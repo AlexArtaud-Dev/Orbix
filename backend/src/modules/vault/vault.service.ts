@@ -31,6 +31,7 @@ import type {
   VarSetResponse,
   VaultRow,
 } from './vault.types';
+import { VaultSmtpTestFailedException, VaultDecryptionFailedException } from '../../common/exceptions';
 export type {
   EmailVaultResponse,
   HttpVaultResponse,
@@ -64,7 +65,7 @@ export class VaultService {
 
   private decrypt(stored: string): string {
     const parts = stored.split(':');
-    if (parts.length !== 3) throw new Error('Invalid encrypted payload');
+    if (parts.length !== 3) throw new VaultDecryptionFailedException();
     const [ivHex, authTagHex, encHex] = parts;
     const key = this.getKey();
     const decipher = createDecipheriv(
@@ -474,23 +475,19 @@ export class VaultService {
         `SMTP test OK: ${entity.name}`,
       );
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'SMTP connection failed';
+      const cause = err instanceof Error ? err.message : 'SMTP connection failed';
+      const smtpErr = new VaultSmtpTestFailedException(entity.name, cause);
       await this.prisma.vaultEntity.update({
         where: { id },
         data: {
           smtpStatus: 'error',
-          smtpStatusMsg: msg,
+          smtpStatusMsg: cause,
           smtpCheckedAt: new Date(),
         },
       });
-      this.logs.warn(
-        'vault',
-        'VAULT_SMTP_TEST_FAIL',
-        `SMTP test failed: ${entity.name}`,
-        msg,
-      );
+      this.logs.exception('vault', smtpErr, `SMTP test failed: ${entity.name}`);
       throw new HttpException(
-        { error: { code: 'SMTP_ERROR', message: msg } },
+        { error: { code: smtpErr.code, message: cause } },
         HttpStatus.BAD_GATEWAY,
       );
     }

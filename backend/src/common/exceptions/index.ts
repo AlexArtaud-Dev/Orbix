@@ -19,6 +19,8 @@ export {
   VaultAuthUnsupportedTypeException,
   VaultOAuth2TokenFailedException,
   VaultOAuth2MissingTokenException,
+  VaultSmtpTestFailedException,
+  VaultDecryptionFailedException,
 } from './vault-exceptions';
 export {
   UrlSourceHttpException,

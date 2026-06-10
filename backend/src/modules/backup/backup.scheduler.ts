@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { LogsWriter } from '../logs/logs.writer';
 import { BackupRunner } from './backup.runner';
 import { parseScheduleConfig, type ScheduleConfig } from './backup.types';
+import { OrbixException } from '../../common/exceptions';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { CronJob } = require('cron') as {
@@ -127,13 +128,12 @@ export class BackupScheduler implements OnModuleInit, OnModuleDestroy {
       schedule,
       () => {
         this.runner.run(backupId).catch((err: unknown) => {
-          const msg = err instanceof Error ? err.message : 'Unknown error';
-          this.logs.error(
-            'scheduler',
-            'SCHEDULER_JOB_ERROR',
-            `Cron job failed: ${backupName}`,
-            msg,
-          );
+          if (err instanceof OrbixException) {
+            this.logs.exception('scheduler', err, `Cron job failed: ${backupName}`, { backupId });
+          } else {
+            const msg = err instanceof Error ? err.message : 'Unknown error';
+            this.logs.error('scheduler', 'SCHEDULER_JOB_ERROR', `Cron job failed: ${backupName}`, msg, { backupId });
+          }
         });
       },
       null,

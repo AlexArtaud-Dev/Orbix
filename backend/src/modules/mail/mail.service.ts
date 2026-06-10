@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { LogsWriter } from '../logs/logs.writer';
 import { VaultService } from '../vault/vault.service';
 import type { SendMailDto } from './dto/send-mail.dto';
+import { MailSendFailedException } from '../../common/exceptions';
 
 @Injectable()
 export class MailService {
@@ -55,23 +56,19 @@ export class MailService {
         `to=${dto.to.join(', ')} attachments=${files.length}`,
       );
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Send failed';
+      const cause = err instanceof Error ? err.message : 'Send failed';
+      const mailErr = new MailSendFailedException(dto.to.join(', '), cause);
       await this.prisma.mailLog.create({
         data: {
           vaultId: dto.vaultId,
           toAddrs: dto.to,
           subject: dto.subject,
           status: 'error',
-          errorMsg: msg,
+          errorMsg: cause,
         },
       });
-      this.logs.error(
-        'mail',
-        'MAIL_SEND_FAILED',
-        `Email send failed: "${dto.subject}"`,
-        msg,
-      );
-      throw err;
+      this.logs.exception('mail', mailErr, `Email send failed: "${dto.subject}"`);
+      throw mailErr;
     }
   }
 
