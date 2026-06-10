@@ -10,7 +10,9 @@ jest.mock('./input-http.util', () => ({
   fetchWithConfig: jest.fn(),
 }));
 
-const mockFetch = inputHttpUtil.fetchWithConfig as jest.MockedFunction<typeof inputHttpUtil.fetchWithConfig>;
+const mockFetch = inputHttpUtil.fetchWithConfig as jest.MockedFunction<
+  typeof inputHttpUtil.fetchWithConfig
+>;
 
 const mockLogs = {
   info: jest.fn(),
@@ -131,7 +133,9 @@ describe('InputService', () => {
     });
 
     it('returns nextCursor when there are more items than limit', async () => {
-      const rows = Array.from({ length: 6 }, (_, i) => makeInputRow({ id: `id-${i}` }));
+      const rows = Array.from({ length: 6 }, (_, i) =>
+        makeInputRow({ id: `id-${i}` }),
+      );
       prisma.input.findMany.mockResolvedValue(rows);
 
       const result = await service.list(undefined, 5);
@@ -156,7 +160,9 @@ describe('InputService', () => {
     it('throws NotFoundException when not found', async () => {
       prisma.input.findUnique.mockResolvedValue(null);
 
-      await expect(service.getOne('nonexistent')).rejects.toThrow(NotFoundException);
+      await expect(service.getOne('nonexistent')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -170,7 +176,9 @@ describe('InputService', () => {
 
       await service.delete('input-1');
 
-      expect(prisma.input.delete).toHaveBeenCalledWith({ where: { id: 'input-1' } });
+      expect(prisma.input.delete).toHaveBeenCalledWith({
+        where: { id: 'input-1' },
+      });
       expect(mockLogs.info).toHaveBeenCalledWith(
         'system',
         'INPUT_DELETED',
@@ -182,7 +190,9 @@ describe('InputService', () => {
     it('throws NotFoundException when input does not exist', async () => {
       prisma.input.findUnique.mockResolvedValue(null);
 
-      await expect(service.delete('nonexistent')).rejects.toThrow(NotFoundException);
+      await expect(service.delete('nonexistent')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -192,12 +202,18 @@ describe('InputService', () => {
     it('throws NotFoundException when input does not exist', async () => {
       prisma.input.findUnique.mockResolvedValue(null);
 
-      await expect(service.test('nonexistent')).rejects.toThrow(NotFoundException);
+      await expect(service.test('nonexistent')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('returns success:true + count for a 2xx JSON-array response', async () => {
       const row = makeInputRow({
-        config: { baseUrl: 'https://api.example.com', listEndpoint: '/items', method: 'GET' },
+        config: {
+          baseUrl: 'https://api.example.com',
+          listEndpoint: '/items',
+          method: 'GET',
+        },
       });
       prisma.input.findUnique.mockResolvedValue(row);
       prisma.input.update.mockResolvedValue(row);
@@ -205,7 +221,9 @@ describe('InputService', () => {
       mockFetch.mockResolvedValue({
         ok: true,
         status: 200,
-        text: jest.fn().mockResolvedValue(JSON.stringify([{ id: 1 }, { id: 2 }])),
+        text: jest
+          .fn()
+          .mockResolvedValue(JSON.stringify([{ id: 1 }, { id: 2 }])),
         headers: { get: jest.fn().mockReturnValue(null) },
       } as unknown as Response);
 
@@ -215,8 +233,8 @@ describe('InputService', () => {
       expect(result.count).toBe(2);
       expect(prisma.input.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ lastTestStatus: 'ok' }),
-        }),
+          data: expect.objectContaining({ lastTestStatus: 'ok' }) as object,
+        }) as object,
       );
     });
 
@@ -238,8 +256,8 @@ describe('InputService', () => {
       expect(result.error).toBe('HTTP 403');
       expect(prisma.input.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ lastTestStatus: 'error' }),
-        }),
+          data: expect.objectContaining({ lastTestStatus: 'error' }) as object,
+        }) as object,
       );
       expect(mockLogs.error).toHaveBeenCalled();
     });
@@ -257,14 +275,18 @@ describe('InputService', () => {
       expect(result.error).toContain('Connection refused');
       expect(prisma.input.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ lastTestStatus: 'error' }),
-        }),
+          data: expect.objectContaining({ lastTestStatus: 'error' }) as object,
+        }) as object,
       );
     });
 
     it('returns count undefined when response is 2xx but not a JSON array', async () => {
       const row = makeInputRow({
-        config: { baseUrl: 'https://api.example.com', listEndpoint: '/export', method: 'GET' },
+        config: {
+          baseUrl: 'https://api.example.com',
+          listEndpoint: '/export',
+          method: 'GET',
+        },
       });
       prisma.input.findUnique.mockResolvedValue(row);
       prisma.input.update.mockResolvedValue(row);
@@ -338,10 +360,7 @@ describe('InputService', () => {
 
       it('extracts extension from single-quoted filename', () => {
         expect(
-          priv().detectFileExtension(
-            "attachment; filename='backup.zip'",
-            null,
-          ),
+          priv().detectFileExtension("attachment; filename='backup.zip'", null),
         ).toBe('.zip');
       });
 
@@ -384,7 +403,9 @@ describe('InputService', () => {
 
     describe('Priority 2 — Content-Type mapping', () => {
       it('returns .zip for application/zip', () => {
-        expect(priv().detectFileExtension(null, 'application/zip')).toBe('.zip');
+        expect(priv().detectFileExtension(null, 'application/zip')).toBe(
+          '.zip',
+        );
       });
 
       it('returns .zip for application/x-zip-compressed', () => {
@@ -394,19 +415,27 @@ describe('InputService', () => {
       });
 
       it('returns .tar.gz for application/gzip', () => {
-        expect(priv().detectFileExtension(null, 'application/gzip')).toBe('.tar.gz');
+        expect(priv().detectFileExtension(null, 'application/gzip')).toBe(
+          '.tar.gz',
+        );
       });
 
       it('returns .tar.gz for application/x-gzip', () => {
-        expect(priv().detectFileExtension(null, 'application/x-gzip')).toBe('.tar.gz');
+        expect(priv().detectFileExtension(null, 'application/x-gzip')).toBe(
+          '.tar.gz',
+        );
       });
 
       it('returns .tar.bz2 for application/x-bzip2', () => {
-        expect(priv().detectFileExtension(null, 'application/x-bzip2')).toBe('.tar.bz2');
+        expect(priv().detectFileExtension(null, 'application/x-bzip2')).toBe(
+          '.tar.bz2',
+        );
       });
 
       it('returns .json for application/json', () => {
-        expect(priv().detectFileExtension(null, 'application/json')).toBe('.json');
+        expect(priv().detectFileExtension(null, 'application/json')).toBe(
+          '.json',
+        );
       });
 
       it('returns .csv for text/csv', () => {

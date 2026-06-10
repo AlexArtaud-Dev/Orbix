@@ -4,7 +4,8 @@ import { CreateInputDto } from './create-input.dto';
 async function valid(partial: Partial<CreateInputDto>): Promise<void> {
   const dto = Object.assign(new CreateInputDto(), partial);
   const errors = await validate(dto);
-  if (errors.length) throw new Error(errors.map((e) => e.toString()).join('\n'));
+  if (errors.length)
+    throw new Error(errors.map((e) => e.toString()).join('\n'));
 }
 
 async function invalid(partial: Partial<CreateInputDto>): Promise<string[]> {
@@ -30,8 +31,7 @@ describe('CreateInputDto', () => {
   });
 
   it('fails when name is missing', async () => {
-    const { name: _, ...rest } = base as Required<typeof base>;
-    const errors = await invalid(rest);
+    const errors = await invalid({ type: base.type, config: base.config });
     expect(errors.join(',')).toMatch(/isString|isNotEmpty/);
   });
 
@@ -41,7 +41,10 @@ describe('CreateInputDto', () => {
   });
 
   it('fails when config is not an object', async () => {
-    const errors = await invalid({ ...base, config: 'not-an-object' as unknown as Record<string, unknown> });
+    const errors = await invalid({
+      ...base,
+      config: 'not-an-object' as unknown as Record<string, unknown>,
+    });
     expect(errors.join(',')).toMatch(/isObject/);
   });
 
@@ -50,7 +53,10 @@ describe('CreateInputDto', () => {
   });
 
   it('fails when enabled is not a boolean', async () => {
-    const errors = await invalid({ ...base, enabled: 'yes' as unknown as boolean });
+    const errors = await invalid({
+      ...base,
+      enabled: 'yes' as unknown as boolean,
+    });
     expect(errors.join(',')).toMatch(/isBoolean/);
   });
 
@@ -59,6 +65,8 @@ describe('CreateInputDto', () => {
   });
 
   it('passes with vaultId as a string', async () => {
-    await expect(valid({ ...base, vaultId: 'vault-abc' })).resolves.toBeUndefined();
+    await expect(
+      valid({ ...base, vaultId: 'vault-abc' }),
+    ).resolves.toBeUndefined();
   });
 });
