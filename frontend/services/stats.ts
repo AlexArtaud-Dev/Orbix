@@ -57,7 +57,7 @@ export interface StatsData {
 }
 
 export const statsService = {
-  get(period: StatsPeriod = "30d"): Promise<{ data: StatsData }> {
-    return api.get(`/stats?period=${period}`);
+  get(period: StatsPeriod = "30d"): Promise<StatsData> {
+    return api.get<StatsData>(`/api/stats?period=${period}`);
   },
 };

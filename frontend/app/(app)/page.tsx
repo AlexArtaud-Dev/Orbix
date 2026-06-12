@@ -168,7 +168,7 @@ export default function DashboardPage() {
     setLoading(true);
     statsService
       .get(period)
-      .then((res) => setData(res.data))
+      .then((res) => setData(res))
       .finally(() => setLoading(false));
   }, [period]);
 
