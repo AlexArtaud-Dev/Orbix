@@ -18,9 +18,9 @@ import { HttpRestEditPage } from "@/components/input/http-rest/HttpRestEditPage"
 
 registerInput({
   type: "http-rest",
-  label: "HTTP REST",
+  label: "input.type.httpRest",
   icon: Globe,
-  description: "Fetch data from any HTTP endpoint with configurable auth, headers, and body.",
+  description: "input.typeDesc.httpRest",
   ListPage: HttpRestListPage,
   CreatePage: HttpRestCreatePage,
   EditPage: HttpRestEditPage,

@@ -25,8 +25,8 @@ export default function InputSelectorPage() {
                   <Icon className="size-5" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-semibold">{label}</p>
-                  <p className="text-xs text-muted-foreground">{description}</p>
+                  <p className="font-semibold">{t(label)}</p>
+                  <p className="text-xs text-muted-foreground">{t(description)}</p>
                 </div>
                 <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
               </CardContent>
