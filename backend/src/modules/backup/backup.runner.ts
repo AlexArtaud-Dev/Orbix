@@ -188,8 +188,7 @@ export class BackupRunner {
       );
     } catch (err) {
       const finishedAt = new Date();
-      const errorMessage =
-        err instanceof Error ? err.message : String(err);
+      const errorMessage = err instanceof Error ? err.message : String(err);
       await Promise.all([
         this.prisma.backup.update({
           where: { id: backupId },

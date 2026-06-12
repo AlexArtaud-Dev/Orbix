@@ -15,7 +15,10 @@ function toYMD(date: Date): string {
 }
 
 // Use UTC midnight to stay consistent with toISOString() (also UTC)
-function fillRunDays(from: Date, to: Date): Record<string, { success: number; error: number }> {
+function fillRunDays(
+  from: Date,
+  to: Date,
+): Record<string, { success: number; error: number }> {
   const map: Record<string, { success: number; error: number }> = {};
   const d = new Date(from);
   d.setUTCHours(0, 0, 0, 0);
@@ -31,7 +34,10 @@ function fillRunDays(from: Date, to: Date): Record<string, { success: number; er
 function fillLogDays(
   from: Date,
   to: Date,
-): Record<string, { debug: number; info: number; warn: number; error: number }> {
+): Record<
+  string,
+  { debug: number; info: number; warn: number; error: number }
+> {
   const map: Record<
     string,
     { debug: number; info: number; warn: number; error: number }
@@ -47,7 +53,11 @@ function fillLogDays(
   return map;
 }
 
-function ruleToExpression(rule: { days: number[]; hour: number; minute: number }): string {
+function ruleToExpression(rule: {
+  days: number[];
+  hour: number;
+  minute: number;
+}): string {
   const days = rule.days.length === 0 ? '*' : rule.days.join(',');
   return `${rule.minute} ${rule.hour} * * ${days}`;
 }
@@ -84,8 +94,16 @@ export class StatsService {
       this.prisma.vaultEntity.count({ where: { type: 'email' } }),
       this.prisma.contact.count(),
       this.prisma.backupRun.findMany({
-        where: { startedAt: { gte: from }, status: { in: ['success', 'error'] } },
-        select: { startedAt: true, finishedAt: true, status: true, archiveSizeBytes: true },
+        where: {
+          startedAt: { gte: from },
+          status: { in: ['success', 'error'] },
+        },
+        select: {
+          startedAt: true,
+          finishedAt: true,
+          status: true,
+          archiveSizeBytes: true,
+        },
         orderBy: { startedAt: 'asc' },
       }),
       this.prisma.backupRun.findMany({
@@ -124,16 +142,25 @@ export class StatsService {
       const day = toYMD(l.ts);
       const entry = logsByLevelDay[day];
       if (!entry) continue;
-      const level = l.level.toLowerCase() as 'debug' | 'info' | 'warn' | 'error';
+      const level = l.level.toLowerCase() as
+        | 'debug'
+        | 'info'
+        | 'warn'
+        | 'error';
       if (level in entry) entry[level]++;
     }
 
     // Period aggregates
     const totalRuns = recentRunsRaw.length;
-    const successRuns = recentRunsRaw.filter((r) => r.status === 'success').length;
-    const successRate = totalRuns > 0 ? Math.round((successRuns / totalRuns) * 100) : 0;
+    const successRuns = recentRunsRaw.filter(
+      (r) => r.status === 'success',
+    ).length;
+    const successRate =
+      totalRuns > 0 ? Math.round((successRuns / totalRuns) * 100) : 0;
 
-    const runsWithSize = recentRunsRaw.filter((r) => r.archiveSizeBytes !== null);
+    const runsWithSize = recentRunsRaw.filter(
+      (r) => r.archiveSizeBytes !== null,
+    );
     const avgSizeBytes =
       runsWithSize.length > 0
         ? Math.round(
@@ -154,9 +181,19 @@ export class StatsService {
         : null;
 
     return {
-      counts: { backupsActive, backupsTotal, inputs, vaultHttp, vaultEmail, contacts },
+      counts: {
+        backupsActive,
+        backupsTotal,
+        inputs,
+        vaultHttp,
+        vaultEmail,
+        contacts,
+      },
       periodStats: { totalRuns, successRate, avgSizeBytes, avgDurationMs },
-      recentRuns: Object.entries(runsByDay).map(([date, v]) => ({ date, ...v })),
+      recentRuns: Object.entries(runsByDay).map(([date, v]) => ({
+        date,
+        ...v,
+      })),
       lastRuns: lastRunsRaw.map((r) => ({
         id: r.id,
         backupName: r.backup.name,
@@ -171,7 +208,10 @@ export class StatsService {
         triggerType: r.triggerType,
       })),
       nextScheduled,
-      logsByLevel: Object.entries(logsByLevelDay).map(([date, v]) => ({ date, ...v })),
+      logsByLevel: Object.entries(logsByLevelDay).map(([date, v]) => ({
+        date,
+        ...v,
+      })),
       errorsByDay: Object.entries(logsByLevelDay).map(([date, v]) => ({
         date,
         count: v.error,
@@ -198,7 +238,11 @@ export class StatsService {
     // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
     const { CronJob } = require('cron');
 
-    let earliest: { backupId: string; backupName: string; nextRunAt: Date } | null = null;
+    let earliest: {
+      backupId: string;
+      backupName: string;
+      nextRunAt: Date;
+    } | null = null;
 
     const updateEarliest = (id: string, name: string, dt: Date) => {
       if (dt > new Date() && (!earliest || dt < earliest.nextRunAt)) {
@@ -209,7 +253,10 @@ export class StatsService {
     for (const b of backups) {
       const config = b.scheduleConfig as Record<string, unknown> | null;
 
-      if (b.scheduleType === 'oneshoot' && typeof config?.datetime === 'string') {
+      if (
+        b.scheduleType === 'oneshoot' &&
+        typeof config?.datetime === 'string'
+      ) {
         updateEarliest(b.id, b.name, new Date(config.datetime));
         continue;
       }
@@ -221,7 +268,11 @@ export class StatsService {
         config?.rules &&
         Array.isArray(config.rules)
       ) {
-        const rules = config.rules as Array<{ days: number[]; hour: number; minute: number }>;
+        const rules = config.rules as Array<{
+          days: number[];
+          hour: number;
+          minute: number;
+        }>;
         expressions.push(...rules.map(ruleToExpression));
       } else if (b.schedule) {
         expressions.push(b.schedule);
@@ -229,7 +280,7 @@ export class StatsService {
 
       for (const expr of expressions) {
         try {
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-call
           const job = new CronJob(expr, () => {}, null, false, 'UTC') as {
             nextDate(): { toJSDate(): Date } | null;
           };
@@ -242,7 +293,11 @@ export class StatsService {
     }
 
     if (!earliest) return null;
-    const e = earliest as { backupId: string; backupName: string; nextRunAt: Date };
+    const e = earliest as {
+      backupId: string;
+      backupName: string;
+      nextRunAt: Date;
+    };
     return {
       backupId: e.backupId,
       backupName: e.backupName,
