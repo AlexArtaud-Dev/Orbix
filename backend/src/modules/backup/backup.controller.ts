@@ -91,7 +91,7 @@ export class BackupController {
   @Post(':id/run')
   @HttpCode(202)
   run(@Param('id') id: string) {
-    void this.runner.run(id);
+    void this.runner.run(id, 'manual');
     return { data: { accepted: true } };
   }
 

@@ -14,6 +14,7 @@ import { MailModule } from './modules/mail/mail.module';
 import { ContactsModule } from './modules/contacts/contacts.module';
 import { BackupModule } from './modules/backup/backup.module';
 import { InputModule } from './modules/input/input.module';
+import { StatsModule } from './modules/stats/stats.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { InputModule } from './modules/input/input.module';
     ContactsModule,
     InputModule,
     BackupModule,
+    StatsModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: HttpExceptionFilter },

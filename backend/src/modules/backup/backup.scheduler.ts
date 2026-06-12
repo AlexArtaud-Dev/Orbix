@@ -1,7 +1,8 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { SchedulerRegistry } from '@nestjs/schedule';
+import { SchedulerRegistry, Cron } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LogsWriter } from '../logs/logs.writer';
+import { SettingsService } from '../settings/settings.service';
 import { BackupRunner } from './backup.runner';
 import { parseScheduleConfig, type ScheduleConfig } from './backup.types';
 import { OrbixException } from '../../common/exceptions';
@@ -37,6 +38,7 @@ export class BackupScheduler implements OnModuleInit, OnModuleDestroy {
     private readonly prisma: PrismaService,
     private readonly runner: BackupRunner,
     private readonly logs: LogsWriter,
+    private readonly settingsService: SettingsService,
   ) {}
 
   async onModuleInit() {
@@ -106,7 +108,7 @@ export class BackupScheduler implements OnModuleInit, OnModuleDestroy {
 
       const timeout = setTimeout(() => {
         this.timeouts.delete(backupId);
-        void this.runner.run(backupId);
+        void this.runner.run(backupId, 'scheduler');
       }, delay);
 
       this.timeouts.set(backupId, timeout);
@@ -245,6 +247,24 @@ export class BackupScheduler implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  @Cron('0 * * * *')
+  async purgeOldRuns(): Promise<void> {
+    const settings = await this.settingsService.get();
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - settings.backupRetentionDays);
+    const { count } = await this.prisma.backupRun.deleteMany({
+      where: { startedAt: { lt: cutoff } },
+    });
+    if (count > 0) {
+      this.logs.info(
+        'scheduler',
+        'BACKUP_RUN_PURGE',
+        `Purged ${count} old backup run(s)`,
+        `older than ${settings.backupRetentionDays} days`,
+      );
+    }
+  }
+
   private registerCronJob(
     jobName: string,
     expression: string,
@@ -261,7 +281,7 @@ export class BackupScheduler implements OnModuleInit, OnModuleDestroy {
     const job = new CronJob(
       expression,
       () => {
-        this.runner.run(backupId).catch((err: unknown) => {
+        this.runner.run(backupId, 'scheduler').catch((err: unknown) => {
           if (err instanceof OrbixException) {
             this.logs.exception(
               'scheduler',
