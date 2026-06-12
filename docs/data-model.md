@@ -28,11 +28,24 @@ Encrypted credential storage. One row per vault entry regardless of type.
 | `name` | String | Unique display name |
 | `type` | String | `"email"` \| `"http"` \| `"variable_set"` |
 | `encryptedPayload` | String | AES-256-GCM encrypted JSON blob |
-| `smtpStatus` | String? | `"ok"` \| `"error"` — for email type |
-| `smtpStatusMsg` | String? | Last SMTP test error message |
-| `smtpCheckedAt` | DateTime? | Last SMTP test timestamp |
 
-The raw payload shape depends on `type` — see [modules.md — VaultModule](modules.md#vaultmodule) for the field list per HTTP subtype.
+Email vault health check status is stored in the separate `VaultHealthCheck` table (1-1 relation). The raw payload shape depends on `type` — see [modules.md — VaultModule](modules.md#vaultmodule) for the field list per HTTP subtype.
+
+---
+
+### VaultHealthCheck
+
+SMTP connectivity test result for email vault entries. Created or updated on each `POST /api/vault/email/:id/test` call.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | String (cuid) | Primary key |
+| `vaultId` | String | Unique FK → VaultEntity (cascade delete) |
+| `status` | String | `"ok"` \| `"error"` |
+| `statusMsg` | String? | Error message from last failed test |
+| `checkedAt` | DateTime | Timestamp of last test |
+
+One row per email vault entry at most (upsert on `vaultId`). Non-email vault types do not have a `VaultHealthCheck` row.
 
 ---
 
@@ -99,7 +112,7 @@ The main pipeline entity.
 | `backupType` | String | `"local"` \| `"input"` |
 | `sources` | Json | `BackupSources` — see below |
 | `scheduleType` | String | `"manual"` \| `"oneshoot"` \| `"recurring"` \| `"interval"` |
-| `scheduleConfig` | Json? | Schedule parameters (interval value/unit, recurring days/time) |
+| `scheduleConfig` | Json? | Schedule parameters — shape varies by `scheduleType` (see below) |
 | `schedule` | String? | Computed cron expression |
 | `enabled` | Boolean | Whether the scheduler picks it up |
 | `noArchive` | Boolean | Pass-through single file without zipping |
@@ -127,6 +140,23 @@ The main pipeline entity.
   >
 }
 ```
+
+**`scheduleConfig` shapes by `scheduleType`:**
+
+```typescript
+// oneshoot
+{ datetime: string; timezone: string }
+
+// recurring — multi-rule (new)
+{ timezone: string; rules: Array<{ days: number[]; hour: number; minute: number }> }
+// recurring — legacy flat (backward compat, single rule)
+{ timezone: string; days: number[]; hour: number; minute: number }
+
+// interval
+{ every: number; unit: "minutes" | "hours"; startDate?: string; endDate?: string }
+```
+
+Day numbers follow JavaScript `Date.getDay()` convention: 0 = Sunday, 1 = Monday … 6 = Saturday. Display order in the UI is Mon→Tue→Wed→Thu→Fri→Sat→Sun.
 
 ---
 
