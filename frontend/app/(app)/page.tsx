@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   Bar,
   BarChart,
@@ -27,14 +27,15 @@ import { useAuthStore } from "@/stores/authStore";
 import { useTranslation } from "react-i18next";
 import { statsService, type StatsData, type StatsPeriod } from "@/services/stats";
 import {
-  Archive,
-  CheckCircle2,
-  Globe,
   HardDrive,
-  Mail,
-  Users,
-  Clock,
   CalendarClock,
+  RefreshCw,
+  Radio,
+  CheckCircle2,
+  Archive,
+  Timer,
+  Activity,
+  Clock,
 } from "lucide-react";
 
 // ─── Formatters ──────────────────────────────────────────────────────────────
@@ -65,36 +66,37 @@ function formatDate(iso: string | null): string {
 }
 
 function formatDay(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("fr-FR", {
+  return new Date(dateStr + "T00:00:00Z").toLocaleDateString("fr-FR", {
     day: "2-digit",
     month: "short",
+    timeZone: "UTC",
   });
 }
 
-// ─── Chart configs ────────────────────────────────────────────────────────────
+// ─── Chart configs — explicit semantic colors ─────────────────────────────────
 
 const runsChartConfig = {
-  success: { label: "Succès", color: "var(--chart-2)" },
-  error: { label: "Erreurs", color: "var(--chart-1)" },
+  success: { label: "Succès", color: "oklch(0.65 0.17 142)" },
+  error: { label: "Erreurs", color: "oklch(0.65 0.22 27)" },
 } satisfies ChartConfig;
 
 const sizeChartConfig = {
-  size: { label: "Taille", color: "var(--chart-3)" },
+  size: { label: "Taille", color: "oklch(0.6 0.15 220)" },
 } satisfies ChartConfig;
 
 const durationChartConfig = {
-  duration: { label: "Durée (ms)", color: "var(--chart-4)" },
+  duration: { label: "Durée", color: "oklch(0.6 0.18 290)" },
 } satisfies ChartConfig;
 
 const logsChartConfig = {
-  error: { label: "ERROR", color: "var(--chart-1)" },
-  warn: { label: "WARN", color: "var(--chart-5)" },
-  info: { label: "INFO", color: "var(--chart-2)" },
-  debug: { label: "DEBUG", color: "var(--chart-3)" },
+  error: { label: "ERROR", color: "oklch(0.65 0.22 27)" },
+  warn: { label: "WARN", color: "oklch(0.72 0.18 80)" },
+  info: { label: "INFO", color: "oklch(0.58 0.18 250)" },
+  debug: { label: "DEBUG", color: "oklch(0.65 0.04 240)" },
 } satisfies ChartConfig;
 
 const errorsChartConfig = {
-  count: { label: "Erreurs", color: "var(--chart-1)" },
+  count: { label: "Erreurs logs", color: "oklch(0.65 0.22 27)" },
 } satisfies ChartConfig;
 
 // ─── Period selector ──────────────────────────────────────────────────────────
@@ -130,13 +132,21 @@ function KpiCard({
   icon: Icon,
   sub,
   loading,
+  accent,
 }: {
   title: string;
   value: string | number;
   icon: React.ElementType;
   sub?: string;
   loading?: boolean;
+  accent?: "green" | "red" | "default";
 }) {
+  const accentClass =
+    accent === "green"
+      ? "text-green-600 dark:text-green-400"
+      : accent === "red"
+        ? "text-red-600 dark:text-red-400"
+        : "";
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-1">
@@ -145,11 +155,11 @@ function KpiCard({
       </CardHeader>
       <CardContent className="pt-0">
         {loading ? (
-          <Skeleton className="h-8 w-16" />
+          <Skeleton className="h-8 w-20" />
         ) : (
-          <p className="text-2xl font-bold">{value}</p>
+          <p className={`text-2xl font-bold ${accentClass}`}>{value}</p>
         )}
-        {sub && <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p>}
+        {sub && <p className="mt-0.5 text-xs text-muted-foreground truncate">{sub}</p>}
       </CardContent>
     </Card>
   );
@@ -163,14 +173,40 @@ export default function DashboardPage() {
   const [period, setPeriod] = useState<StatsPeriod>("30d");
   const [data, setData] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [live, setLive] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const liveRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const fetch = useCallback(
+    (silent = false) => {
+      if (!silent) setLoading(true);
+      return statsService
+        .get(period)
+        .then((res) => {
+          setData(res);
+          setLastRefresh(new Date());
+        })
+        .finally(() => {
+          if (!silent) setLoading(false);
+        });
+    },
+    [period],
+  );
 
   useEffect(() => {
-    setLoading(true);
-    statsService
-      .get(period)
-      .then((res) => setData(res))
-      .finally(() => setLoading(false));
-  }, [period]);
+    void fetch();
+  }, [fetch]);
+
+  useEffect(() => {
+    if (live) {
+      liveRef.current = setInterval(() => void fetch(true), 10_000);
+    } else {
+      if (liveRef.current) clearInterval(liveRef.current);
+    }
+    return () => {
+      if (liveRef.current) clearInterval(liveRef.current);
+    };
+  }, [live, fetch]);
 
   const lastSuccessRun = useMemo(
     () => data?.lastRuns.find((r) => r.status === "success") ?? null,
@@ -179,13 +215,15 @@ export default function DashboardPage() {
 
   const donutData = useMemo(() => {
     if (!data) return [];
-    const total = data.recentRuns.reduce(
-      (acc, r) => ({ success: acc.success + r.success, error: acc.error + r.error }),
-      { success: 0, error: 0 },
-    );
+    const s = data.periodStats.totalRuns > 0
+      ? data.recentRuns.reduce((acc, r) => acc + r.success, 0)
+      : 0;
+    const e = data.periodStats.totalRuns > 0
+      ? data.recentRuns.reduce((acc, r) => acc + r.error, 0)
+      : 0;
     return [
-      { name: "Succès", value: total.success, fill: "var(--chart-2)" },
-      { name: "Erreurs", value: total.error, fill: "var(--chart-1)" },
+      { name: "Succès", value: s, fill: "oklch(0.65 0.17 142)" },
+      { name: "Erreurs", value: e, fill: "oklch(0.65 0.22 27)" },
     ];
   }, [data]);
 
@@ -194,10 +232,7 @@ export default function DashboardPage() {
       [...(data?.lastRuns ?? [])]
         .reverse()
         .filter((r) => r.archiveSizeBytes !== null)
-        .map((r) => ({
-          name: formatDate(r.startedAt),
-          size: r.archiveSizeBytes ?? 0,
-        })),
+        .map((r) => ({ name: formatDate(r.startedAt), size: r.archiveSizeBytes ?? 0 })),
     [data],
   );
 
@@ -206,85 +241,123 @@ export default function DashboardPage() {
       [...(data?.lastRuns ?? [])]
         .reverse()
         .filter((r) => r.durationMs !== null)
-        .map((r) => ({
-          name: formatDate(r.startedAt),
-          duration: r.durationMs ?? 0,
-        })),
+        .map((r) => ({ name: formatDate(r.startedAt), duration: r.durationMs ?? 0 })),
     [data],
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{t("dashboard.title")}</h1>
           <p className="text-muted-foreground">
             {t("dashboard.welcome")}, {user?.username}.
           </p>
         </div>
-        <div className="flex gap-1 rounded-md border p-1">
-          {PERIODS.map((p) => (
-            <Button
-              key={p.value}
-              variant={period === p.value ? "secondary" : "ghost"}
-              size="sm"
-              className="h-7 px-3 text-xs"
-              onClick={() => setPeriod(p.value)}
-            >
-              {p.label}
-            </Button>
-          ))}
+
+        <div className="flex items-center gap-2">
+          {/* Live indicator */}
+          {live && lastRefresh && (
+            <span className="text-xs text-muted-foreground">
+              Màj {lastRefresh.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+            </span>
+          )}
+
+          {/* Refresh */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5"
+            onClick={() => void fetch()}
+            disabled={loading}
+          >
+            <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} />
+            Actualiser
+          </Button>
+
+          {/* Live toggle */}
+          <Button
+            variant={live ? "default" : "outline"}
+            size="sm"
+            className="h-8 gap-1.5"
+            onClick={() => setLive((v) => !v)}
+          >
+            <Radio className="size-3.5" />
+            {live ? "Live ON" : "Live"}
+          </Button>
+
+          {/* Period selector */}
+          <div className="flex gap-1 rounded-md border p-1">
+            {PERIODS.map((p) => (
+              <Button
+                key={p.value}
+                variant={period === p.value ? "secondary" : "ghost"}
+                size="sm"
+                className="h-6 px-2.5 text-xs"
+                onClick={() => setPeriod(p.value)}
+              >
+                {p.label}
+              </Button>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* KPI cards */}
+      {/* KPI cards — period-based metrics */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <KpiCard
           title="Backups actifs"
-          value={
-            data ? `${data.counts.backupsActive} / ${data.counts.backupsTotal}` : "—"
-          }
+          value={data ? `${data.counts.backupsActive} / ${data.counts.backupsTotal}` : "—"}
           icon={HardDrive}
           loading={loading}
         />
         <KpiCard
-          title="Inputs"
-          value={data?.counts.inputs ?? "—"}
-          icon={Globe}
+          title="Runs sur la période"
+          value={data?.periodStats.totalRuns ?? "—"}
+          icon={Activity}
           loading={loading}
         />
         <KpiCard
-          title="Vault HTTP"
-          value={data?.counts.vaultHttp ?? "—"}
+          title="Taux de succès"
+          value={data ? `${data.periodStats.successRate}%` : "—"}
           icon={CheckCircle2}
+          accent={
+            data
+              ? data.periodStats.successRate >= 90
+                ? "green"
+                : data.periodStats.successRate < 70
+                  ? "red"
+                  : "default"
+              : "default"
+          }
           loading={loading}
         />
         <KpiCard
-          title="Vault Email"
-          value={data?.counts.vaultEmail ?? "—"}
-          icon={Mail}
+          title="Taille moy. archives"
+          value={formatSize(data?.periodStats.avgSizeBytes ?? null)}
+          icon={Archive}
           loading={loading}
         />
         <KpiCard
-          title="Contacts"
-          value={data?.counts.contacts ?? "—"}
-          icon={Users}
+          title="Durée moy. d'exécution"
+          value={formatDuration(data?.periodStats.avgDurationMs ?? null)}
+          icon={Timer}
           loading={loading}
         />
         <KpiCard
-          title="Dernier backup réussi"
+          title="Dernier run réussi"
           value={lastSuccessRun ? formatDate(lastSuccessRun.finishedAt) : "—"}
           icon={CalendarClock}
-          loading={loading}
           sub={lastSuccessRun?.backupName}
+          loading={loading}
         />
       </div>
 
       {/* Next scheduled */}
       {data?.nextScheduled && (
         <div className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
-          <Clock className="size-4 text-muted-foreground" />
+          <Clock className="size-4 shrink-0 text-muted-foreground" />
           <span className="text-muted-foreground">Prochain run planifié :</span>
           <span className="font-medium">{data.nextScheduled.backupName}</span>
           <span className="text-muted-foreground">—</span>
@@ -331,7 +404,14 @@ export default function DashboardPage() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Résultats globaux</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Résultats globaux
+              {data && data.periodStats.totalRuns > 0 && (
+                <span className="ml-2 text-xs font-normal text-muted-foreground">
+                  {data.periodStats.totalRuns} run{data.periodStats.totalRuns > 1 ? "s" : ""}
+                </span>
+              )}
+            </CardTitle>
           </CardHeader>
           <CardContent className="flex items-center justify-center">
             {loading ? (
@@ -391,7 +471,7 @@ export default function DashboardPage() {
                     axisLine={false}
                     tick={{ fontSize: 10 }}
                     tickFormatter={(v: number) => formatSize(v)}
-                    width={56}
+                    width={60}
                   />
                   <ChartTooltip
                     content={
@@ -406,7 +486,7 @@ export default function DashboardPage() {
                     type="monotone"
                     stroke="var(--color-size)"
                     strokeWidth={2}
-                    dot={{ r: 3 }}
+                    dot={{ r: 3, fill: "var(--color-size)" }}
                   />
                 </LineChart>
               </ChartContainer>
@@ -465,9 +545,9 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             {loading ? (
-              <Skeleton className="h-[180px] w-full" />
+              <Skeleton className="h-[200px] w-full" />
             ) : (
-              <ChartContainer config={logsChartConfig} className="min-h-[180px] w-full">
+              <ChartContainer config={logsChartConfig} className="min-h-[200px] w-full">
                 <LineChart accessibilityLayer data={data?.logsByLevel ?? []}>
                   <CartesianGrid vertical={false} />
                   <XAxis
@@ -499,13 +579,13 @@ export default function DashboardPage() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Erreurs par jour</CardTitle>
+            <CardTitle className="text-sm font-medium">Erreurs logs par jour</CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (
-              <Skeleton className="h-[180px] w-full" />
+              <Skeleton className="h-[200px] w-full" />
             ) : (
-              <ChartContainer config={errorsChartConfig} className="min-h-[180px] w-full">
+              <ChartContainer config={errorsChartConfig} className="min-h-[200px] w-full">
                 <BarChart accessibilityLayer data={data?.errorsByDay ?? []}>
                   <CartesianGrid vertical={false} />
                   <XAxis
@@ -545,9 +625,10 @@ export default function DashboardPage() {
               ))}
             </div>
           ) : !data?.lastRuns.length ? (
-            <p className="p-6 text-center text-sm text-muted-foreground">
-              Aucun run enregistré pour le moment.
-            </p>
+            <div className="flex flex-col items-center gap-2 py-10 text-muted-foreground">
+              <Activity className="size-8" />
+              <p className="text-sm">Lance ton premier backup pour voir les runs ici.</p>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -584,14 +665,6 @@ export default function DashboardPage() {
           )}
         </CardContent>
       </Card>
-
-      {/* Archive icon for empty state hint */}
-      {data && data.lastRuns.length === 0 && (
-        <div className="flex flex-col items-center gap-2 py-4 text-muted-foreground">
-          <Archive className="size-8" />
-          <p className="text-sm">Lance ton premier backup pour voir les statistiques ici.</p>
-        </div>
-      )}
     </div>
   );
 }

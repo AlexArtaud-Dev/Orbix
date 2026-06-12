@@ -14,14 +14,16 @@ function toYMD(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+// Use UTC midnight to stay consistent with toISOString() (also UTC)
 function fillRunDays(from: Date, to: Date): Record<string, { success: number; error: number }> {
   const map: Record<string, { success: number; error: number }> = {};
   const d = new Date(from);
-  d.setHours(0, 0, 0, 0);
+  d.setUTCHours(0, 0, 0, 0);
   const end = new Date(to);
+  end.setUTCHours(23, 59, 59, 999);
   while (d <= end) {
     map[toYMD(d)] = { success: 0, error: 0 };
-    d.setDate(d.getDate() + 1);
+    d.setUTCDate(d.getUTCDate() + 1);
   }
   return map;
 }
@@ -30,13 +32,17 @@ function fillLogDays(
   from: Date,
   to: Date,
 ): Record<string, { debug: number; info: number; warn: number; error: number }> {
-  const map: Record<string, { debug: number; info: number; warn: number; error: number }> = {};
+  const map: Record<
+    string,
+    { debug: number; info: number; warn: number; error: number }
+  > = {};
   const d = new Date(from);
-  d.setHours(0, 0, 0, 0);
+  d.setUTCHours(0, 0, 0, 0);
   const end = new Date(to);
+  end.setUTCHours(23, 59, 59, 999);
   while (d <= end) {
     map[toYMD(d)] = { debug: 0, info: 0, warn: 0, error: 0 };
-    d.setDate(d.getDate() + 1);
+    d.setUTCDate(d.getUTCDate() + 1);
   }
   return map;
 }
@@ -79,7 +85,7 @@ export class StatsService {
       this.prisma.contact.count(),
       this.prisma.backupRun.findMany({
         where: { startedAt: { gte: from }, status: { in: ['success', 'error'] } },
-        select: { startedAt: true, status: true },
+        select: { startedAt: true, finishedAt: true, status: true, archiveSizeBytes: true },
         orderBy: { startedAt: 'asc' },
       }),
       this.prisma.backupRun.findMany({
@@ -122,8 +128,34 @@ export class StatsService {
       if (level in entry) entry[level]++;
     }
 
+    // Period aggregates
+    const totalRuns = recentRunsRaw.length;
+    const successRuns = recentRunsRaw.filter((r) => r.status === 'success').length;
+    const successRate = totalRuns > 0 ? Math.round((successRuns / totalRuns) * 100) : 0;
+
+    const runsWithSize = recentRunsRaw.filter((r) => r.archiveSizeBytes !== null);
+    const avgSizeBytes =
+      runsWithSize.length > 0
+        ? Math.round(
+            runsWithSize.reduce((s, r) => s + (r.archiveSizeBytes ?? 0), 0) /
+              runsWithSize.length,
+          )
+        : null;
+
+    const runsWithDuration = recentRunsRaw.filter((r) => r.finishedAt !== null);
+    const avgDurationMs =
+      runsWithDuration.length > 0
+        ? Math.round(
+            runsWithDuration.reduce(
+              (s, r) => s + (r.finishedAt!.getTime() - r.startedAt.getTime()),
+              0,
+            ) / runsWithDuration.length,
+          )
+        : null;
+
     return {
       counts: { backupsActive, backupsTotal, inputs, vaultHttp, vaultEmail, contacts },
+      periodStats: { totalRuns, successRate, avgSizeBytes, avgDurationMs },
       recentRuns: Object.entries(runsByDay).map(([date, v]) => ({ date, ...v })),
       lastRuns: lastRunsRaw.map((r) => ({
         id: r.id,
@@ -168,11 +200,7 @@ export class StatsService {
 
     let earliest: { backupId: string; backupName: string; nextRunAt: Date } | null = null;
 
-    const updateEarliest = (
-      id: string,
-      name: string,
-      dt: Date,
-    ) => {
+    const updateEarliest = (id: string, name: string, dt: Date) => {
       if (dt > new Date() && (!earliest || dt < earliest.nextRunAt)) {
         earliest = { backupId: id, backupName: name, nextRunAt: dt };
       }

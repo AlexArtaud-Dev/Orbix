@@ -47,8 +47,16 @@ export interface ErrorsByDay {
   count: number;
 }
 
+export interface PeriodStats {
+  totalRuns: number;
+  successRate: number;
+  avgSizeBytes: number | null;
+  avgDurationMs: number | null;
+}
+
 export interface StatsData {
   counts: StatsCounts;
+  periodStats: PeriodStats;
   recentRuns: RunsByDay[];
   lastRuns: LastRun[];
   nextScheduled: NextScheduled | null;
