@@ -15,6 +15,7 @@ import { ContactsModule } from './modules/contacts/contacts.module';
 import { BackupModule } from './modules/backup/backup.module';
 import { InputModule } from './modules/input/input.module';
 import { StatsModule } from './modules/stats/stats.module';
+import { ModuleSettingsModule } from './modules/module-settings/module-settings.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { StatsModule } from './modules/stats/stats.module';
     InputModule,
     BackupModule,
     StatsModule,
+    ModuleSettingsModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: HttpExceptionFilter },

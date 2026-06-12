@@ -10,7 +10,9 @@
     "actions": "Actions",
     "back": "Retour",
     "next": "Suivant",
-    "noResults": "Aucun résultat"
+    "noResults": "Aucun résultat",
+    "yes": "Oui",
+    "no": "Non"
   },
   "auth": {
     "login": "Connexion",
@@ -45,6 +47,8 @@
     "input": "Entrées",
     "httpRestInputs": "Entrées HTTP REST",
     "variableSets": "Jeux de variables",
+    "settingsGlobal": "Paramètres système",
+    "moduleSettings": "Paramètres des modules",
     "categories": {
       "resources": "Ressources",
       "automation": "Automatisation",
@@ -98,6 +102,22 @@
     "backupLimits": "Limites de sauvegarde",
     "maxSourceFileSizeMb": "Taille max par source (Mo)",
     "maxBackupTotalSizeMb": "Taille max de l'archive finale (Mo)"
+  },
+  "moduleSettings": {
+    "title": "Paramètres du module",
+    "subtitle": "Configurez les valeurs par défaut pour ce module.",
+    "parameters": "Paramètres",
+    "saved": "Paramètres enregistrés",
+    "httpRest": {
+      "defaultTimeoutMs": "Délai d'expiration HTTP (ms)",
+      "defaultTimeoutMsDesc": "Durée maximale d'une requête HTTP avant expiration. Utilisé comme valeur par défaut pour les nouvelles exécutions.",
+      "maxRetries": "Nombre de tentatives",
+      "maxRetriesDesc": "Nombre de répétitions en cas d'erreur réseau ou de timeout (0 = aucune tentative supplémentaire)."
+    },
+    "mail": {
+      "maxAttachmentSizeMb": "Taille max des pièces jointes (Mo)",
+      "maxAttachmentSizeMbDesc": "Taille maximale de l'archive envoyée en pièce jointe. Les archives dépassant cette limite ne seront pas envoyées."
+    }
   },
   "vault": {
     "selectorTitle": "Coffre",
@@ -523,6 +543,7 @@
       "noArchive": "Envoyer sans archiver",
       "noArchiveDesc": "Si activé et qu'il n'y a qu'un seul fichier, le fichier est envoyé tel quel sans être archivé. Idéal pour les backups Input (ex. Portainer → .tar.gz).",
       "noArchiveLocalWarning": "Pour une source locale de type fichier uniquement — ne fonctionne pas avec les dossiers.",
+      "noArchiveRequiresSingleFile": "Non disponible : sélectionnez exactement un fichier (pas de dossier, pas plusieurs chemins) dans l'étape Sources.",
       "noArchiveFilename": "Nom du fichier de sortie (optionnel)",
       "noArchiveFilenameHint": "Laisser vide pour utiliser le nom de fichier renvoyé par l'endpoint (Content-Disposition). L'extension est conservée automatiquement.",
       "noArchiveDetectedExt": "Extension détectée lors du dernier test : {{ext}}"

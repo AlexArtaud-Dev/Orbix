@@ -14,6 +14,7 @@ export {
 export {
   OutputProviderNotFoundException,
   MailSendFailedException,
+  MailAttachmentTooLargeException,
 } from './output-exceptions';
 export {
   VaultAuthUnsupportedTypeException,

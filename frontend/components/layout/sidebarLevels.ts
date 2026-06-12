@@ -14,6 +14,7 @@ import {
   Globe,
   Cpu,
 } from "lucide-react";
+import { getAllModuleNavEntries } from "@/providers/module-settings-registry";
 
 export type SidebarNavItem = {
   to: string;
@@ -165,4 +166,20 @@ export function getActiveSidebarLevel(pathname: string): SidebarLevel | null {
     .filter((prefix) => pathname.startsWith(prefix))
     .sort((a, b) => b.length - a.length)[0];
   return match ? (SIDEBAR_LEVELS[match] ?? null) : null;
+}
+
+export function buildSettingsSidebarLevel(): SidebarLevel {
+  const moduleItems: SidebarNavItem[] = getAllModuleNavEntries().map((entry) => ({
+    to: `/settings/modules/${entry.module}`,
+    icon: entry.icon,
+    labelKey: entry.labelKey,
+  }));
+  return {
+    parentPath: "/",
+    titleKey: "nav.settings",
+    items: [
+      { to: "/settings", icon: Settings, labelKey: "nav.settingsGlobal", end: true },
+      ...moduleItems,
+    ],
+  };
 }

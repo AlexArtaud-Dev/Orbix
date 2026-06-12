@@ -10,7 +10,9 @@
     "actions": "Actions",
     "back": "Back",
     "next": "Next",
-    "noResults": "No results found"
+    "noResults": "No results found",
+    "yes": "Yes",
+    "no": "No"
   },
   "auth": {
     "login": "Sign In",
@@ -45,6 +47,8 @@
     "input": "Inputs",
     "httpRestInputs": "HTTP REST Inputs",
     "variableSets": "Variable Sets",
+    "settingsGlobal": "System Settings",
+    "moduleSettings": "Module Settings",
     "categories": {
       "resources": "Resources",
       "automation": "Automation",
@@ -98,6 +102,22 @@
     "backupLimits": "Backup limits",
     "maxSourceFileSizeMb": "Max source file size (MB)",
     "maxBackupTotalSizeMb": "Max total archive size (MB)"
+  },
+  "moduleSettings": {
+    "title": "Module Settings",
+    "subtitle": "Configure default values for this module.",
+    "parameters": "Parameters",
+    "saved": "Settings saved",
+    "httpRest": {
+      "defaultTimeoutMs": "HTTP Timeout (ms)",
+      "defaultTimeoutMsDesc": "Maximum duration of an HTTP request before it times out. Used as default for new runs.",
+      "maxRetries": "Max Retries",
+      "maxRetriesDesc": "Number of retries on network error or timeout (0 = no additional attempt)."
+    },
+    "mail": {
+      "maxAttachmentSizeMb": "Max Attachment Size (MB)",
+      "maxAttachmentSizeMbDesc": "Maximum size of the backup archive sent as an email attachment. Archives exceeding this limit will not be sent."
+    }
   },
   "vault": {
     "selectorTitle": "Vault",
@@ -521,6 +541,7 @@
       "noArchive": "Send without archiving",
       "noArchiveDesc": "If enabled and there is only one file, it is sent as-is without being archived. Ideal for Input backups (e.g. Portainer → .tar.gz).",
       "noArchiveLocalWarning": "For a local file source only — does not work with folders.",
+      "noArchiveRequiresSingleFile": "Not available: select exactly one file (no folder, no multiple paths) in the Sources step.",
       "noArchiveFilename": "Output filename (optional)",
       "noArchiveFilenameHint": "Leave empty to use the filename from the endpoint response (Content-Disposition). Extension is preserved automatically.",
       "noArchiveDetectedExt": "Extension detected from last test: {{ext}}"

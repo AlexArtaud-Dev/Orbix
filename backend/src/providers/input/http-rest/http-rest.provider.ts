@@ -1,11 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { VaultService } from '../../../modules/vault/vault.service';
+import { ModuleSettingsService } from '../../../modules/module-settings/module-settings.service';
 import { fetchWithConfig } from '../../../modules/input/input-http.util';
 import type {
   IInputProvider,
   InputFetchContext,
 } from '../input-provider.interface';
+import type { IModuleSettingsProvider } from '../../module-settings.interface';
 import type { FileToArchive, ProviderMeta } from '../../providers.types';
+import type { ModuleSettingsDefinition } from '../../module-settings.types';
 import type { InputRow } from '../../../modules/input/input.types';
 import type {
   HttpRestConfig,
@@ -22,7 +25,9 @@ import {
 } from '../../../common/exceptions';
 
 @Injectable()
-export class HttpRestInputProvider implements IInputProvider {
+export class HttpRestInputProvider
+  implements IInputProvider, IModuleSettingsProvider
+{
   readonly type = 'http-rest';
   readonly meta: ProviderMeta = {
     type: 'http-rest',
@@ -32,12 +37,47 @@ export class HttpRestInputProvider implements IInputProvider {
       'Fetch data from any HTTP endpoint with configurable auth, headers, and body.',
   };
 
-  constructor(private readonly vault: VaultService) {}
+  readonly moduleSettingsDefinition: ModuleSettingsDefinition = {
+    module: 'http-rest',
+    labelKey: 'input.type.httpRest',
+    descriptionKey: 'input.typeDesc.httpRest',
+    fields: [
+      {
+        key: 'defaultTimeoutMs',
+        type: 'number',
+        defaultValue: 30000,
+        labelKey: 'moduleSettings.httpRest.defaultTimeoutMs',
+        descriptionKey: 'moduleSettings.httpRest.defaultTimeoutMsDesc',
+        min: 1000,
+        max: 300000,
+      },
+      {
+        key: 'maxRetries',
+        type: 'number',
+        defaultValue: 0,
+        labelKey: 'moduleSettings.httpRest.maxRetries',
+        descriptionKey: 'moduleSettings.httpRest.maxRetriesDesc',
+        min: 0,
+        max: 5,
+      },
+    ],
+  };
+
+  constructor(
+    private readonly vault: VaultService,
+    private readonly moduleSettings: ModuleSettingsService,
+  ) {}
 
   async fetch(
     input: InputRow,
     context: InputFetchContext,
   ): Promise<FileToArchive[]> {
+    const { values: moduleValues } =
+      await this.moduleSettings.getOne('http-rest');
+    const timeoutMs =
+      (moduleValues.defaultTimeoutMs as number | undefined) ?? 30_000;
+    const maxRetries = (moduleValues.maxRetries as number | undefined) ?? 0;
+
     const config = input.config as unknown as HttpRestConfig;
     const headers: Record<string, string> = {};
     const maxBytes = context.maxSizeMb * 1024 * 1024;
@@ -89,12 +129,17 @@ export class HttpRestInputProvider implements IInputProvider {
       );
       baseUrlObj.searchParams.forEach((v, k) => listUrl.searchParams.set(k, v));
 
-      const listRes = await fetchWithConfig(
-        listUrl,
-        bodyInit.method,
-        bodyInit.headers,
-        bodyInit.body,
-        skipTls,
+      const listRes = await this.withRetry(
+        () =>
+          fetchWithConfig(
+            listUrl,
+            bodyInit.method,
+            bodyInit.headers,
+            bodyInit.body,
+            skipTls,
+            timeoutMs,
+          ),
+        maxRetries,
       );
       if (!listRes.ok) {
         throw new InputFetchHttpException(
@@ -143,12 +188,17 @@ export class HttpRestInputProvider implements IInputProvider {
           (downloadPath.startsWith('/') ? '' : '/') +
           downloadPath;
 
-        const dlRes = await fetchWithConfig(
-          downloadUrl,
-          'GET',
-          headers,
-          undefined,
-          skipTls,
+        const dlRes = await this.withRetry(
+          () =>
+            fetchWithConfig(
+              downloadUrl,
+              'GET',
+              headers,
+              undefined,
+              skipTls,
+              timeoutMs,
+            ),
+          maxRetries,
         );
         if (!dlRes.ok) {
           throw new InputFetchHttpException(
@@ -183,12 +233,17 @@ export class HttpRestInputProvider implements IInputProvider {
         results.push({ buffer: buf, arc: safeName });
       }
     } else {
-      const response = await fetchWithConfig(
-        baseUrlObj,
-        bodyInit.method,
-        bodyInit.headers,
-        bodyInit.body,
-        skipTls,
+      const response = await this.withRetry(
+        () =>
+          fetchWithConfig(
+            baseUrlObj,
+            bodyInit.method,
+            bodyInit.headers,
+            bodyInit.body,
+            skipTls,
+            timeoutMs,
+          ),
+        maxRetries,
       );
       if (!response.ok) {
         throw new InputFetchHttpException(config.baseUrl, response.status);
@@ -225,6 +280,23 @@ export class HttpRestInputProvider implements IInputProvider {
     }
 
     return results;
+  }
+
+  // ─── Retry helper ────────────────────────────────────────────────────────────
+
+  private async withRetry(
+    fn: () => Promise<Response>,
+    maxRetries: number,
+  ): Promise<Response> {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        return await fn();
+      } catch (err) {
+        if (attempt === maxRetries) throw err;
+      }
+    }
+    // unreachable
+    return fn();
   }
 
   // ─── Vault helpers ───────────────────────────────────────────────────────────
