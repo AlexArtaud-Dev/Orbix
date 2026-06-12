@@ -273,7 +273,6 @@ export function BackupPipeline({ backup, ctx = EMPTY_CONTEXT }: BackupPipelinePr
                 key={o.id}
                 output={o}
                 index={i}
-                ctx={ctx}
                 isSelected={selected?.kind === "output" && selected.index === i}
                 onClick={() => toggle({ kind: "output", output: o, index: i })}
               />
@@ -548,9 +547,9 @@ function ArchivePill({ backup, isSelected, onClick }: {
 // ─── Output pill ──────────────────────────────────────────────────────────────
 
 function OutputPill({
-  output, index, ctx, isSelected, onClick,
+  output, index, isSelected, onClick,
 }: {
-  output: BackupOutput; index: number; ctx: PipelineContext;
+  output: BackupOutput; index: number;
   isSelected: boolean; onClick: () => void;
 }) {
   const r    = getOutputRenderer(output.type);

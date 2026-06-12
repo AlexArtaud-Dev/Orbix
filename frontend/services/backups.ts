@@ -28,14 +28,19 @@ export interface OneshotConfig {
   timezone: string;
 }
 export interface RecurringConfig {
-  days: number[];
-  hour: number;
-  minute: number;
   timezone: string;
+  // New multi-rule format
+  rules?: Array<{ days: number[]; hour: number; minute: number }>;
+  // Legacy flat format (backward compat)
+  days?: number[];
+  hour?: number;
+  minute?: number;
 }
 export interface IntervalConfig {
   every: number;
   unit: "minutes" | "hours";
+  startDate?: string;
+  endDate?: string;
 }
 export type ScheduleConfigPayload = OneshotConfig | RecurringConfig | IntervalConfig | null;
 
