@@ -158,6 +158,16 @@ model BackupRun {
   @@index([status, startedAt(sort: Desc)])
 }
 
+model ModuleSetting {
+  id        String   @id @default(cuid())
+  module    String
+  key       String
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@unique([module, key])
+}
+
 model SystemSettings {
   id                   String @id @default("singleton")
   maxFileSizeMb        Int    @default(500)

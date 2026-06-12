@@ -12,6 +12,7 @@ import { logsService } from "@/services/logs";
 import { Button } from "@/components/ui/button";
 import {
   getActiveSidebarLevel,
+  buildSettingsSidebarLevel,
   ROOT_NAV_CATEGORIES,
   type SidebarNavItem,
 } from "./sidebarLevels";
@@ -26,7 +27,9 @@ export default function Sidebar() {
 
   const [backupErrors, setBackupErrors] = useState(0);
 
-  const activeLevel = getActiveSidebarLevel(pathname);
+  const activeLevel = pathname.startsWith("/settings")
+    ? buildSettingsSidebarLevel()
+    : getActiveSidebarLevel(pathname);
 
   // Fetch backup error count on mount + periodic refresh
   useEffect(() => {

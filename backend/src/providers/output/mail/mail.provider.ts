@@ -2,16 +2,24 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { VaultService } from '../../../modules/vault/vault.service';
 import { LogsWriter } from '../../../modules/logs/logs.writer';
+import { ModuleSettingsService } from '../../../modules/module-settings/module-settings.service';
 import type { IOutputProvider } from '../output-provider.interface';
+import type { IModuleSettingsProvider } from '../../module-settings.interface';
 import type {
   ProviderMeta,
   ArchiveResult,
   OutputRow,
 } from '../../providers.types';
-import { MailSendFailedException } from '../../../common/exceptions';
+import type { ModuleSettingsDefinition } from '../../module-settings.types';
+import {
+  MailSendFailedException,
+  MailAttachmentTooLargeException,
+} from '../../../common/exceptions';
 
 @Injectable()
-export class MailOutputProvider implements IOutputProvider {
+export class MailOutputProvider
+  implements IOutputProvider, IModuleSettingsProvider
+{
   readonly type = 'mail';
   readonly meta: ProviderMeta = {
     type: 'mail',
@@ -20,10 +28,28 @@ export class MailOutputProvider implements IOutputProvider {
     description: 'Send the backup archive as an email attachment via SMTP.',
   };
 
+  readonly moduleSettingsDefinition: ModuleSettingsDefinition = {
+    module: 'mail',
+    labelKey: 'output.type.mail',
+    descriptionKey: 'output.typeDesc.mail',
+    fields: [
+      {
+        key: 'maxAttachmentSizeMb',
+        type: 'number',
+        defaultValue: 25,
+        labelKey: 'moduleSettings.mail.maxAttachmentSizeMb',
+        descriptionKey: 'moduleSettings.mail.maxAttachmentSizeMbDesc',
+        min: 1,
+        max: 100,
+      },
+    ],
+  };
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly vault: VaultService,
     private readonly logs: LogsWriter,
+    private readonly moduleSettings: ModuleSettingsService,
   ) {}
 
   async send(
@@ -32,6 +58,16 @@ export class MailOutputProvider implements IOutputProvider {
     backupName: string,
     backupId: string,
   ): Promise<void> {
+    const { values: moduleValues } = await this.moduleSettings.getOne('mail');
+    const maxAttachmentSizeMb =
+      (moduleValues.maxAttachmentSizeMb as number | undefined) ?? 25;
+    if (archive.size > maxAttachmentSizeMb * 1024 * 1024) {
+      throw new MailAttachmentTooLargeException(
+        archive.size / 1024 / 1024,
+        maxAttachmentSizeMb,
+      );
+    }
+
     const smtpPayload = await this.vault.getEmailPayload(output.vaultId);
     const toContacts = await this.resolveContacts(output.recipientsTo);
     const ccContacts = await this.resolveContacts(output.recipientsCc);

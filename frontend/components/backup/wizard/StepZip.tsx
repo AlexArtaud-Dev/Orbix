@@ -67,6 +67,12 @@ interface StepZipProps {
   backupName: string;
   /** Hint: if the mode is "input" we show the noArchive option more prominently */
   backupMode?: "local" | "input";
+  /**
+   * Whether "send without archiving" is currently allowed given the selected sources.
+   * For local mode this requires exactly one file source; for input mode it is always true.
+   * Defaults to true so the component works without the prop (e.g. in Storybook / tests).
+   */
+  canNoArchive?: boolean;
   /** Extension detected from the source input's last test (e.g. ".tar.gz"). Used in noArchive preview. */
   detectedExtension?: string;
   /** Variable sets available for vault password reference */
@@ -74,7 +80,7 @@ interface StepZipProps {
   onChange: (data: StepZipData) => void;
 }
 
-export function StepZip({ data, backupName, backupMode, detectedExtension, varSets = [], onChange }: StepZipProps) {
+export function StepZip({ data, backupName, backupMode, canNoArchive = true, detectedExtension, varSets = [], onChange }: StepZipProps) {
   const { t } = useTranslation();
   const [showPassword, setShowPassword] = useState(false);
   const [isVaultMode, setIsVaultMode] = useState(() => Boolean(data.zipPasswordVaultRef));
@@ -141,20 +147,33 @@ export function StepZip({ data, backupName, backupMode, detectedExtension, varSe
       <div
         className={cn(
           "flex items-start gap-3 rounded-lg border p-3 transition-colors",
-          data.noArchive ? "border-primary bg-primary/5" : "border-border",
+          !canNoArchive
+            ? "border-border opacity-60"
+            : data.noArchive
+              ? "border-primary bg-primary/5"
+              : "border-border",
         )}
       >
-        <PackageOpen className={cn("size-5 mt-0.5 shrink-0", data.noArchive ? "text-primary" : "text-muted-foreground")} />
+        <PackageOpen
+          className={cn(
+            "size-5 mt-0.5 shrink-0",
+            !canNoArchive || !data.noArchive ? "text-muted-foreground" : "text-primary",
+          )}
+        />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium">{t("backups.zip.noArchive")}</p>
           <p className="text-xs text-muted-foreground mt-0.5">{t("backups.zip.noArchiveDesc")}</p>
-          {backupMode === "local" && (
+          {!canNoArchive && backupMode === "local" && (
+            <p className="text-xs text-muted-foreground mt-1">{t("backups.zip.noArchiveRequiresSingleFile")}</p>
+          )}
+          {canNoArchive && backupMode === "local" && (
             <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">{t("backups.zip.noArchiveLocalWarning")}</p>
           )}
         </div>
         <Switch
           checked={data.noArchive}
           onCheckedChange={(v) => set({ noArchive: v })}
+          disabled={!canNoArchive}
           className="shrink-0"
         />
       </div>

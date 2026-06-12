@@ -18,6 +18,7 @@ export type OrbixErrorCode =
   // ── Output ─────────────────────────────────────────────────────────────────
   | 'OUTPUT_PROVIDER_NOT_FOUND'
   | 'MAIL_SEND_FAILED'
+  | 'MAIL_ATTACHMENT_TOO_LARGE'
   // ── Vault / Auth ───────────────────────────────────────────────────────────
   | 'VAULT_AUTH_UNSUPPORTED_TYPE'
   | 'VAULT_OAUTH2_TOKEN_FAILED'

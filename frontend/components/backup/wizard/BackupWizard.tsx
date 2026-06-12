@@ -119,6 +119,12 @@ export function BackupWizard({ mode, initial }: BackupWizardProps) {
     void load();
   }, [step]); // eslint-disable-line
 
+  // noArchive is only allowed on input mode OR local mode with exactly one file source
+  const canNoArchive = useMemo(() => {
+    if (mode === "input") return true;
+    return form.sources.length === 1 && form.sources[0]?.type === "file";
+  }, [mode, form.sources]);
+
   // Detected file extension from the single input source (for noArchive filename preview)
   const detectedExtension = useMemo(() => {
     if (mode !== "input") return undefined;
@@ -229,7 +235,15 @@ export function BackupWizard({ mode, initial }: BackupWizardProps) {
             mode={mode}
             data={form.sources}
             inputItems={inputItems}
-            onChange={(d) => setForm((f) => ({ ...f, sources: d }))}
+            onChange={(d) => {
+              const nextCanNoArchive =
+                mode === "input" || (d.length === 1 && d[0]?.type === "file");
+              setForm((f) => ({
+                ...f,
+                sources: d,
+                zip: nextCanNoArchive ? f.zip : { ...f.zip, noArchive: false },
+              }));
+            }}
           />
         )}
         {step === 3 && (
@@ -237,6 +251,7 @@ export function BackupWizard({ mode, initial }: BackupWizardProps) {
             data={form.zip}
             backupName={form.basic.name}
             backupMode={mode}
+            canNoArchive={canNoArchive}
             detectedExtension={detectedExtension}
             varSets={varSets}
             onChange={(d) => setForm((f) => ({ ...f, zip: d }))}
