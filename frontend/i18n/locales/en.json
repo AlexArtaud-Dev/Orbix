@@ -430,7 +430,13 @@
       "unit": "Unit",
       "minutes": "minute(s)",
       "hours": "hour(s)",
-      "intervalMin": "Minimum interval: 1 minute."
+      "intervalMin": "Minimum interval: 1 minute.",
+      "addTimeSlot": "Add time slot",
+      "timeSlot": "Slot",
+      "startDate": "Start date",
+      "endDate": "End date",
+      "endDateOptional": "No end date",
+      "recurringDesc": "Run on multiple time slots"
     },
     "sources": {
       "addPath": "Add path",

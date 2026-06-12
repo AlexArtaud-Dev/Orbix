@@ -10,6 +10,12 @@ export interface EmailPayload {
   secure: boolean;
 }
 
+export interface HealthCheckResponse {
+  status: string;
+  statusMsg: string | null;
+  checkedAt: string;
+}
+
 export interface EmailVaultResponse {
   id: string;
   name: string;
@@ -19,9 +25,7 @@ export interface EmailVaultResponse {
   fromAddr: string;
   fromName: string;
   secure: boolean;
-  smtpStatus: string | null;
-  smtpStatusMsg: string | null;
-  smtpCheckedAt: string | null;
+  healthCheck: HealthCheckResponse | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -149,16 +153,25 @@ export interface VarSetResponse {
   updatedAt: string;
 }
 
-// ─── Shared row type ──────────────────────────────────────────────────────────
+// ─── Shared row types ─────────────────────────────────────────────────────────
 
 export type VaultRow = {
   id: string;
   name: string;
   type: string;
   encryptedPayload: string;
-  smtpStatus: string | null;
-  smtpStatusMsg: string | null;
-  smtpCheckedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+};
+
+export type VaultHealthCheckRow = {
+  id: string;
+  vaultId: string;
+  status: string;
+  statusMsg: string | null;
+  checkedAt: Date;
+};
+
+export type VaultRowWithHealth = VaultRow & {
+  healthCheck: VaultHealthCheckRow | null;
 };

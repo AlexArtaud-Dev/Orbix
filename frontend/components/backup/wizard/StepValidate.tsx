@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { backupsService, type Backup } from "@/services/backups";
 import { ApiError } from "@/lib/api";
+import { BackupPipelineDialog } from "@/components/backup/BackupPipeline";
 
 interface StepValidateProps {
   backupId: string | null;
@@ -54,9 +55,14 @@ export function StepValidate({ backupId, backup, sourcesCount, onBackupUpdated }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-base font-semibold">{t("backups.wizard.stepValidate")}</h2>
-        <p className="text-sm text-muted-foreground mt-1">{t("backups.wizard.stepValidateDesc")}</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-base font-semibold">{t("backups.wizard.stepValidate")}</h2>
+          <p className="text-sm text-muted-foreground mt-1">{t("backups.wizard.stepValidateDesc")}</p>
+        </div>
+        {backup && (
+          <BackupPipelineDialog backup={backup} variant="text" />
+        )}
       </div>
 
       {!backupId && (

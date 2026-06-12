@@ -133,16 +133,34 @@ describe("backupToForm", () => {
     expect(form.schedule.type).toBe("manual");
   });
 
-  it("maps recurring schedule config", () => {
+  it("maps recurring schedule config (legacy flat format)", () => {
     const backup = makeBackup({
       scheduleType: "recurring",
       scheduleConfig: { days: [1, 2, 5], hour: 8, minute: 30, timezone: "Europe/Paris" },
     });
     const form = backupToForm(backup);
     expect(form.schedule.type).toBe("recurring");
-    expect(form.schedule.days).toEqual([1, 2, 5]);
-    expect(form.schedule.hour).toBe(8);
+    expect(form.schedule.recurringRules[0].days).toEqual([1, 2, 5]);
+    expect(form.schedule.recurringRules[0].hour).toBe(8);
     expect(form.schedule.timezone).toBe("Europe/Paris");
+  });
+
+  it("maps recurring schedule config (new rules format)", () => {
+    const backup = makeBackup({
+      scheduleType: "recurring",
+      scheduleConfig: {
+        rules: [
+          { days: [1, 2, 3, 4, 5], hour: 10, minute: 0 },
+          { days: [6, 0], hour: 12, minute: 0 },
+        ],
+        timezone: "Europe/Paris",
+      },
+    });
+    const form = backupToForm(backup);
+    expect(form.schedule.type).toBe("recurring");
+    expect(form.schedule.recurringRules).toHaveLength(2);
+    expect(form.schedule.recurringRules[1].days).toEqual([6, 0]);
+    expect(form.schedule.recurringRules[1].hour).toBe(12);
   });
 
   it("maps interval schedule config", () => {
@@ -153,6 +171,16 @@ describe("backupToForm", () => {
     const form = backupToForm(backup);
     expect(form.schedule.every).toBe(4);
     expect(form.schedule.unit).toBe("hours");
+  });
+
+  it("maps interval schedule config with start and end dates", () => {
+    const backup = makeBackup({
+      scheduleType: "interval",
+      scheduleConfig: { every: 1, unit: "hours", startDate: "2026-06-15T08:00", endDate: "2026-12-31T23:59" },
+    });
+    const form = backupToForm(backup);
+    expect(form.schedule.intervalStartDate).toBe("2026-06-15T08:00");
+    expect(form.schedule.intervalEndDate).toBe("2026-12-31T23:59");
   });
 });
 
@@ -175,13 +203,30 @@ describe("buildScheduleString", () => {
     expect(buildScheduleString({ ...base, type: "oneshoot", datetime: "" })).toBeNull();
   });
 
-  it("generates cron string for recurring type", () => {
-    const result = buildScheduleString({ ...base, type: "recurring", days: [1, 2, 3], hour: 3, minute: 0 });
+  it("generates cron string for recurring type (first rule)", () => {
+    const result = buildScheduleString({
+      ...base, type: "recurring",
+      recurringRules: [{ days: [1, 2, 3], hour: 3, minute: 0 }],
+    });
     expect(result).toBe("0 3 * * 1,2,3");
   });
 
+  it("uses first rule for cron string when multiple rules", () => {
+    const result = buildScheduleString({
+      ...base, type: "recurring",
+      recurringRules: [
+        { days: [1, 2, 3, 4, 5], hour: 10, minute: 0 },
+        { days: [6, 0], hour: 12, minute: 0 },
+      ],
+    });
+    expect(result).toBe("0 10 * * 1,2,3,4,5");
+  });
+
   it("uses * for days when days array is empty", () => {
-    const result = buildScheduleString({ ...base, type: "recurring", days: [], hour: 6, minute: 30 });
+    const result = buildScheduleString({
+      ...base, type: "recurring",
+      recurringRules: [{ days: [], hour: 6, minute: 30 }],
+    });
     expect(result).toBe("30 6 * * *");
   });
 
@@ -223,21 +268,51 @@ describe("buildScheduleConfig", () => {
     expect(result).toEqual({ datetime: "2026-06-10T09:00", timezone: "UTC" });
   });
 
-  it("returns days, hour, minute, timezone for recurring type", () => {
+  it("returns rules array and timezone for recurring type", () => {
     const result = buildScheduleConfig({
       ...base,
       type: "recurring",
-      days: [1, 5],
-      hour: 8,
-      minute: 0,
+      recurringRules: [{ days: [1, 5], hour: 8, minute: 0 }],
       timezone: "Europe/Paris",
     });
-    expect(result).toEqual({ days: [1, 5], hour: 8, minute: 0, timezone: "Europe/Paris" });
+    expect(result).toEqual({
+      rules: [{ days: [1, 5], hour: 8, minute: 0 }],
+      timezone: "Europe/Paris",
+    });
   });
 
   it("returns every and unit for interval type", () => {
     const result = buildScheduleConfig({ ...base, type: "interval", every: 2, unit: "hours" });
     expect(result).toEqual({ every: 2, unit: "hours" });
+  });
+
+  it("includes startDate and endDate in interval config when set", () => {
+    const result = buildScheduleConfig({
+      ...base,
+      type: "interval",
+      every: 1,
+      unit: "hours",
+      intervalStartDate: "2026-06-15T08:00",
+      intervalEndDate: "2026-12-31T23:59",
+    });
+    expect(result).toEqual({
+      every: 1,
+      unit: "hours",
+      startDate: "2026-06-15T08:00",
+      endDate: "2026-12-31T23:59",
+    });
+  });
+
+  it("omits startDate/endDate from interval config when empty", () => {
+    const result = buildScheduleConfig({
+      ...base,
+      type: "interval",
+      every: 30,
+      unit: "minutes",
+      intervalStartDate: "",
+      intervalEndDate: "",
+    });
+    expect(result).toEqual({ every: 30, unit: "minutes" });
   });
 });
 

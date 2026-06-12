@@ -432,7 +432,13 @@
       "unit": "Unité",
       "minutes": "minute(s)",
       "hours": "heure(s)",
-      "intervalMin": "Intervalle minimum : 1 minute."
+      "intervalMin": "Intervalle minimum : 1 minute.",
+      "addTimeSlot": "Ajouter une plage horaire",
+      "timeSlot": "Plage",
+      "startDate": "Date de début",
+      "endDate": "Date de fin",
+      "endDateOptional": "Pas de date de fin",
+      "recurringDesc": "Exécuter selon plusieurs plages horaires"
     },
     "sources": {
       "addPath": "Ajouter un chemin",

@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { backupsService, describeSchedule, type Backup } from "@/services/backups";
 import { inputService, type InputItem } from "@/services/input";
+import { BackupPipelineDialog } from "@/components/backup/BackupPipeline";
 import { logsService, type LogEntry } from "@/services/logs";
 import { ApiError } from "@/lib/api";
 import { SkeletonListItems } from "@/components/ui/skeleton";
@@ -248,6 +249,9 @@ function BackupCard({ item, inputMap, onUpdated, onRemoved }: BackupCardProps) {
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
+          {/* Pipeline visualizer */}
+          <BackupPipelineDialog backup={item} inputMap={inputMap} />
+
           {/* Error logs button */}
           {(errorCount ?? 0) > 0 && (
             <Tooltip>

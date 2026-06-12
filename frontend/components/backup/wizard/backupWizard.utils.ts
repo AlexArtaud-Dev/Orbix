@@ -1,6 +1,6 @@
 import type { Backup, CreateBackupPayload, ScheduleConfigPayload } from "@/services/backups";
 import type { StepBasicData } from "./StepBasic";
-import type { StepScheduleData, ScheduleType } from "./StepSchedule";
+import type { StepScheduleData, ScheduleType, RecurringRule } from "./StepSchedule";
 import type { SourceFormItem } from "./StepSources";
 import type { StepZipData } from "./StepZip";
 import type { OutputFormItem } from "./StepOutputs";
@@ -22,11 +22,11 @@ export function defaultForm(): WizardForm {
       type: "manual",
       datetime: "",
       timezone: "UTC",
-      days: [1, 2, 3, 4, 5],
-      hour: 3,
-      minute: 0,
+      recurringRules: [{ days: [1, 2, 3, 4, 5], hour: 3, minute: 0 }],
       every: 1,
       unit: "hours",
+      intervalStartDate: "",
+      intervalEndDate: "",
     },
     sources: [],
     zip: { noArchive: false, archiveFormat: "zip", zipCompression: "default", zipPassword: "", zipPasswordVaultRef: "", zipFilename: "" },
@@ -43,11 +43,11 @@ export function backupToForm(backup: Backup): WizardForm {
       type: (backup.scheduleType as ScheduleType) || "manual",
       datetime: cfg && "datetime" in cfg ? String(cfg.datetime) : "",
       timezone: cfg && "timezone" in cfg ? String(cfg.timezone) : "UTC",
-      days: cfg && "days" in cfg && Array.isArray(cfg.days) ? (cfg.days as number[]) : [1, 2, 3, 4, 5],
-      hour: cfg && "hour" in cfg ? Number(cfg.hour) : 3,
-      minute: cfg && "minute" in cfg ? Number(cfg.minute) : 0,
+      recurringRules: parseRecurringRules(cfg),
       every: cfg && "every" in cfg ? Number(cfg.every) : 1,
       unit: cfg && "unit" in cfg ? (String(cfg.unit) as "minutes" | "hours") : "hours",
+      intervalStartDate: cfg && "startDate" in cfg ? String(cfg.startDate) : "",
+      intervalEndDate: cfg && "endDate" in cfg ? String(cfg.endDate) : "",
     },
     // URL sources are no longer managed by the wizard — filter them out
     sources: backup.sources.sources
@@ -83,13 +83,29 @@ export function backupToForm(backup: Backup): WizardForm {
   };
 }
 
+function parseRecurringRules(cfg: Record<string, unknown> | null): RecurringRule[] {
+  // New format: { rules: [{ days, hour, minute }] }
+  if (cfg && "rules" in cfg && Array.isArray(cfg.rules) && cfg.rules.length > 0) {
+    return cfg.rules as RecurringRule[];
+  }
+  // Legacy format: { days, hour, minute }
+  return [{
+    days: cfg && "days" in cfg && Array.isArray(cfg.days) ? (cfg.days as number[]) : [1, 2, 3, 4, 5],
+    hour: cfg && "hour" in cfg ? Number(cfg.hour) : 3,
+    minute: cfg && "minute" in cfg ? Number(cfg.minute) : 0,
+  }];
+}
+
 export function buildScheduleString(s: StepScheduleData): string | null {
   switch (s.type) {
     case "manual": return null;
     case "oneshoot": return s.datetime || null;
     case "recurring": {
-      const days = s.days.length === 0 ? "*" : s.days.join(",");
-      return `${s.minute} ${s.hour} * * ${days}`;
+      // Use first rule for the schedule field (primary trigger for display & backward compat)
+      const rule = s.recurringRules[0];
+      if (!rule) return null;
+      const days = rule.days.length === 0 ? "*" : rule.days.join(",");
+      return `${rule.minute} ${rule.hour} * * ${days}`;
     }
     case "interval":
       return s.unit === "minutes"
@@ -102,8 +118,13 @@ export function buildScheduleConfig(s: StepScheduleData): ScheduleConfigPayload 
   switch (s.type) {
     case "manual": return null;
     case "oneshoot": return { datetime: s.datetime, timezone: s.timezone };
-    case "recurring": return { days: s.days, hour: s.hour, minute: s.minute, timezone: s.timezone };
-    case "interval": return { every: s.every, unit: s.unit };
+    case "recurring": return { rules: s.recurringRules, timezone: s.timezone };
+    case "interval": return {
+      every: s.every,
+      unit: s.unit,
+      ...(s.intervalStartDate ? { startDate: s.intervalStartDate } : {}),
+      ...(s.intervalEndDate   ? { endDate:   s.intervalEndDate   } : {}),
+    };
   }
 }
 

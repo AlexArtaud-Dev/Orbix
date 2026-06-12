@@ -39,6 +39,12 @@ export interface UpdateHttpVaultPayload {
   data?: Record<string, unknown>;
 }
 
+export interface VaultHealthCheckItem {
+  status: "ok" | "error";
+  statusMsg: string | null;
+  checkedAt: string;
+}
+
 export interface EmailVaultItem {
   id: string;
   name: string;
@@ -48,9 +54,7 @@ export interface EmailVaultItem {
   fromAddr: string;
   fromName: string;
   secure: boolean;
-  smtpStatus: "ok" | "error" | null;
-  smtpStatusMsg: string | null;
-  smtpCheckedAt: string | null;
+  healthCheck: VaultHealthCheckItem | null;
   createdAt: string;
   updatedAt: string;
 }
