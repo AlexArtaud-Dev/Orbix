@@ -181,6 +181,7 @@ Indexes: `(backupId, startedAt desc)`, `(status, startedAt desc)`, `(startedAt d
 
 Rows older than `SystemSettings.backupRetentionDays` are automatically purged hourly by `BackupScheduler.purgeOldRuns()`.
 
+
 ---
 
 ### BackupOutput

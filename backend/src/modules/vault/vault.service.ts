@@ -477,12 +477,7 @@ export class VaultService {
       await transporter.verify();
       await this.prisma.vaultHealthCheck.upsert({
         where: { vaultId: id },
-        create: {
-          vaultId: id,
-          status: 'ok',
-          statusMsg: null,
-          checkedAt: new Date(),
-        },
+        create: { vaultId: id, status: 'ok', statusMsg: null, checkedAt: new Date() },
         update: { status: 'ok', statusMsg: null, checkedAt: new Date() },
       });
       this.logs.info(
@@ -496,12 +491,7 @@ export class VaultService {
       const smtpErr = new VaultSmtpTestFailedException(entity.name, cause);
       await this.prisma.vaultHealthCheck.upsert({
         where: { vaultId: id },
-        create: {
-          vaultId: id,
-          status: 'error',
-          statusMsg: cause,
-          checkedAt: new Date(),
-        },
+        create: { vaultId: id, status: 'error', statusMsg: cause, checkedAt: new Date() },
         update: { status: 'error', statusMsg: cause, checkedAt: new Date() },
       });
       this.logs.exception('vault', smtpErr, `SMTP test failed: ${entity.name}`);
