@@ -598,7 +598,6 @@ export class VaultService {
       this.decrypt(entity.encryptedPayload),
     ) as VarSetPayload;
 
-    // Build a lookup of existing values so empty-value submissions keep the current value
     const currentMap = new Map(
       (current.variables ?? []).map((v) => [v.key, v.value]),
     );
@@ -606,7 +605,6 @@ export class VaultService {
     const updated: VarSetPayload = {
       variables: (dto.variables ?? current.variables).map((v) => ({
         key: v.key,
-        // Empty string submitted for an existing key → keep the stored value
         value:
           v.value === '' && currentMap.has(v.key)
             ? currentMap.get(v.key)!
@@ -640,7 +638,6 @@ export class VaultService {
     );
   }
 
-  /** Decrypt and return variables as a plain key→value map (used by backup runner for template substitution) */
   async getVariableSetPayload(id: string): Promise<Record<string, string>> {
     const entity = await this.prisma.vaultEntity.findUnique({ where: { id } });
     if (!entity || entity.type !== 'variable_set')
@@ -655,7 +652,6 @@ export class VaultService {
     return result;
   }
 
-  /** Resolve variables by slug (used by runner for {{vault.var.<slug>.<key>}} templates) */
   async getVariableSetPayloadBySlug(
     slug: string,
   ): Promise<Record<string, string>> {
