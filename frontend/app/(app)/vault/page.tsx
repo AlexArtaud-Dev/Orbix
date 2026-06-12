@@ -31,11 +31,11 @@ export default function VaultPage() {
         <p className="text-muted-foreground">{t("vault.selectorSubtitle")}</p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-rows-[auto] items-stretch gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {VAULT_TYPES.map(({ key, icon: Icon, href }) => (
-          <Link key={key} href={href} className="group block">
-            <Card className="transition-colors hover:border-primary/50 hover:bg-muted/30">
-              <CardContent className="flex items-center gap-4 py-5">
+          <Link key={key} href={href} className="group flex">
+            <Card className="flex flex-1 transition-colors hover:border-primary/50 hover:bg-muted/30">
+              <CardContent className="flex flex-1 items-center gap-4 py-5">
                 <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                   <Icon className="size-5" />
                 </div>
@@ -50,9 +50,9 @@ export default function VaultPage() {
         ))}
 
         {COMING_SOON.map(({ key, icon: Icon }) => (
-          <div key={key} className="block cursor-not-allowed opacity-50">
-            <Card>
-              <CardContent className="flex items-center gap-4 py-5">
+          <div key={key} className="flex cursor-not-allowed opacity-50">
+            <Card className="flex flex-1">
+              <CardContent className="flex flex-1 items-center gap-4 py-5">
                 <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
                   <Icon />
                 </div>

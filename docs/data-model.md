@@ -160,6 +160,30 @@ Day numbers follow JavaScript `Date.getDay()` convention: 0 = Sunday, 1 = Monday
 
 ---
 
+### BackupRun
+
+One row per execution of a backup, written by `BackupRunner`. Used by the v0.9 dashboard (KPIs, charts, last-runs table).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | String (cuid) | Primary key |
+| `backupId` | String | FK → Backup (cascade delete) |
+| `startedAt` | DateTime | Run start timestamp (indexed) |
+| `finishedAt` | DateTime? | Run end timestamp — null while status is `"running"` |
+| `status` | String | `"running"` \| `"success"` \| `"error"` |
+| `archiveSizeBytes` | Int? | Compressed archive size in bytes — set on success |
+| `filesCount` | Int? | Number of files in the archive — set on success |
+| `errorMessage` | String? | Error detail — set on error |
+| `triggerType` | String | `"manual"` \| `"scheduler"` \| `"api"` |
+| `createdAt` | DateTime | Insert timestamp |
+
+Indexes: `(backupId, startedAt desc)`, `(status, startedAt desc)`, `(startedAt desc)`.
+
+Rows older than `SystemSettings.backupRetentionDays` are automatically purged hourly by `BackupScheduler.purgeOldRuns()`.
+
+
+---
+
 ### BackupOutput
 
 One output destination per backup. A backup can have multiple ordered outputs.

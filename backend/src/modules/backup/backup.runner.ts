@@ -88,7 +88,10 @@ export class BackupRunner {
     private readonly outputRegistry: OutputProviderRegistry,
   ) {}
 
-  async run(backupId: string): Promise<void> {
+  async run(
+    backupId: string,
+    triggerType: 'manual' | 'scheduler' | 'api' = 'manual',
+  ): Promise<void> {
     const backup = await this.prisma.backup.findUnique({
       where: { id: backupId },
       include: { outputs: true },
@@ -103,6 +106,11 @@ export class BackupRunner {
       );
       return;
     }
+
+    const startedAt = new Date();
+    const run = await this.prisma.backupRun.create({
+      data: { backupId, startedAt, status: 'running', triggerType },
+    });
 
     this.logs.info(
       'backup',
@@ -147,10 +155,22 @@ export class BackupRunner {
         await this.sendOutput(backup.name, backupId, output, archive);
       }
 
-      await this.prisma.backup.update({
-        where: { id: backupId },
-        data: { lastRunAt: new Date(), lastStatus: 'success' },
-      });
+      const finishedAt = new Date();
+      await Promise.all([
+        this.prisma.backup.update({
+          where: { id: backupId },
+          data: { lastRunAt: finishedAt, lastStatus: 'success' },
+        }),
+        this.prisma.backupRun.update({
+          where: { id: run.id },
+          data: {
+            status: 'success',
+            finishedAt,
+            archiveSizeBytes: archive.size,
+            filesCount: archive.filesCount,
+          },
+        }),
+      ]);
 
       if ((backup as { scheduleType: string }).scheduleType === 'oneshoot') {
         await this.prisma.backup.update({
@@ -167,21 +187,28 @@ export class BackupRunner {
         { backupId },
       );
     } catch (err) {
-      await this.prisma.backup.update({
-        where: { id: backupId },
-        data: { lastRunAt: new Date(), lastStatus: 'error' },
-      });
+      const finishedAt = new Date();
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      await Promise.all([
+        this.prisma.backup.update({
+          where: { id: backupId },
+          data: { lastRunAt: finishedAt, lastStatus: 'error' },
+        }),
+        this.prisma.backupRun.update({
+          where: { id: run.id },
+          data: { status: 'error', finishedAt, errorMessage },
+        }),
+      ]);
       if (err instanceof OrbixException) {
         this.logs.exception('backup', err, `Backup failed: ${backup.name}`, {
           backupId,
         });
       } else {
-        const msg = err instanceof Error ? err.message : String(err);
         this.logs.error(
           'backup',
           'BACKUP_RUN_ERROR',
           `Backup failed: ${backup.name}`,
-          msg,
+          errorMessage,
           { backupId },
         );
       }

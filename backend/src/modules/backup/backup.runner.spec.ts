@@ -14,6 +14,7 @@ function makeMockPrisma() {
   return {
     backup: { findUnique: jest.fn(), update: jest.fn() },
     backupOutput: { deleteMany: jest.fn() },
+    backupRun: { create: jest.fn(), update: jest.fn() },
   };
 }
 
@@ -182,6 +183,35 @@ describe('BackupRunner', () => {
         undefined,
         expect.anything(),
       );
+    });
+
+    it('accepts "manual" as the default triggerType', async () => {
+      mockPrisma.backup.findUnique.mockResolvedValue(null);
+
+      // Calling without triggerType — should not throw
+      await expect(runner.run('missing-id')).resolves.toBeUndefined();
+    });
+
+    it('accepts an explicit "scheduler" triggerType', async () => {
+      mockPrisma.backup.findUnique.mockResolvedValue(null);
+
+      await expect(
+        runner.run('missing-id', 'scheduler'),
+      ).resolves.toBeUndefined();
+    });
+
+    it('accepts an explicit "api" triggerType', async () => {
+      mockPrisma.backup.findUnique.mockResolvedValue(null);
+
+      await expect(runner.run('missing-id', 'api')).resolves.toBeUndefined();
+    });
+
+    it('does not create a BackupRun when the backup is not found', async () => {
+      mockPrisma.backup.findUnique.mockResolvedValue(null);
+
+      await runner.run('missing-id');
+
+      expect(mockPrisma.backupRun.create).not.toHaveBeenCalled();
     });
   });
 
