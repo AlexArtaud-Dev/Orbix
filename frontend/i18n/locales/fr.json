@@ -42,8 +42,8 @@
     "logs": "Historique",
     "settings": "Paramètres",
     "back": "Retour",
-    "input": "Inputs",
-    "httpRestInputs": "Inputs HTTP REST",
+    "input": "Entrées",
+    "httpRestInputs": "Entrées HTTP REST",
     "variableSets": "Jeux de variables",
     "categories": {
       "resources": "Ressources",
