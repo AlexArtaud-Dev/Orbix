@@ -27,6 +27,14 @@ import { useAuthStore } from "@/stores/authStore";
 import { useTranslation } from "react-i18next";
 import { statsService, type StatsData, type StatsPeriod } from "@/services/stats";
 import {
+  formatSize,
+  formatDuration,
+  formatDate,
+  formatDay,
+  formatMonth,
+  groupByMonth,
+} from "./dashboard.utils";
+import {
   HardDrive,
   CalendarClock,
   RefreshCw,
@@ -38,40 +46,6 @@ import {
   Clock,
 } from "lucide-react";
 
-// ─── Formatters ──────────────────────────────────────────────────────────────
-
-function formatSize(bytes: number | null): string {
-  if (bytes === null) return "—";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
-}
-
-function formatDuration(ms: number | null): string {
-  if (ms === null) return "—";
-  if (ms < 1000) return `${ms}ms`;
-  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
-  return `${Math.floor(ms / 60000)}m ${Math.floor((ms % 60000) / 1000)}s`;
-}
-
-function formatDate(iso: string | null): string {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleString("fr-FR", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function formatDay(dateStr: string): string {
-  return new Date(dateStr + "T00:00:00Z").toLocaleDateString("fr-FR", {
-    day: "2-digit",
-    month: "short",
-    timeZone: "UTC",
-  });
-}
 
 // ─── Chart configs — explicit semantic colors ─────────────────────────────────
 
@@ -98,6 +72,29 @@ const logsChartConfig = {
 const errorsChartConfig = {
   count: { label: "Erreurs logs", color: "oklch(0.65 0.22 27)" },
 } satisfies ChartConfig;
+
+// ─── Custom tooltip for single-series charts ─────────────────────────────────
+
+function MetricTooltip({
+  active,
+  payload,
+  format,
+}: {
+  active?: boolean;
+  payload?: ReadonlyArray<{ value?: unknown; payload?: { name?: string } }>;
+  format: (v: number) => string;
+}) {
+  const entry = payload?.[0];
+  if (!active || entry == null || entry.value == null) return null;
+  return (
+    <div className="rounded-lg border bg-background px-3 py-2 text-sm shadow-sm">
+      {entry.payload?.name && (
+        <p className="text-xs text-muted-foreground">{entry.payload.name}</p>
+      )}
+      <p className="font-semibold">{format(entry.value as number)}</p>
+    </div>
+  );
+}
 
 // ─── Period selector ──────────────────────────────────────────────────────────
 
@@ -148,18 +145,22 @@ function KpiCard({
         ? "text-red-600 dark:text-red-400"
         : "";
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-1">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-        <Icon className="size-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent className="pt-0">
-        {loading ? (
-          <Skeleton className="h-8 w-20" />
-        ) : (
-          <p className={`text-2xl font-bold ${accentClass}`}>{value}</p>
-        )}
-        {sub && <p className="mt-0.5 text-xs text-muted-foreground truncate">{sub}</p>}
+    <Card className="flex">
+      <CardContent className="flex flex-1 items-center gap-3 px-3 py-2">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+          <Icon className="size-4 text-primary" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-medium text-muted-foreground">{title}</p>
+          {loading ? (
+            <Skeleton className="mt-0.5 h-5 w-14" />
+          ) : (
+            <p className={`text-lg font-bold leading-tight ${accentClass}`}>{value}</p>
+          )}
+          {sub && (
+            <p className="truncate text-xs text-muted-foreground">{sub}</p>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
@@ -194,6 +195,7 @@ export default function DashboardPage() {
   );
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetch();
   }, [fetch]);
 
@@ -244,6 +246,11 @@ export default function DashboardPage() {
         .map((r) => ({ name: formatDate(r.startedAt), duration: r.durationMs ?? 0 })),
     [data],
   );
+
+  const chartRecentRuns = useMemo(() => {
+    if (!data?.recentRuns) return [];
+    return period === "365d" ? groupByMonth(data.recentRuns) : data.recentRuns;
+  }, [data, period]);
 
   return (
     <div className="space-y-5">
@@ -305,7 +312,7 @@ export default function DashboardPage() {
       </div>
 
       {/* KPI cards — period-based metrics */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <KpiCard
           title="Backups actifs"
           value={data ? `${data.counts.backupsActive} / ${data.counts.backupsTotal}` : "—"}
@@ -375,22 +382,24 @@ export default function DashboardPage() {
             {loading ? (
               <Skeleton className="h-[200px] w-full" />
             ) : (
-              <ChartContainer config={runsChartConfig} className="min-h-[200px] w-full">
-                <BarChart accessibilityLayer data={data?.recentRuns ?? []}>
+              <ChartContainer config={runsChartConfig} className="h-[200px] w-full">
+                <BarChart accessibilityLayer data={chartRecentRuns}>
                   <CartesianGrid vertical={false} />
                   <XAxis
                     dataKey="date"
                     tickLine={false}
                     axisLine={false}
                     tickMargin={6}
-                    minTickGap={20}
-                    tickFormatter={formatDay}
+                    minTickGap={period === "365d" ? 8 : 20}
+                    tickFormatter={period === "365d" ? formatMonth : formatDay}
                     tick={{ fontSize: 11 }}
                   />
                   <ChartTooltip
                     content={
                       <ChartTooltipContent
-                        labelFormatter={(v) => formatDay(v as string)}
+                        labelFormatter={(v) =>
+                          period === "365d" ? formatMonth(v as string) : formatDay(v as string)
+                        }
                       />
                     }
                   />
@@ -402,7 +411,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="self-start">
+        <Card className="flex flex-col">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">
               Résultats globaux
@@ -413,21 +422,21 @@ export default function DashboardPage() {
               )}
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex flex-1 flex-col items-center justify-center gap-4">
             {loading ? (
               <Skeleton className="h-[180px] w-full" />
             ) : donutData.every((d) => d.value === 0) ? (
-              <p className="py-10 text-center text-sm text-muted-foreground">Aucun run sur cette période</p>
+              <p className="text-center text-sm text-muted-foreground">Aucun run sur cette période</p>
             ) : (
-              <div className="flex flex-col items-center gap-4">
-                <ChartContainer config={runsChartConfig} className="h-[160px] w-[160px]">
+              <>
+                <ChartContainer config={runsChartConfig} className="h-[180px] w-[180px]">
                   <PieChart>
                     <Pie
                       data={donutData}
                       cx="50%"
                       cy="50%"
-                      innerRadius={50}
-                      outerRadius={75}
+                      innerRadius={58}
+                      outerRadius={85}
                       dataKey="value"
                       paddingAngle={2}
                     >
@@ -454,7 +463,7 @@ export default function DashboardPage() {
                     );
                   })}
                 </div>
-              </div>
+              </>
             )}
           </CardContent>
         </Card>
@@ -473,7 +482,7 @@ export default function DashboardPage() {
               <p className="py-8 text-center text-sm text-muted-foreground">Aucune donnée</p>
             ) : (
               <ChartContainer config={sizeChartConfig} className="min-h-[160px] w-full">
-                <LineChart accessibilityLayer data={runSizeData}>
+                <LineChart accessibilityLayer data={runSizeData} margin={{ top: 16, right: 8, left: 0, bottom: 0 }}>
                   <CartesianGrid vertical={false} />
                   <XAxis
                     dataKey="name"
@@ -487,15 +496,10 @@ export default function DashboardPage() {
                     axisLine={false}
                     tick={{ fontSize: 10 }}
                     tickFormatter={(v: number) => formatSize(v)}
-                    width={60}
+                    width={68}
                   />
                   <ChartTooltip
-                    content={
-                      <ChartTooltipContent
-                        formatter={(v) => [formatSize(v as number), "Taille"]}
-                        hideLabel
-                      />
-                    }
+                    content={(props) => <MetricTooltip {...props} format={formatSize} />}
                   />
                   <Line
                     dataKey="size"
@@ -512,7 +516,7 @@ export default function DashboardPage() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Durée d'exécution (10 derniers)</CardTitle>
+            <CardTitle className="text-sm font-medium">{"Durée d'exécution (10 derniers)"}</CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -538,12 +542,7 @@ export default function DashboardPage() {
                     width={52}
                   />
                   <ChartTooltip
-                    content={
-                      <ChartTooltipContent
-                        formatter={(v) => [formatDuration(v as number), "Durée"]}
-                        hideLabel
-                      />
-                    }
+                    content={(props) => <MetricTooltip {...props} format={formatDuration} />}
                   />
                   <Bar dataKey="duration" fill="var(--color-duration)" radius={3} />
                 </BarChart>
