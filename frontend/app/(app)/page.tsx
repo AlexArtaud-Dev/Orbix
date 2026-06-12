@@ -402,7 +402,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="self-start">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">
               Résultats globaux
@@ -413,32 +413,48 @@ export default function DashboardPage() {
               )}
             </CardTitle>
           </CardHeader>
-          <CardContent className="flex items-center justify-center">
+          <CardContent>
             {loading ? (
-              <Skeleton className="h-[200px] w-full" />
+              <Skeleton className="h-[180px] w-full" />
             ) : donutData.every((d) => d.value === 0) ? (
-              <p className="py-12 text-sm text-muted-foreground">Aucun run sur cette période</p>
+              <p className="py-10 text-center text-sm text-muted-foreground">Aucun run sur cette période</p>
             ) : (
-              <ChartContainer config={runsChartConfig} className="min-h-[200px] w-full">
-                <PieChart>
-                  <Pie
-                    data={donutData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={55}
-                    outerRadius={80}
-                    dataKey="value"
-                    paddingAngle={2}
-                  >
-                    {donutData.map((entry, i) => (
-                      <Cell key={i} fill={entry.fill} />
-                    ))}
-                  </Pie>
-                  <ChartTooltip
-                    content={<ChartTooltipContent nameKey="name" hideLabel />}
-                  />
-                </PieChart>
-              </ChartContainer>
+              <div className="flex flex-col items-center gap-4">
+                <ChartContainer config={runsChartConfig} className="h-[160px] w-[160px]">
+                  <PieChart>
+                    <Pie
+                      data={donutData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={50}
+                      outerRadius={75}
+                      dataKey="value"
+                      paddingAngle={2}
+                    >
+                      {donutData.map((entry, i) => (
+                        <Cell key={i} fill={entry.fill} />
+                      ))}
+                    </Pie>
+                    <ChartTooltip
+                      content={<ChartTooltipContent nameKey="name" hideLabel />}
+                    />
+                  </PieChart>
+                </ChartContainer>
+                <div className="flex gap-4 text-sm">
+                  {donutData.map((entry) => {
+                    const total = donutData.reduce((s, d) => s + d.value, 0);
+                    const pct = total > 0 ? Math.round((entry.value / total) * 100) : 0;
+                    return (
+                      <div key={entry.name} className="flex items-center gap-1.5">
+                        <span className="size-2.5 shrink-0 rounded-full" style={{ background: entry.fill }} />
+                        <span className="text-muted-foreground">{entry.name}</span>
+                        <span className="font-medium">{entry.value}</span>
+                        <span className="text-xs text-muted-foreground">({pct}%)</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>
