@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { GripVertical, Plus, Trash2, ChevronRight, Mail } from "lucide-react";
+import { GripVertical, Plus, Trash2, ChevronRight, Mail, Server } from "lucide-react";
 import {
   DndContext,
   closestCenter,
@@ -40,14 +40,15 @@ import {
 } from "@/components/ui/dialog";
 import { ContactPicker } from "@/components/mail/ContactPicker";
 import { VariableInserter } from "@/components/mail/VariableInserter";
-import type { EmailVaultItem } from "@/services/vault";
+import type { EmailVaultItem, SshVaultItem } from "@/services/vault";
 import type { MailTemplate } from "@/services/templates";
 import type { Contact } from "@/services/contacts";
 
 export interface OutputFormItem {
   dndId: string;
-  type: "mail";
+  type: "mail" | "ssh";
   vaultId: string;
+  // mail-specific
   templateId: string;
   recipientsTo: Contact[];
   recipientsCc: Contact[];
@@ -55,9 +56,11 @@ export interface OutputFormItem {
   overrideSubject: string;
   overrideBody: string;
   overrideBodyType: "text" | "html";
+  // ssh-specific
+  pathOverride: string;
 }
 
-export function emptyOutput(type: "mail" = "mail"): OutputFormItem {
+export function emptyOutput(type: "mail" | "ssh" = "mail"): OutputFormItem {
   return {
     dndId: `out-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     type,
@@ -69,18 +72,18 @@ export function emptyOutput(type: "mail" = "mail"): OutputFormItem {
     overrideSubject: "",
     overrideBody: "",
     overrideBodyType: "text",
+    pathOverride: "",
   };
 }
 
-// Output types — add more here when new types are available
 interface OutputTypeDef {
-  key: "mail";
+  key: "mail" | "ssh";
   icon: React.ElementType;
-  available: boolean;
 }
 
 const OUTPUT_TYPE_DEFS: OutputTypeDef[] = [
-  { key: "mail", icon: Mail, available: true },
+  { key: "mail", icon: Mail },
+  { key: "ssh", icon: Server },
 ];
 
 const COMING_SOON_TYPES: { key: string; icon: React.ElementType }[] = [
@@ -91,12 +94,13 @@ const COMING_SOON_TYPES: { key: string; icon: React.ElementType }[] = [
 interface StepOutputsProps {
   data: OutputFormItem[];
   vaultItems: EmailVaultItem[];
+  sshVaultItems: SshVaultItem[];
   templates: MailTemplate[];
   contacts: Contact[];
   onChange: (data: OutputFormItem[]) => void;
 }
 
-export function StepOutputs({ data, vaultItems, templates, contacts, onChange }: StepOutputsProps) {
+export function StepOutputs({ data, vaultItems, sshVaultItems, templates, contacts, onChange }: StepOutputsProps) {
   const { t } = useTranslation();
   const [typePickerOpen, setTypePickerOpen] = useState(false);
 
@@ -119,7 +123,7 @@ export function StepOutputs({ data, vaultItems, templates, contacts, onChange }:
 
   const removeOutput = (idx: number) => onChange(data.filter((_, i) => i !== idx));
 
-  const handleSelectType = (type: "mail") => {
+  const handleSelectType = (type: "mail" | "ssh") => {
     onChange([...data, emptyOutput(type)]);
     setTypePickerOpen(false);
   };
@@ -162,6 +166,7 @@ export function StepOutputs({ data, vaultItems, templates, contacts, onChange }:
                 output={output}
                 idx={idx}
                 vaultItems={vaultItems}
+                sshVaultItems={sshVaultItems}
                 templates={templates}
                 contacts={contacts}
                 onUpdate={(partial) => updateOutput(idx, partial)}
@@ -185,7 +190,7 @@ export function StepOutputs({ data, vaultItems, templates, contacts, onChange }:
               <button
                 key={key}
                 type="button"
-                onClick={() => handleSelectType(key)}
+                onClick={() => handleSelectType(key as "mail" | "ssh")}
                 className="w-full flex items-center gap-4 rounded-lg border p-4 text-left transition-colors hover:border-primary/50 hover:bg-muted/30 group"
               >
                 <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -228,6 +233,7 @@ interface SortableOutputCardProps {
   output: OutputFormItem;
   idx: number;
   vaultItems: EmailVaultItem[];
+  sshVaultItems: SshVaultItem[];
   templates: MailTemplate[];
   contacts: Contact[];
   onUpdate: (partial: Partial<OutputFormItem>) => void;
@@ -238,6 +244,7 @@ function SortableOutputCard({
   output,
   idx,
   vaultItems,
+  sshVaultItems,
   templates,
   contacts,
   onUpdate,
@@ -286,6 +293,32 @@ function SortableOutputCard({
 
       {/* Body */}
       <div className="p-3 space-y-3">
+        {output.type === "ssh" ? (
+          <FieldGroup>
+            <Field>
+              <FieldLabel>{t("output.ssh.vaultLabel")}</FieldLabel>
+              <Select value={output.vaultId} onValueChange={(v) => onUpdate({ vaultId: v })}>
+                <SelectTrigger>
+                  <SelectValue placeholder={t("output.ssh.vaultPlaceholder")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {sshVaultItems.map((v) => (
+                    <SelectItem key={v.id} value={v.id}>{v.name} — {v.username}@{v.host}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field>
+              <FieldLabel>{t("output.ssh.pathOverride")}</FieldLabel>
+              <Input
+                value={output.pathOverride}
+                onChange={(e) => onUpdate({ pathOverride: e.target.value })}
+                placeholder={output.vaultId ? sshVaultItems.find((v) => v.id === output.vaultId)?.defaultPath ?? t("output.ssh.pathOverridePlaceholder") : t("output.ssh.pathOverridePlaceholder")}
+              />
+              <p className="text-xs text-muted-foreground mt-1">{t("output.ssh.pathOverrideHint")}</p>
+            </Field>
+          </FieldGroup>
+        ) : (
         <FieldGroup>
           <div className="grid grid-cols-2 gap-3">
             <Field>
@@ -348,7 +381,6 @@ function SortableOutputCard({
               />
             </Field>
           </div>
-        </FieldGroup>
 
         <Separator />
 
@@ -411,6 +443,8 @@ function SortableOutputCard({
             </div>
           )}
         </div>
+        </FieldGroup>
+        )}
       </div>
     </div>
   );

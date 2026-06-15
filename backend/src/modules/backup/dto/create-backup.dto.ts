@@ -76,6 +76,10 @@ export class CreateBackupOutputDto {
   @IsOptional()
   overrideBodyType?: string;
 
+  @IsString()
+  @IsOptional()
+  pathOverride?: string;
+
   @IsNumber()
   @IsOptional()
   order?: number;

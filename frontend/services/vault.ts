@@ -111,6 +111,74 @@ export interface UpdateVarSetPayload {
   variables?: VarSetVariable[];
 }
 
+// ─── SSH Remote vault ─────────────────────────────────────────────────────────
+
+export type SshVaultSubtype = "user_password" | "ssh_key";
+
+export interface SshVaultItem {
+  id: string;
+  name: string;
+  subtype: SshVaultSubtype;
+  host: string;
+  port: number;
+  username: string;
+  defaultPath: string;
+  useSudo: boolean;
+  healthCheck: VaultHealthCheckItem | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateSshVaultPayload {
+  name: string;
+  subtype: SshVaultSubtype;
+  host: string;
+  port: number;
+  username: string;
+  defaultPath: string;
+  password?: string;
+  privateKey?: string;
+  passphrase?: string;
+  sudoPassword?: string;
+  useSudo?: boolean;
+}
+
+export interface UpdateSshVaultPayload {
+  name?: string;
+  host?: string;
+  port?: number;
+  username?: string;
+  defaultPath?: string;
+  password?: string;
+  privateKey?: string;
+  passphrase?: string;
+  sudoPassword?: string;
+  useSudo?: boolean;
+}
+
+export interface SshTestResult {
+  steps: { connection: string; path: string; write: string };
+  ok: boolean;
+}
+
+export interface SshBrowseEntry {
+  name: string;
+  type: "file" | "directory";
+  size: number;
+  mtime: string;
+}
+
+export interface SshBrowseResult {
+  path: string;
+  entries: SshBrowseEntry[];
+}
+
+export interface SshMatchEntry {
+  name: string;
+  path: string;
+  size: number;
+}
+
 export const vaultService = {
   // Email
   listEmail: (cursor?: string, limit = 20) => {
@@ -164,4 +232,28 @@ export const vaultService = {
     api.delete<null>(`/api/vault/varset/${id}`),
   countVarSet: () =>
     api.get<{ count: number }>("/api/vault/varset/count"),
+
+  // SSH Remote
+  listSsh: () =>
+    api.get<SshVaultItem[]>("/api/vault/ssh-remote"),
+  createSsh: (data: CreateSshVaultPayload) =>
+    api.post<SshVaultItem>("/api/vault/ssh-remote", data),
+  getSsh: (id: string) =>
+    api.get<SshVaultItem>(`/api/vault/ssh-remote/${id}`),
+  updateSsh: (id: string, data: UpdateSshVaultPayload) =>
+    api.patch<SshVaultItem>(`/api/vault/ssh-remote/${id}`, data),
+  deleteSsh: (id: string) =>
+    api.delete<null>(`/api/vault/ssh-remote/${id}`),
+  testSsh: (id: string) =>
+    api.post<SshTestResult>(`/api/vault/ssh-remote/${id}/test`),
+  countSsh: () =>
+    api.get<{ count: number }>("/api/vault/ssh-remote/count"),
+  browseSsh: (id: string, path: string) =>
+    api.get<SshBrowseResult>(`/api/vault/ssh-remote/${id}/browse?path=${encodeURIComponent(path)}`),
+  matchSsh: (id: string, path: string, pattern?: string, recursive?: boolean) => {
+    const params = new URLSearchParams({ path });
+    if (pattern) params.set("pattern", pattern);
+    if (recursive) params.set("recursive", "true");
+    return api.get<SshMatchEntry[]>(`/api/vault/ssh-remote/${id}/match?${params.toString()}`);
+  },
 };

@@ -12,7 +12,9 @@
     "next": "Next",
     "noResults": "No results found",
     "yes": "Yes",
-    "no": "No"
+    "no": "No",
+    "optional": "optional",
+    "refresh": "Refresh"
   },
   "auth": {
     "login": "Sign In",
@@ -46,7 +48,9 @@
     "back": "Back",
     "input": "Inputs",
     "httpRestInputs": "HTTP REST Inputs",
+    "sshInputs": "SSH Inputs",
     "variableSets": "Variable Sets",
+    "sshRemote": "SSH Remote Servers",
     "settingsGlobal": "System Settings",
     "moduleSettings": "Module Settings",
     "categories": {
@@ -127,14 +131,14 @@
     "type": {
       "email": "Email",
       "http": "HTTP Credentials",
-      "sshKey": "SSH Keys",
+      "sshRemote": "SSH Remote Servers",
       "apiToken": "API Tokens",
       "variableSet": "Variable Sets"
     },
     "typeDesc": {
       "email": "SMTP accounts for sending emails",
       "http": "Credentials for HTTP/REST endpoints (Bearer, Basic, OAuth2…)",
-      "sshKey": "SSH private keys for remote connections",
+      "sshRemote": "Credentials for SSH/SFTP remote servers",
       "apiToken": "API tokens for third-party services",
       "variableSet": "Encrypted reusable key-value variables"
     },
@@ -249,6 +253,51 @@
       "errorNoName": "Please enter a label",
       "errorEmptyKey": "All keys must be filled in",
       "syntaxHint": "Reference syntax: {{vault.var.<id>.<key>}}"
+    },
+    "ssh": {
+      "title": "SSH Remote Servers",
+      "subtitle": "SSH/SFTP credentials for remote backup destinations",
+      "add": "Add server",
+      "noItems": "No SSH remote servers configured",
+      "newTitle": "New SSH Remote Server",
+      "newSubtitle": "Credentials are encrypted with AES-256-GCM before storage",
+      "editTitle": "Edit SSH Remote Server",
+      "editSubtitle": "Leave secret fields blank to keep their current values",
+      "name": "Name",
+      "namePlaceholder": "My backup server",
+      "subtype": "Authentication type",
+      "subtypes": {
+        "user_password": "Username & Password",
+        "ssh_key": "SSH Key (PEM)"
+      },
+      "host": "Host",
+      "port": "Port",
+      "username": "Username",
+      "defaultPath": "Default remote path",
+      "password": "Password",
+      "privateKey": "Private key (PEM)",
+      "passphrase": "Passphrase",
+      "leaveBlank": "(leave blank to keep current)",
+      "unchanged": "Unchanged",
+      "test": "Test connection",
+      "testOk": "Connection successful",
+      "testFailed": "Connection failed",
+      "createSuccess": "Server added",
+      "updateSuccess": "Server updated",
+      "deleteSuccess": "Server deleted",
+      "useSudo": "Use sudo",
+      "useSudoHint": "Prefix remote commands with sudo -S. Required if the user cannot write to the destination path.",
+      "sudoPassword": "Sudo password",
+      "sudoPasswordHint": "Leave blank if NOPASSWD is configured in sudoers",
+      "prerequisitesTitle": "Server prerequisites",
+      "prerequisitesPassword": "Password auth: ensure PasswordAuthentication yes in sshd_config.",
+      "prerequisitesKey": "SSH key auth: add the public key to ~/.ssh/authorized_keys (chmod 600) and ensure the user is in AllowGroups in sshd_config.",
+      "prerequisitesPath": "The user (or sudo) must have write access to the configured path.",
+      "steps": {
+        "connection": "SSH connection",
+        "path": "Path exists",
+        "write": "Write permission"
+      }
     }
   },
   "files": {
@@ -284,11 +333,20 @@
     "soon": "Soon",
     "type": {
       "mail": "Mail",
+      "ssh": "SSH / SFTP",
       "s3": "Amazon S3",
       "webhook": "Webhook"
     },
     "typeDesc": {
-      "mail": "Send backups and notifications by email"
+      "mail": "Send backups and notifications by email",
+      "ssh": "Upload the archive to a remote server via SFTP"
+    },
+    "ssh": {
+      "vaultLabel": "SSH Remote Server",
+      "vaultPlaceholder": "Select a server…",
+      "pathOverride": "Remote path override",
+      "pathOverridePlaceholder": "/custom/path",
+      "pathOverrideHint": "Leave blank to use the server's default path"
     }
   },
   "mail": {
@@ -542,6 +600,9 @@
       "noArchiveDesc": "If enabled and there is only one file, it is sent as-is without being archived. Ideal for Input backups (e.g. Portainer → .tar.gz).",
       "noArchiveLocalWarning": "For a local file source only — does not work with folders.",
       "noArchiveRequiresSingleFile": "Not available: select exactly one file (no folder, no multiple paths) in the Sources step.",
+      "noArchiveBlockMultipleInputs": "Not available: select exactly one input source.",
+      "noArchiveBlockSSHDirectory": "Not available: SSH input includes a directory source — directories may produce multiple files.",
+      "noArchiveBlockSSHMultipleSources": "Not available: SSH input has {{count}} sources — exactly one file source is required.",
       "noArchiveFilename": "Output filename (optional)",
       "noArchiveFilenameHint": "Leave empty to use the filename from the endpoint response (Content-Disposition). Extension is preserved automatically.",
       "noArchiveDetectedExt": "Extension detected from last test: {{ext}}"
@@ -558,11 +619,13 @@
     "soon": "Soon",
     "type": {
       "httpRest": "HTTP REST",
+      "ssh": "SSH / SFTP",
       "digiposte": "Digiposte",
       "sftp": "SFTP"
     },
     "typeDesc": {
       "httpRest": "Fetch files from a REST API",
+      "ssh": "Browse and fetch files from a remote server via SFTP",
       "digiposte": "Digiposte integration (documents)",
       "sftp": "Transfer files via SFTP"
     },
@@ -626,6 +689,46 @@
       "mappingNameField": "Name field",
       "insecureSkipVerify": "Ignore SSL errors",
       "insecureSkipVerifyHint": "Accept self-signed or untrusted certificates (internal servers)"
+    },
+    "ssh": {
+      "title": "SSH Inputs",
+      "subtitle": "Browse and fetch files from remote servers via SFTP",
+      "add": "Add",
+      "newTitle": "New SSH Input",
+      "newSubtitle": "Select files or folders from a remote server",
+      "editTitle": "Edit SSH Input",
+      "editSubtitle": "Update the sources for this SSH input",
+      "noItems": "No SSH inputs configured",
+      "createSuccess": "Input created",
+      "updateSuccess": "Input updated",
+      "deleteSuccess": "Input deleted",
+      "testOk": "All sources accessible",
+      "testSources": "{{count}} source(s) verified",
+      "testFailed": "Test failed",
+      "test": "Test sources",
+      "name": "Name",
+      "namePlaceholder": "e.g. Database backups",
+      "vault": "SSH vault",
+      "vaultPlaceholder": "Select a vault…",
+      "noVault": "Select a vault first",
+      "vaultLockedHint": "Remove all sources to change the vault",
+      "fileBrowser": "Source files",
+      "browse": "Browse server",
+      "browseHint": "Select a vault and click Browse to explore the server's filesystem",
+      "emptyDir": "Empty directory",
+      "selectedSources": "Selected sources",
+      "sourcesCount": "{{count}} source(s)",
+      "recursive": "Include subdirectories",
+      "namePattern": "Filename filter",
+      "namePatternPlaceholder": "*.conf | *.json | backup_{YYYY}*.tar.gz",
+      "multiPatternHint": "Glob (*.conf) or regex (.*\\.conf) · separate multiple with |",
+      "noSourcesHint": "Click + on a file or folder to add it as a source",
+      "addFilter": "Add filename filter",
+      "testFilter": "Test",
+      "testFilterTitle": "Files matching filter",
+      "testFilterSubtitle": "Files found in <code>{{path}}</code> matching <code>{{pattern}}</code>",
+      "testFilterEmpty": "No files match this filter",
+      "testFilterCount": "{{count}} file(s) found"
     }
   },
   "errors": {

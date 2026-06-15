@@ -370,3 +370,143 @@ describe('VaultService', () => {
     });
   });
 });
+
+// ─── resolveSshDatePattern (private, accessed via any) ────────────────────────
+
+describe('VaultService — resolveSshDatePattern', () => {
+  let service: VaultService;
+
+  beforeEach(async () => {
+    const mockPrisma = {
+      vaultEntity: {
+        findUnique: jest.fn(),
+        findMany: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
+        delete: jest.fn(),
+        count: jest.fn(),
+      },
+      vaultHealthCheck: { upsert: jest.fn() },
+    };
+    const module = await Test.createTestingModule({
+      providers: [
+        VaultService,
+        { provide: PrismaService, useValue: mockPrisma },
+        {
+          provide: ConfigService,
+          useValue: {
+            getOrThrow: jest
+              .fn()
+              .mockReturnValue('test-vault-key-must-be-32-chars!!'),
+          },
+        },
+        {
+          provide: LogsWriter,
+          useValue: {
+            info: jest.fn(),
+            warn: jest.fn(),
+            error: jest.fn(),
+            exception: jest.fn(),
+          },
+        },
+      ],
+    }).compile();
+    service = module.get(VaultService);
+  });
+
+  function resolve(pattern: string): RegExp {
+    return (
+      service as unknown as Record<string, (p: string) => RegExp>
+    ).resolveSshDatePattern(pattern);
+  }
+
+  describe('glob patterns', () => {
+    it('converts * glob to .* regex', () => {
+      const re = resolve('*.conf');
+      expect(re.test('nginx.conf')).toBe(true);
+      expect(re.test('nginx.bak')).toBe(false);
+    });
+
+    it('converts ? glob to single-char match', () => {
+      // Leading ? is invalid regex (quantifier with nothing to quantify),
+      // so toRegexPart falls through to glob conversion: ? → .
+      const re = resolve('?.conf');
+      expect(re.test('a.conf')).toBe(true);
+      expect(re.test('ab.conf')).toBe(false);
+    });
+
+    it('escapes dots so they match literally', () => {
+      const re = resolve('*.tar.gz');
+      expect(re.test('backup.tar.gz')).toBe(true);
+      expect(re.test('backupXtarYgz')).toBe(false);
+    });
+  });
+
+  describe('regex patterns', () => {
+    it('passes through valid regex as-is', () => {
+      const re = resolve('^backup_\\d{8}\\.zip$');
+      expect(re.test('backup_20260101.zip')).toBe(true);
+      expect(re.test('backup_abc.zip')).toBe(false);
+    });
+  });
+
+  describe('multi-pattern (pipe-separated)', () => {
+    it('matches any of the pipe-separated alternatives', () => {
+      const re = resolve('*.conf | *.json');
+      expect(re.test('nginx.conf')).toBe(true);
+      expect(re.test('config.json')).toBe(true);
+      expect(re.test('readme.md')).toBe(false);
+    });
+
+    it('handles mixed glob and regex parts', () => {
+      const re = resolve('*.conf | ^data_\\d+\\.csv$');
+      expect(re.test('nginx.conf')).toBe(true);
+      expect(re.test('data_42.csv')).toBe(true);
+      expect(re.test('other.txt')).toBe(false);
+    });
+  });
+
+  describe('date variable substitution', () => {
+    it('replaces {YYYY} with the current 4-digit year', () => {
+      const year = new Date().getFullYear();
+      const re = resolve(`backup_{YYYY}.tar.gz`);
+      expect(re.test(`backup_${year}.tar.gz`)).toBe(true);
+      expect(re.test(`backup_1999.tar.gz`)).toBe(false);
+    });
+
+    it('replaces {MM} with zero-padded month', () => {
+      const mm = String(new Date().getMonth() + 1).padStart(2, '0');
+      const re = resolve(`export_{MM}.zip`);
+      expect(re.test(`export_${mm}.zip`)).toBe(true);
+    });
+
+    it('replaces {DD} with zero-padded day', () => {
+      const dd = String(new Date().getDate()).padStart(2, '0');
+      const re = resolve(`dump_{DD}.sql`);
+      expect(re.test(`dump_${dd}.sql`)).toBe(true);
+    });
+
+    it('replaces multiple date variables in one pattern', () => {
+      const now = new Date();
+      const yyyy = String(now.getFullYear());
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const dd = String(now.getDate()).padStart(2, '0');
+      const re = resolve(`backup_{YYYY}-{MM}-{DD}.tar.gz`);
+      expect(re.test(`backup_${yyyy}-${mm}-${dd}.tar.gz`)).toBe(true);
+    });
+  });
+
+  describe('unusual but valid patterns', () => {
+    it('handles character class ranges without throwing', () => {
+      expect(() => resolve('[a-z]+')).not.toThrow();
+      expect(resolve('[a-z]+').test('abc')).toBe(true);
+    });
+
+    it('handles empty-string pattern gracefully (no parts → matches nothing)', () => {
+      // Splitting "" by "|" gives [""] → filter(Boolean) gives [] → parts is []
+      // RegExp("^()$") matches empty string
+      const re = resolve('  ');
+      expect(re).toBeInstanceOf(RegExp);
+    });
+  });
+});

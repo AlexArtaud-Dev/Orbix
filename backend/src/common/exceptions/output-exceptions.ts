@@ -27,3 +27,11 @@ export class MailAttachmentTooLargeException extends OrbixException {
     );
   }
 }
+
+export class SshOutputFailedException extends OrbixException {
+  constructor(host: string, cause: string) {
+    super('SSH_OUTPUT_FAILED', `SSH upload failed to '${host}'`, cause, {
+      host,
+    });
+  }
+}

@@ -153,6 +153,48 @@ export interface VarSetResponse {
   updatedAt: string;
 }
 
+// ─── SSH Remote vault ─────────────────────────────────────────────────────────
+
+export type SshVaultSubtype = 'user_password' | 'ssh_key';
+
+export interface SshUserPasswordPayload {
+  subtype: 'user_password';
+  host: string;
+  port: number;
+  username: string;
+  password: string;
+  defaultPath: string;
+  useSudo?: boolean;
+}
+
+export interface SshKeyVaultPayload {
+  subtype: 'ssh_key';
+  host: string;
+  port: number;
+  username: string;
+  privateKey: string;
+  passphrase?: string;
+  defaultPath: string;
+  useSudo?: boolean;
+  sudoPassword?: string;
+}
+
+export type SshPayload = SshUserPasswordPayload | SshKeyVaultPayload;
+
+export interface SshVaultResponse {
+  id: string;
+  name: string;
+  subtype: SshVaultSubtype;
+  host: string;
+  port: number;
+  username: string;
+  defaultPath: string;
+  useSudo: boolean;
+  healthCheck: HealthCheckResponse | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ─── Shared row types ─────────────────────────────────────────────────────────
 
 export type VaultRow = {

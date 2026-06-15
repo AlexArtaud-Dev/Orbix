@@ -12,7 +12,9 @@
     "next": "Suivant",
     "noResults": "Aucun résultat",
     "yes": "Oui",
-    "no": "Non"
+    "no": "Non",
+    "optional": "optionnel",
+    "refresh": "Actualiser"
   },
   "auth": {
     "login": "Connexion",
@@ -46,7 +48,9 @@
     "back": "Retour",
     "input": "Entrées",
     "httpRestInputs": "Entrées HTTP REST",
+    "sshInputs": "Entrées SSH",
     "variableSets": "Jeux de variables",
+    "sshRemote": "Serveurs SSH distants",
     "settingsGlobal": "Paramètres système",
     "moduleSettings": "Paramètres des modules",
     "categories": {
@@ -127,14 +131,14 @@
     "type": {
       "email": "E-mail",
       "http": "Identifiants HTTP",
-      "sshKey": "Clés SSH",
+      "sshRemote": "Serveurs SSH distants",
       "apiToken": "Tokens API",
       "variableSet": "Jeux de variables"
     },
     "typeDesc": {
       "email": "Comptes SMTP pour l'envoi d'e-mails",
       "http": "Identifiants pour endpoints HTTP/REST (Bearer, Basic, OAuth2…)",
-      "sshKey": "Clés SSH privées pour les connexions distantes",
+      "sshRemote": "Identifiants SSH/SFTP pour les serveurs de destination",
       "apiToken": "Tokens API pour les services tiers",
       "variableSet": "Variables clé-valeur chiffrées et réutilisables"
     },
@@ -251,6 +255,51 @@
       "errorNoName": "Veuillez saisir un libellé",
       "errorEmptyKey": "Toutes les clés doivent être renseignées",
       "syntaxHint": "Syntaxe de référence : {{vault.var.<id>.<clé>}}"
+    },
+    "ssh": {
+      "title": "Serveurs SSH distants",
+      "subtitle": "Identifiants SSH/SFTP pour les destinations de sauvegarde",
+      "add": "Ajouter un serveur",
+      "noItems": "Aucun serveur SSH configuré",
+      "newTitle": "Nouveau serveur SSH distant",
+      "newSubtitle": "Les identifiants sont chiffrés en AES-256-GCM avant stockage",
+      "editTitle": "Modifier le serveur SSH distant",
+      "editSubtitle": "Laissez les champs secrets vides pour conserver les valeurs actuelles",
+      "name": "Nom",
+      "namePlaceholder": "Mon serveur de backup",
+      "subtype": "Type d'authentification",
+      "subtypes": {
+        "user_password": "Identifiant & Mot de passe",
+        "ssh_key": "Clé SSH (PEM)"
+      },
+      "host": "Hôte",
+      "port": "Port",
+      "username": "Utilisateur",
+      "defaultPath": "Chemin distant par défaut",
+      "password": "Mot de passe",
+      "privateKey": "Clé privée (PEM)",
+      "passphrase": "Passphrase",
+      "leaveBlank": "(laisser vide pour conserver l'actuel)",
+      "unchanged": "Inchangé",
+      "test": "Tester la connexion",
+      "testOk": "Connexion réussie",
+      "testFailed": "Échec de la connexion",
+      "createSuccess": "Serveur ajouté",
+      "updateSuccess": "Serveur mis à jour",
+      "deleteSuccess": "Serveur supprimé",
+      "useSudo": "Utiliser sudo",
+      "useSudoHint": "Préfixe les commandes distantes avec sudo -S. Nécessaire si l'utilisateur n'a pas les droits d'écriture sur le chemin cible.",
+      "sudoPassword": "Mot de passe sudo",
+      "sudoPasswordHint": "Laisser vide si NOPASSWD est configuré dans sudoers",
+      "prerequisitesTitle": "Prérequis serveur",
+      "prerequisitesPassword": "Auth par mot de passe : vérifier PasswordAuthentication yes dans sshd_config.",
+      "prerequisitesKey": "Auth par clé SSH : ajouter la clé publique dans ~/.ssh/authorized_keys (chmod 600) et s'assurer que l'utilisateur est dans AllowGroups dans sshd_config.",
+      "prerequisitesPath": "L'utilisateur (ou sudo) doit avoir les droits d'écriture sur le chemin configuré.",
+      "steps": {
+        "connection": "Connexion SSH",
+        "path": "Chemin existant",
+        "write": "Droit d'écriture"
+      }
     }
   },
   "files": {
@@ -286,11 +335,20 @@
     "soon": "Bientôt",
     "type": {
       "mail": "Mail",
+      "ssh": "SSH / SFTP",
       "s3": "Amazon S3",
       "webhook": "Webhook"
     },
     "typeDesc": {
-      "mail": "Envoi des sauvegardes et notifications par e-mail"
+      "mail": "Envoi des sauvegardes et notifications par e-mail",
+      "ssh": "Déposer l'archive sur un serveur distant via SFTP"
+    },
+    "ssh": {
+      "vaultLabel": "Serveur SSH distant",
+      "vaultPlaceholder": "Sélectionner un serveur…",
+      "pathOverride": "Chemin distant (override)",
+      "pathOverridePlaceholder": "/chemin/personnalisé",
+      "pathOverrideHint": "Laisser vide pour utiliser le chemin par défaut du serveur"
     }
   },
   "mail": {
@@ -544,6 +602,9 @@
       "noArchiveDesc": "Si activé et qu'il n'y a qu'un seul fichier, le fichier est envoyé tel quel sans être archivé. Idéal pour les backups Input (ex. Portainer → .tar.gz).",
       "noArchiveLocalWarning": "Pour une source locale de type fichier uniquement — ne fonctionne pas avec les dossiers.",
       "noArchiveRequiresSingleFile": "Non disponible : sélectionnez exactement un fichier (pas de dossier, pas plusieurs chemins) dans l'étape Sources.",
+      "noArchiveBlockMultipleInputs": "Non disponible : sélectionnez exactement une source Input.",
+      "noArchiveBlockSSHDirectory": "Non disponible : l'Input SSH contient une source de type dossier — un dossier peut produire plusieurs fichiers.",
+      "noArchiveBlockSSHMultipleSources": "Non disponible : l'Input SSH a {{count}} sources — une seule source de type fichier est requise.",
       "noArchiveFilename": "Nom du fichier de sortie (optionnel)",
       "noArchiveFilenameHint": "Laisser vide pour utiliser le nom de fichier renvoyé par l'endpoint (Content-Disposition). L'extension est conservée automatiquement.",
       "noArchiveDetectedExt": "Extension détectée lors du dernier test : {{ext}}"
@@ -560,11 +621,13 @@
     "soon": "Bientôt",
     "type": {
       "httpRest": "HTTP REST",
+      "ssh": "SSH / SFTP",
       "digiposte": "Digiposte",
       "sftp": "SFTP"
     },
     "typeDesc": {
       "httpRest": "Récupérer des fichiers depuis une API REST",
+      "ssh": "Parcourir et récupérer des fichiers depuis un serveur distant via SFTP",
       "digiposte": "Intégration Digiposte (documents)",
       "sftp": "Transfert de fichiers via SFTP"
     },
@@ -628,6 +691,46 @@
       "mappingNameField": "Champ nom",
       "insecureSkipVerify": "Ignorer les erreurs SSL",
       "insecureSkipVerifyHint": "Accepter les certificats auto-signés ou non fiables (serveurs internes)"
+    },
+    "ssh": {
+      "title": "Entrées SSH",
+      "subtitle": "Parcourez et récupérez des fichiers depuis des serveurs distants via SFTP",
+      "add": "Ajouter",
+      "newTitle": "Nouvelle entrée SSH",
+      "newSubtitle": "Sélectionnez des fichiers ou dossiers depuis un serveur distant",
+      "editTitle": "Modifier l'entrée SSH",
+      "editSubtitle": "Mettre à jour les sources de cette entrée SSH",
+      "noItems": "Aucune entrée SSH configurée",
+      "createSuccess": "Entrée créée",
+      "updateSuccess": "Entrée mise à jour",
+      "deleteSuccess": "Entrée supprimée",
+      "testOk": "Toutes les sources sont accessibles",
+      "testSources": "{{count}} source(s) vérifiée(s)",
+      "testFailed": "Échec du test",
+      "test": "Tester les sources",
+      "name": "Nom",
+      "namePlaceholder": "ex. Sauvegardes base de données",
+      "vault": "Vault SSH",
+      "vaultPlaceholder": "Sélectionner un vault…",
+      "noVault": "Sélectionnez d'abord un vault",
+      "vaultLockedHint": "Retirez toutes les sources pour changer de vault",
+      "fileBrowser": "Fichiers sources",
+      "browse": "Parcourir le serveur",
+      "browseHint": "Sélectionnez un vault et cliquez sur Parcourir pour explorer le serveur",
+      "emptyDir": "Dossier vide",
+      "selectedSources": "Sources sélectionnées",
+      "sourcesCount": "{{count}} source(s)",
+      "recursive": "Inclure les sous-dossiers",
+      "namePattern": "Filtre de nom de fichier (regex)",
+      "namePatternPlaceholder": "*.conf | *.json | backup_{YYYY}*.tar.gz",
+      "multiPatternHint": "Glob (*.conf) ou regex (.*\\.conf) · séparer plusieurs avec |",
+      "noSourcesHint": "Cliquez sur + pour ajouter un fichier ou dossier comme source",
+      "addFilter": "Ajouter un filtre de nom",
+      "testFilter": "Tester",
+      "testFilterTitle": "Fichiers correspondant au filtre",
+      "testFilterSubtitle": "Fichiers trouvés dans <code>{{path}}</code> correspondant à <code>{{pattern}}</code>",
+      "testFilterEmpty": "Aucun fichier ne correspond à ce filtre",
+      "testFilterCount": "{{count}} fichier(s) trouvé(s)"
     }
   },
   "errors": {

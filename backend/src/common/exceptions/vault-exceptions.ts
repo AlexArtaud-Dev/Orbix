@@ -49,3 +49,14 @@ export class VaultDecryptionFailedException extends OrbixException {
     );
   }
 }
+
+export class VaultSshTestFailedException extends OrbixException {
+  constructor(steps: { connection: string; path: string; write: string }) {
+    super(
+      'VAULT_SSH_TEST_FAILED',
+      'SSH connection test failed',
+      JSON.stringify(steps),
+      { steps },
+    );
+  }
+}

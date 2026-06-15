@@ -69,10 +69,11 @@ interface StepZipProps {
   backupMode?: "local" | "input";
   /**
    * Whether "send without archiving" is currently allowed given the selected sources.
-   * For local mode this requires exactly one file source; for input mode it is always true.
    * Defaults to true so the component works without the prop (e.g. in Storybook / tests).
    */
   canNoArchive?: boolean;
+  /** Human-readable reason why noArchive is blocked. Shown below the toggle when canNoArchive=false. */
+  noArchiveReason?: string;
   /** Extension detected from the source input's last test (e.g. ".tar.gz"). Used in noArchive preview. */
   detectedExtension?: string;
   /** Variable sets available for vault password reference */
@@ -80,7 +81,7 @@ interface StepZipProps {
   onChange: (data: StepZipData) => void;
 }
 
-export function StepZip({ data, backupName, backupMode, canNoArchive = true, detectedExtension, varSets = [], onChange }: StepZipProps) {
+export function StepZip({ data, backupName, backupMode, canNoArchive = true, noArchiveReason, detectedExtension, varSets = [], onChange }: StepZipProps) {
   const { t } = useTranslation();
   const [showPassword, setShowPassword] = useState(false);
   const [isVaultMode, setIsVaultMode] = useState(() => Boolean(data.zipPasswordVaultRef));
@@ -163,8 +164,8 @@ export function StepZip({ data, backupName, backupMode, canNoArchive = true, det
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium">{t("backups.zip.noArchive")}</p>
           <p className="text-xs text-muted-foreground mt-0.5">{t("backups.zip.noArchiveDesc")}</p>
-          {!canNoArchive && backupMode === "local" && (
-            <p className="text-xs text-muted-foreground mt-1">{t("backups.zip.noArchiveRequiresSingleFile")}</p>
+          {!canNoArchive && noArchiveReason && (
+            <p className="text-xs text-muted-foreground mt-1">{noArchiveReason}</p>
           )}
           {canNoArchive && backupMode === "local" && (
             <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">{t("backups.zip.noArchiveLocalWarning")}</p>

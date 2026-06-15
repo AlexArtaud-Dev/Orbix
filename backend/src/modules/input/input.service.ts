@@ -133,6 +133,38 @@ export class InputService {
     const input = await this.prisma.input.findUnique({ where: { id } });
     if (!input) throw new NotFoundException('Input not found');
 
+    // Delegate SSH test to the SSH provider
+    if (input.type === 'ssh') {
+      try {
+        const { SshInputProvider } =
+          await import('../../providers/input/ssh/ssh-input.provider');
+        const provider = new SshInputProvider(this.vault);
+        const result = await provider.test(
+          input as unknown as import('./input.types').InputRow,
+        );
+        await this.prisma.input.update({
+          where: { id },
+          data: {
+            lastTestAt: new Date(),
+            lastTestStatus: result.success ? 'ok' : 'error',
+            lastTestError: result.success ? null : (result.error ?? null),
+          },
+        });
+        return result;
+      } catch (err) {
+        const error = err instanceof Error ? err.message : 'Unknown error';
+        await this.prisma.input.update({
+          where: { id },
+          data: {
+            lastTestAt: new Date(),
+            lastTestStatus: 'error',
+            lastTestError: error,
+          },
+        });
+        return { success: false, error };
+      }
+    }
+
     const config = input.config as unknown as HttpRestConfig;
     const headers: Record<string, string> = {};
 

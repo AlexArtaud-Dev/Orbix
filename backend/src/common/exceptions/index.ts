@@ -15,6 +15,7 @@ export {
   OutputProviderNotFoundException,
   MailSendFailedException,
   MailAttachmentTooLargeException,
+  SshOutputFailedException,
 } from './output-exceptions';
 export {
   VaultAuthUnsupportedTypeException,
@@ -22,6 +23,7 @@ export {
   VaultOAuth2MissingTokenException,
   VaultSmtpTestFailedException,
   VaultDecryptionFailedException,
+  VaultSshTestFailedException,
 } from './vault-exceptions';
 export {
   UrlSourceHttpException,

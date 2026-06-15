@@ -56,6 +56,7 @@ export interface BackupOutput {
   overrideSubject: string | null;
   overrideBody: string | null;
   overrideBodyType: string | null;
+  pathOverride: string | null;
   order: number;
   createdAt: string;
   updatedAt: string;
@@ -97,6 +98,7 @@ export interface BackupOutputPayload {
   overrideSubject?: string;
   overrideBody?: string;
   overrideBodyType?: string;
+  pathOverride?: string;
   order?: number;
 }
 

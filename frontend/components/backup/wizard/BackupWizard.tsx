@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { backupsService, type Backup } from "@/services/backups";
-import { vaultService, type EmailVaultItem, type VarSetItem } from "@/services/vault";
+import { vaultService, type EmailVaultItem, type VarSetItem, type SshVaultItem } from "@/services/vault";
 import { templatesService, type MailTemplate } from "@/services/templates";
 import { contactsService, type Contact } from "@/services/contacts";
 import { inputService, type InputItem } from "@/services/input";
@@ -25,6 +25,7 @@ import {
   defaultForm,
   backupToForm,
   formToPayload,
+  computeNoArchiveState,
 } from "./backupWizard.utils";
 
 const STEPS = [
@@ -61,6 +62,7 @@ export function BackupWizard({ mode, initial }: BackupWizardProps) {
 
   // Lazy-loaded data for step 4 (outputs)
   const [vaultItems, setVaultItems] = useState<EmailVaultItem[]>([]);
+  const [sshVaultItems, setSshVaultItems] = useState<SshVaultItem[]>([]);
   const [templates, setTemplates] = useState<MailTemplate[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [outputDataLoaded, setOutputDataLoaded] = useState(false);
@@ -87,12 +89,14 @@ export function BackupWizard({ mode, initial }: BackupWizardProps) {
   useEffect(() => {
     if (step !== 4 || outputDataLoaded) return;
     const load = async () => {
-      const [vaultRes, tplRes, contactsRes] = await Promise.allSettled([
+      const [vaultRes, sshRes, tplRes, contactsRes] = await Promise.allSettled([
         vaultService.listEmail(undefined, 100),
+        vaultService.listSsh(),
         templatesService.list(undefined, 100),
         contactsService.list(undefined, 100),
       ]);
       if (vaultRes.status === "fulfilled") setVaultItems(vaultRes.value.data);
+      if (sshRes.status === "fulfilled") setSshVaultItems(sshRes.value);
       if (tplRes.status === "fulfilled") setTemplates(tplRes.value.data);
       if (contactsRes.status === "fulfilled") {
         const allContacts = contactsRes.value.data;
@@ -119,11 +123,14 @@ export function BackupWizard({ mode, initial }: BackupWizardProps) {
     void load();
   }, [step]); // eslint-disable-line
 
-  // noArchive is only allowed on input mode OR local mode with exactly one file source
-  const canNoArchive = useMemo(() => {
-    if (mode === "input") return true;
-    return form.sources.length === 1 && form.sources[0]?.type === "file";
-  }, [mode, form.sources]);
+  // Compute canNoArchive + the reason it's blocked (shown in StepZip)
+  const { canNoArchive, noArchiveReason } = useMemo(() => {
+    const { canNoArchive: can, noArchiveBlockedKey, noArchiveBlockedParams } = computeNoArchiveState(mode, form.sources, inputItems);
+    return {
+      canNoArchive: can,
+      noArchiveReason: noArchiveBlockedKey ? t(noArchiveBlockedKey, noArchiveBlockedParams) : undefined,
+    };
+  }, [mode, form.sources, inputItems, t]);
 
   // Detected file extension from the single input source (for noArchive filename preview)
   const detectedExtension = useMemo(() => {
@@ -236,12 +243,11 @@ export function BackupWizard({ mode, initial }: BackupWizardProps) {
             data={form.sources}
             inputItems={inputItems}
             onChange={(d) => {
-              const nextCanNoArchive =
-                mode === "input" || (d.length === 1 && d[0]?.type === "file");
+              const { canNoArchive: nextCan } = computeNoArchiveState(mode, d, inputItems);
               setForm((f) => ({
                 ...f,
                 sources: d,
-                zip: nextCanNoArchive ? f.zip : { ...f.zip, noArchive: false },
+                zip: nextCan ? f.zip : { ...f.zip, noArchive: false },
               }));
             }}
           />
@@ -252,6 +258,7 @@ export function BackupWizard({ mode, initial }: BackupWizardProps) {
             backupName={form.basic.name}
             backupMode={mode}
             canNoArchive={canNoArchive}
+            noArchiveReason={noArchiveReason}
             detectedExtension={detectedExtension}
             varSets={varSets}
             onChange={(d) => setForm((f) => ({ ...f, zip: d }))}
@@ -261,6 +268,7 @@ export function BackupWizard({ mode, initial }: BackupWizardProps) {
           <StepOutputs
             data={form.outputs}
             vaultItems={vaultItems}
+            sshVaultItems={sshVaultItems}
             templates={templates}
             contacts={contacts}
             onChange={(d) => setForm((f) => ({ ...f, outputs: d }))}
