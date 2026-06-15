@@ -5,9 +5,12 @@ import {
   buildScheduleString,
   buildScheduleConfig,
   formToPayload,
+  computeNoArchiveState,
   type WizardForm,
 } from "./backupWizard.utils";
 import type { Backup } from "@/services/backups";
+import type { InputItem } from "@/services/input";
+import type { SourceFormItem } from "./StepSources";
 
 const NOW = "2026-01-01T00:00:00.000Z";
 
@@ -116,6 +119,7 @@ describe("backupToForm", () => {
           overrideSubject: null,
           overrideBody: null,
           overrideBodyType: null,
+          pathOverride: null,
           order: 0,
           createdAt: NOW,
           updatedAt: NOW,
@@ -355,6 +359,7 @@ describe("formToPayload — recipients from stubs", () => {
           overrideSubject: null,
           overrideBody: null,
           overrideBodyType: null,
+          pathOverride: null,
           order: 0,
           createdAt: NOW,
           updatedAt: NOW,
@@ -432,12 +437,157 @@ describe("formToPayload — general", () => {
   it("assigns output order by array index", () => {
     const backup = makeBackup({
       outputs: [
-        { id: "o1", backupId: "b-1", type: "mail", vaultId: "v-1", templateId: null, recipientsTo: [], recipientsCc: [], recipientsBcc: [], overrideSubject: null, overrideBody: null, overrideBodyType: null, order: 0, createdAt: NOW, updatedAt: NOW },
-        { id: "o2", backupId: "b-1", type: "mail", vaultId: "v-2", templateId: null, recipientsTo: [], recipientsCc: [], recipientsBcc: [], overrideSubject: null, overrideBody: null, overrideBodyType: null, order: 1, createdAt: NOW, updatedAt: NOW },
+        { id: "o1", backupId: "b-1", type: "mail", vaultId: "v-1", templateId: null, recipientsTo: [], recipientsCc: [], recipientsBcc: [], overrideSubject: null, overrideBody: null, overrideBodyType: null, pathOverride: null, order: 0, createdAt: NOW, updatedAt: NOW },
+        { id: "o2", backupId: "b-1", type: "mail", vaultId: "v-2", templateId: null, recipientsTo: [], recipientsCc: [], recipientsBcc: [], overrideSubject: null, overrideBody: null, overrideBodyType: null, pathOverride: null, order: 1, createdAt: NOW, updatedAt: NOW },
       ],
     });
     const payload = formToPayload(backupToForm(backup), false);
     expect(payload.outputs![0].order).toBe(0);
     expect(payload.outputs![1].order).toBe(1);
+  });
+});
+
+// ─── computeNoArchiveState ────────────────────────────────────────────────────
+
+function makeSource(type: SourceFormItem["type"], inputId?: string): SourceFormItem {
+  return { type, path: "", exclude: [], inputId };
+}
+
+function makeInputItem(id: string, inputType: string, config: Record<string, unknown> = {}): InputItem {
+  return {
+    id,
+    name: "Input " + id,
+    type: inputType,
+    vaultId: null,
+    config,
+    requestParams: [],
+    enabled: true,
+    lastTestAt: null,
+    lastTestStatus: null,
+    lastTestError: null,
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
+}
+
+describe("computeNoArchiveState — local mode", () => {
+  it("allows noArchive for a single file source", () => {
+    const { canNoArchive, noArchiveBlockedKey } = computeNoArchiveState("local", [makeSource("file")], []);
+    expect(canNoArchive).toBe(true);
+    expect(noArchiveBlockedKey).toBeUndefined();
+  });
+
+  it("blocks noArchive for a single folder source", () => {
+    const { canNoArchive, noArchiveBlockedKey } = computeNoArchiveState("local", [makeSource("folder")], []);
+    expect(canNoArchive).toBe(false);
+    expect(noArchiveBlockedKey).toBe("backups.zip.noArchiveRequiresSingleFile");
+  });
+
+  it("blocks noArchive when there are multiple sources", () => {
+    const { canNoArchive } = computeNoArchiveState("local", [makeSource("file"), makeSource("file")], []);
+    expect(canNoArchive).toBe(false);
+  });
+
+  it("blocks noArchive when sources list is empty", () => {
+    const { canNoArchive } = computeNoArchiveState("local", [], []);
+    expect(canNoArchive).toBe(false);
+  });
+});
+
+describe("computeNoArchiveState — input mode, no input sources", () => {
+  it("blocks when sources list is empty", () => {
+    const { canNoArchive, noArchiveBlockedKey } = computeNoArchiveState("input", [], []);
+    expect(canNoArchive).toBe(false);
+    expect(noArchiveBlockedKey).toBe("backups.zip.noArchiveBlockMultipleInputs");
+  });
+
+  it("blocks when there are two input sources", () => {
+    const { canNoArchive, noArchiveBlockedKey } = computeNoArchiveState(
+      "input",
+      [makeSource("input", "i-1"), makeSource("input", "i-2")],
+      [],
+    );
+    expect(canNoArchive).toBe(false);
+    expect(noArchiveBlockedKey).toBe("backups.zip.noArchiveBlockMultipleInputs");
+  });
+
+  it("returns canNoArchive=false with no key when input not yet loaded", () => {
+    const { canNoArchive, noArchiveBlockedKey } = computeNoArchiveState(
+      "input",
+      [makeSource("input", "not-in-list")],
+      [],
+    );
+    expect(canNoArchive).toBe(false);
+    expect(noArchiveBlockedKey).toBeUndefined();
+  });
+});
+
+describe("computeNoArchiveState — input mode, http-rest input", () => {
+  it("allows noArchive for a single http-rest input", () => {
+    const input = makeInputItem("i-1", "http-rest", { baseUrl: "http://example.com" });
+    const { canNoArchive, noArchiveBlockedKey } = computeNoArchiveState(
+      "input",
+      [makeSource("input", "i-1")],
+      [input],
+    );
+    expect(canNoArchive).toBe(true);
+    expect(noArchiveBlockedKey).toBeUndefined();
+  });
+});
+
+describe("computeNoArchiveState — input mode, SSH input", () => {
+  it("allows noArchive for a single file SSH source", () => {
+    const input = makeInputItem("i-1", "ssh", {
+      sources: [{ path: "/etc/nginx.conf", isDirectory: false }],
+    });
+    const { canNoArchive } = computeNoArchiveState("input", [makeSource("input", "i-1")], [input]);
+    expect(canNoArchive).toBe(true);
+  });
+
+  it("blocks noArchive for a single directory SSH source", () => {
+    const input = makeInputItem("i-1", "ssh", {
+      sources: [{ path: "/srv/configs", isDirectory: true }],
+    });
+    const { canNoArchive, noArchiveBlockedKey } = computeNoArchiveState(
+      "input",
+      [makeSource("input", "i-1")],
+      [input],
+    );
+    expect(canNoArchive).toBe(false);
+    expect(noArchiveBlockedKey).toBe("backups.zip.noArchiveBlockSSHDirectory");
+  });
+
+  it("blocks noArchive for two SSH file sources", () => {
+    const input = makeInputItem("i-1", "ssh", {
+      sources: [
+        { path: "/etc/file1.conf", isDirectory: false },
+        { path: "/etc/file2.conf", isDirectory: false },
+      ],
+    });
+    const { canNoArchive, noArchiveBlockedKey, noArchiveBlockedParams } = computeNoArchiveState(
+      "input",
+      [makeSource("input", "i-1")],
+      [input],
+    );
+    expect(canNoArchive).toBe(false);
+    expect(noArchiveBlockedKey).toBe("backups.zip.noArchiveBlockSSHMultipleSources");
+    expect(noArchiveBlockedParams).toEqual({ count: 2 });
+  });
+
+  it("blocks noArchive for zero SSH sources (empty sources array)", () => {
+    const input = makeInputItem("i-1", "ssh", { sources: [] });
+    const { canNoArchive, noArchiveBlockedKey } = computeNoArchiveState(
+      "input",
+      [makeSource("input", "i-1")],
+      [input],
+    );
+    expect(canNoArchive).toBe(false);
+    expect(noArchiveBlockedKey).toBe("backups.zip.noArchiveBlockSSHMultipleSources");
+  });
+
+  it("blocks noArchive for SSH input with no sources field", () => {
+    const input = makeInputItem("i-1", "ssh", {});
+    const { canNoArchive } = computeNoArchiveState("input", [makeSource("input", "i-1")], [input]);
+    expect(canNoArchive).toBe(false);
   });
 });

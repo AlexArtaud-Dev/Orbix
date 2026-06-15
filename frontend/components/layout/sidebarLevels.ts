@@ -13,6 +13,7 @@ import {
   Mail,
   Globe,
   Cpu,
+  Server,
 } from "lucide-react";
 import { getAllModuleNavEntries } from "@/providers/module-settings-registry";
 
@@ -78,6 +79,7 @@ export const SIDEBAR_LEVELS: Record<string, SidebarLevel> = {
     items: [
       { to: "/vault/email", icon: Mail, labelKey: "nav.emailConfigs" },
       { to: "/vault/http", icon: Globe, labelKey: "nav.httpConfigs" },
+      { to: "/vault/ssh-remote", icon: Server, labelKey: "nav.sshRemote" },
       { to: "/vault/variable-set", icon: KeySquare, labelKey: "nav.variableSets" },
     ],
   },
@@ -87,6 +89,7 @@ export const SIDEBAR_LEVELS: Record<string, SidebarLevel> = {
     items: [
       { to: "/vault/email", icon: Mail, labelKey: "nav.emailConfigs" },
       { to: "/vault/http", icon: Globe, labelKey: "nav.httpConfigs" },
+      { to: "/vault/ssh-remote", icon: Server, labelKey: "nav.sshRemote" },
       { to: "/vault/variable-set", icon: KeySquare, labelKey: "nav.variableSets" },
     ],
   },
@@ -96,6 +99,17 @@ export const SIDEBAR_LEVELS: Record<string, SidebarLevel> = {
     items: [
       { to: "/vault/email", icon: Mail, labelKey: "nav.emailConfigs" },
       { to: "/vault/http", icon: Globe, labelKey: "nav.httpConfigs" },
+      { to: "/vault/ssh-remote", icon: Server, labelKey: "nav.sshRemote" },
+      { to: "/vault/variable-set", icon: KeySquare, labelKey: "nav.variableSets" },
+    ],
+  },
+  "/vault/ssh-remote": {
+    parentPath: "/vault",
+    titleKey: "nav.sshRemote",
+    items: [
+      { to: "/vault/email", icon: Mail, labelKey: "nav.emailConfigs" },
+      { to: "/vault/http", icon: Globe, labelKey: "nav.httpConfigs" },
+      { to: "/vault/ssh-remote", icon: Server, labelKey: "nav.sshRemote" },
       { to: "/vault/variable-set", icon: KeySquare, labelKey: "nav.variableSets" },
     ],
   },
@@ -105,6 +119,7 @@ export const SIDEBAR_LEVELS: Record<string, SidebarLevel> = {
     items: [
       { to: "/vault/email", icon: Mail, labelKey: "nav.emailConfigs" },
       { to: "/vault/http", icon: Globe, labelKey: "nav.httpConfigs" },
+      { to: "/vault/ssh-remote", icon: Server, labelKey: "nav.sshRemote" },
       { to: "/vault/variable-set", icon: KeySquare, labelKey: "nav.variableSets" },
     ],
   },
@@ -113,6 +128,7 @@ export const SIDEBAR_LEVELS: Record<string, SidebarLevel> = {
     titleKey: "nav.input",
     items: [
       { to: "/input/http-rest", icon: Globe, labelKey: "nav.httpRestInputs" },
+      { to: "/input/ssh", icon: Server, labelKey: "nav.sshInputs" },
     ],
   },
   "/input/http-rest": {
@@ -120,6 +136,7 @@ export const SIDEBAR_LEVELS: Record<string, SidebarLevel> = {
     titleKey: "nav.httpRestInputs",
     items: [
       { to: "/input/http-rest", icon: Globe, labelKey: "nav.httpRestInputs" },
+      { to: "/input/ssh", icon: Server, labelKey: "nav.sshInputs" },
     ],
   },
   "/input/http-rest/new": {
@@ -127,6 +144,23 @@ export const SIDEBAR_LEVELS: Record<string, SidebarLevel> = {
     titleKey: "nav.httpRestInputs",
     items: [
       { to: "/input/http-rest", icon: Globe, labelKey: "nav.httpRestInputs" },
+      { to: "/input/ssh", icon: Server, labelKey: "nav.sshInputs" },
+    ],
+  },
+  "/input/ssh": {
+    parentPath: "/input",
+    titleKey: "nav.sshInputs",
+    items: [
+      { to: "/input/http-rest", icon: Globe, labelKey: "nav.httpRestInputs" },
+      { to: "/input/ssh", icon: Server, labelKey: "nav.sshInputs" },
+    ],
+  },
+  "/input/ssh/new": {
+    parentPath: "/input/ssh",
+    titleKey: "nav.sshInputs",
+    items: [
+      { to: "/input/http-rest", icon: Globe, labelKey: "nav.httpRestInputs" },
+      { to: "/input/ssh", icon: Server, labelKey: "nav.sshInputs" },
     ],
   },
   "/backups/new": {

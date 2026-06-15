@@ -13,7 +13,7 @@ export class CreateInputDto {
   @IsNotEmpty()
   name: string;
 
-  @IsIn(['http-rest'])
+  @IsIn(['http-rest', 'ssh'])
   type: string;
 
   @IsOptional()

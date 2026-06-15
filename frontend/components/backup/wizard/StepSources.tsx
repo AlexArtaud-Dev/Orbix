@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FolderOpen, X, Folder, File, Tag, Cpu, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
+import { FolderOpen, X, Folder, File, Tag, Cpu, Server, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -261,6 +261,21 @@ function SourceCard({ source, onRemove, onAddExclude, onRemoveExclude }: SourceC
   );
 }
 
+// ─── Input type helpers ───────────────────────────────────────────────────────
+
+function inputTypeIcon(type: string) {
+  return type === "ssh" ? <Server className="size-4 shrink-0" /> : <Cpu className="size-4 shrink-0" />;
+}
+
+function inputConfigSubtitle(input: InputItem): string {
+  if (input.type === "ssh") {
+    const sources = (input.config as { sources?: unknown[] }).sources;
+    const count = sources?.length ?? 0;
+    return `${count} source${count !== 1 ? "s" : ""}`;
+  }
+  return (input.config as { baseUrl?: string }).baseUrl ?? "—";
+}
+
 // ─── Input status helpers ─────────────────────────────────────────────────────
 
 function inputStatusInfo(status: string | null): {
@@ -306,7 +321,9 @@ function InputSourceCard({ source, inputItem, onRemove }: InputSourceCardProps) 
   return (
     <div className={cn("rounded-lg border bg-card transition-colors", isBlocked && info.borderClass)}>
       <div className="flex items-center gap-2 px-3 py-2.5">
-        <Cpu className={cn("size-4 shrink-0", isBlocked ? "text-muted-foreground" : "text-primary")} />
+        <span className={cn(isBlocked ? "text-muted-foreground" : "text-primary")}>
+          {inputTypeIcon(inputItem?.type ?? "")}
+        </span>
         <div className="flex-1 min-w-0">
           <span className={cn("truncate text-sm font-medium block", isBlocked && "text-muted-foreground")}>
             {source.path}
@@ -392,11 +409,13 @@ function InputSourceDialog({
                     notTested && !already && info.borderClass,
                   )}
                 >
-                  <Cpu className={cn("size-4 shrink-0", notTested ? "text-muted-foreground" : "text-primary")} />
+                  <span className={cn(notTested ? "text-muted-foreground" : "text-primary")}>
+                    {inputTypeIcon(input.type)}
+                  </span>
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-sm">{input.name}</p>
                     <p className="text-xs text-muted-foreground font-mono truncate">
-                      {(input.config as { baseUrl?: string }).baseUrl ?? "—"}
+                      {inputConfigSubtitle(input)}
                     </p>
                   </div>
                   <span className={cn(

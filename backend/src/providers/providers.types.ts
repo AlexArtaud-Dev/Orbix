@@ -31,6 +31,7 @@ export interface OutputRow {
   overrideSubject: string | null;
   overrideBody: string | null;
   overrideBodyType: string | null;
+  pathOverride: string | null;
   order: number;
   createdAt: Date;
   updatedAt: Date;

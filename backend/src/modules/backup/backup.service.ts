@@ -27,6 +27,7 @@ interface OutputRow {
   overrideSubject: string | null;
   overrideBody: string | null;
   overrideBodyType: string | null;
+  pathOverride: string | null;
   order: number;
   createdAt: Date;
   updatedAt: Date;
@@ -101,6 +102,7 @@ export class BackupService {
           overrideSubject: o.overrideSubject,
           overrideBody: o.overrideBody,
           overrideBodyType: o.overrideBodyType,
+          pathOverride: o.pathOverride,
           order: o.order,
           createdAt: o.createdAt.toISOString(),
           updatedAt: o.updatedAt.toISOString(),
@@ -124,6 +126,7 @@ export class BackupService {
       overrideSubject: o.overrideSubject ?? null,
       overrideBody: o.overrideBody ?? null,
       overrideBodyType: o.overrideBodyType ?? null,
+      pathOverride: o.pathOverride ?? null,
       order: o.order ?? idx,
     };
   }

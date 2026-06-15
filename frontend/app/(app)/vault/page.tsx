@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
-import { Mail, Globe, KeySquare, ChevronRight } from "lucide-react";
+import { Mail, Globe, KeySquare, Server, ChevronRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
 interface VaultType {
@@ -13,11 +13,11 @@ interface VaultType {
 const VAULT_TYPES: VaultType[] = [
   { key: "email", icon: Mail, href: "/vault/email" },
   { key: "http", icon: Globe, href: "/vault/http" },
+  { key: "sshRemote", icon: Server, href: "/vault/ssh-remote" },
   { key: "variableSet", icon: KeySquare, href: "/vault/variable-set" },
 ];
 
 const COMING_SOON: { key: string; icon: React.ElementType }[] = [
-  { key: "sshKey", icon: () => <span className="text-base font-bold">SSH</span> },
   { key: "apiToken", icon: () => <span className="text-sm font-bold">API</span> },
 ];
 

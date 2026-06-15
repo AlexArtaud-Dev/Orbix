@@ -1,4 +1,5 @@
 import type { Backup, CreateBackupPayload, ScheduleConfigPayload } from "@/services/backups";
+import type { InputItem } from "@/services/input";
 import type { StepBasicData } from "./StepBasic";
 import type { StepScheduleData, ScheduleType, RecurringRule } from "./StepSchedule";
 import type { SourceFormItem } from "./StepSources";
@@ -69,7 +70,7 @@ export function backupToForm(backup: Backup): WizardForm {
     },
     outputs: backup.outputs.map((o) => ({
       dndId: o.id,
-      type: "mail" as const,
+      type: (o.type as "mail" | "ssh") || "mail",
       vaultId: o.vaultId,
       templateId: o.templateId || "",
       // Stub contacts with IDs so the payload is correct even before step 4 is visited
@@ -79,6 +80,7 @@ export function backupToForm(backup: Backup): WizardForm {
       overrideSubject: o.overrideSubject || "",
       overrideBody: o.overrideBody || "",
       overrideBodyType: (o.overrideBodyType as "text" | "html") || "text",
+      pathOverride: o.pathOverride || "",
     })),
   };
 }
@@ -128,6 +130,37 @@ export function buildScheduleConfig(s: StepScheduleData): ScheduleConfigPayload 
   }
 }
 
+/**
+ * Returns whether "send without archiving" is allowed for the current selection,
+ * and an i18n key (not yet translated) describing why it's blocked when it is.
+ */
+export function computeNoArchiveState(
+  mode: "local" | "input",
+  sources: SourceFormItem[],
+  inputItems: InputItem[],
+): { canNoArchive: boolean; noArchiveBlockedKey: string | undefined; noArchiveBlockedParams?: Record<string, unknown> } {
+  if (mode === "local") {
+    const can = sources.length === 1 && sources[0]?.type === "file";
+    return { canNoArchive: can, noArchiveBlockedKey: can ? undefined : "backups.zip.noArchiveRequiresSingleFile" };
+  }
+  const inputSrcs = sources.filter((s) => s.type === "input");
+  if (inputSrcs.length !== 1) {
+    return { canNoArchive: false, noArchiveBlockedKey: "backups.zip.noArchiveBlockMultipleInputs" };
+  }
+  const input = inputItems.find((i) => i.id === inputSrcs[0].inputId);
+  if (!input) return { canNoArchive: false, noArchiveBlockedKey: undefined };
+  if (input.type === "ssh") {
+    const sshSrcs = (input.config as { sources?: Array<{ isDirectory: boolean }> }).sources ?? [];
+    if (sshSrcs.length !== 1) {
+      return { canNoArchive: false, noArchiveBlockedKey: "backups.zip.noArchiveBlockSSHMultipleSources", noArchiveBlockedParams: { count: sshSrcs.length } };
+    }
+    if (sshSrcs[0].isDirectory) {
+      return { canNoArchive: false, noArchiveBlockedKey: "backups.zip.noArchiveBlockSSHDirectory" };
+    }
+  }
+  return { canNoArchive: true, noArchiveBlockedKey: undefined };
+}
+
 export function formToPayload(form: WizardForm, enabled: boolean, mode: "local" | "input" = "local"): CreateBackupPayload {
   return {
     name: form.basic.name,
@@ -162,6 +195,7 @@ export function formToPayload(form: WizardForm, enabled: boolean, mode: "local" 
       overrideSubject: o.overrideSubject || undefined,
       overrideBody: o.overrideBody || undefined,
       overrideBodyType: o.overrideBody ? o.overrideBodyType : undefined,
+      pathOverride: o.pathOverride || undefined,
       order: i,
     })),
   };

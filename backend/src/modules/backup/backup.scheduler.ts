@@ -169,7 +169,13 @@ export class BackupScheduler implements OnModuleInit, OnModuleDestroy {
             this.timeouts.delete(`${backupId}:start`);
             // Re-register without startDate so it runs immediately this time
             const cfgWithoutStart = { ...cfg, startDate: undefined };
-            this.register(backupId, backupName, scheduleType, schedule, cfgWithoutStart);
+            this.register(
+              backupId,
+              backupName,
+              scheduleType,
+              schedule,
+              cfgWithoutStart,
+            );
           }, startMs);
           this.timeouts.set(`${backupId}:start`, startTimeout);
           this.logs.info(
@@ -184,12 +190,21 @@ export class BackupScheduler implements OnModuleInit, OnModuleDestroy {
 
       // Register the cron job normally
       if (!schedule) return;
-      this.registerCronJob(`backup:${backupId}`, schedule, 'UTC', backupId, backupName);
+      this.registerCronJob(
+        `backup:${backupId}`,
+        schedule,
+        'UTC',
+        backupId,
+        backupName,
+      );
       return;
     }
 
     if (scheduleType === 'recurring') {
-      const cfg = scheduleConfig as { rules?: RecurringRule[]; timezone?: string } | null;
+      const cfg = scheduleConfig as {
+        rules?: RecurringRule[];
+        timezone?: string;
+      } | null;
       const timezone = cfg?.timezone ?? 'UTC';
 
       // New multi-rule format
@@ -209,7 +224,13 @@ export class BackupScheduler implements OnModuleInit, OnModuleDestroy {
 
       // Legacy: single schedule string
       if (!schedule) return;
-      this.registerCronJob(`backup:${backupId}`, schedule, timezone, backupId, backupName);
+      this.registerCronJob(
+        `backup:${backupId}`,
+        schedule,
+        timezone,
+        backupId,
+        backupName,
+      );
       return;
     }
 
@@ -221,14 +242,23 @@ export class BackupScheduler implements OnModuleInit, OnModuleDestroy {
       'timezone' in scheduleConfig
         ? String((scheduleConfig as { timezone: string }).timezone)
         : 'UTC';
-    this.registerCronJob(`backup:${backupId}`, schedule, timezone, backupId, backupName);
+    this.registerCronJob(
+      `backup:${backupId}`,
+      schedule,
+      timezone,
+      backupId,
+      backupName,
+    );
   }
 
   remove(backupId: string): void {
     // Remove all cron jobs for this backup (single or multi-rule)
     const allJobs = this.schedulerRegistry.getCronJobs();
     for (const [name] of allJobs) {
-      if (name === `backup:${backupId}` || name.startsWith(`backup:${backupId}:rule:`)) {
+      if (
+        name === `backup:${backupId}` ||
+        name.startsWith(`backup:${backupId}:rule:`)
+      ) {
         try {
           this.schedulerRegistry.deleteCronJob(name);
         } catch {
@@ -264,7 +294,6 @@ export class BackupScheduler implements OnModuleInit, OnModuleDestroy {
       );
     }
   }
-
 
   private registerCronJob(
     jobName: string,

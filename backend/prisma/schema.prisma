@@ -104,6 +104,7 @@ model BackupOutput {
   overrideSubject  String?
   overrideBody     String?
   overrideBodyType String?
+  pathOverride     String?
   order            Int      @default(0)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt

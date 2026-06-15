@@ -171,6 +171,65 @@ describe("StepZip — vault password mode", () => {
   });
 });
 
+// ─── canNoArchive / noArchiveReason ───────────────────────────────────────────
+
+describe("StepZip — canNoArchive gate", () => {
+  function renderBlocked(noArchiveReason?: string) {
+    return render(
+      <StepZip
+        data={{ noArchive: false, archiveFormat: "zip", zipCompression: "default", zipPassword: null, zipPasswordVaultRef: "", zipFilename: "" }}
+        backupName="test"
+        canNoArchive={false}
+        noArchiveReason={noArchiveReason}
+        onChange={vi.fn()}
+      />,
+    );
+  }
+
+  it("shows the noArchiveReason text when canNoArchive=false and reason is provided", () => {
+    renderBlocked("Not available: exactly one file source is required.");
+    expect(screen.getByText("Not available: exactly one file source is required.")).toBeDefined();
+  });
+
+  it("disables the switch when canNoArchive=false", () => {
+    renderBlocked("blocked");
+    const toggle = document.querySelector('[role="switch"]') as HTMLButtonElement | null;
+    expect(toggle?.disabled).toBe(true);
+  });
+
+  it("does not show reason text when canNoArchive=false but no reason is provided", () => {
+    renderBlocked(undefined);
+    // No extra paragraph beyond the normal description
+    expect(screen.queryByText("Not available:")).toBeNull();
+  });
+
+  it("does not show reason text when canNoArchive=true even if reason prop is passed", () => {
+    render(
+      <StepZip
+        data={{ noArchive: false, archiveFormat: "zip", zipCompression: "default", zipPassword: null, zipPasswordVaultRef: "", zipFilename: "" }}
+        backupName="test"
+        canNoArchive={true}
+        noArchiveReason="This should not appear"
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText("This should not appear")).toBeNull();
+  });
+
+  it("enables the switch when canNoArchive=true", () => {
+    render(
+      <StepZip
+        data={{ noArchive: false, archiveFormat: "zip", zipCompression: "default", zipPassword: null, zipPasswordVaultRef: "", zipFilename: "" }}
+        backupName="test"
+        canNoArchive={true}
+        onChange={vi.fn()}
+      />,
+    );
+    const toggle = document.querySelector('[role="switch"]') as HTMLButtonElement | null;
+    expect(toggle?.disabled).toBe(false);
+  });
+});
+
 // ─── noArchive filename preview ───────────────────────────────────────────────
 
 describe("StepZip — noArchive filename preview", () => {
