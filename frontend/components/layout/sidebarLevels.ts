@@ -183,6 +183,23 @@ export const SIDEBAR_LEVELS: Record<string, SidebarLevel> = {
     titleKey: "nav.output",
     items: [
       { to: "/output/mail/contacts", icon: Mail, labelKey: "nav.outputMail" },
+      { to: "/output/ssh", icon: Server, labelKey: "nav.sshOutputs" },
+    ],
+  },
+  "/output/ssh": {
+    parentPath: "/output",
+    titleKey: "nav.sshOutputs",
+    items: [
+      { to: "/output/mail/contacts", icon: Mail, labelKey: "nav.outputMail" },
+      { to: "/output/ssh", icon: Server, labelKey: "nav.sshOutputs" },
+    ],
+  },
+  "/output/ssh/new": {
+    parentPath: "/output/ssh",
+    titleKey: "nav.sshOutputs",
+    items: [
+      { to: "/output/mail/contacts", icon: Mail, labelKey: "nav.outputMail" },
+      { to: "/output/ssh", icon: Server, labelKey: "nav.sshOutputs" },
     ],
   },
   "/output/mail": {

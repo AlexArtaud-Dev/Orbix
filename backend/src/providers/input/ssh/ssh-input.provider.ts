@@ -1,10 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { VaultService } from '../../../modules/vault/vault.service';
+import { ModuleSettingsService } from '../../../modules/module-settings/module-settings.service';
 import type {
   IInputProvider,
   InputFetchContext,
 } from '../input-provider.interface';
+import type { IModuleSettingsProvider } from '../../module-settings.interface';
 import type { ProviderMeta, FileToArchive } from '../../providers.types';
+import type { ModuleSettingsDefinition } from '../../module-settings.types';
 import type { InputRow } from '../../../modules/input/input.types';
 import type { SshPayload } from '../../../modules/vault/vault.types';
 import type { SshInputConfig } from './ssh-input.types';
@@ -41,14 +44,14 @@ function resolveDatePattern(template: string, now: Date): RegExp {
   return new RegExp(`^(${parts.join('|')})$`);
 }
 
-function buildConnConfig(payload: SshPayload) {
+function buildConnConfig(payload: SshPayload, timeoutMs: number) {
   const password =
     payload.subtype === 'user_password' ? payload.password : undefined;
   return {
     host: payload.host,
     port: payload.port,
     username: payload.username,
-    readyTimeout: 30000,
+    readyTimeout: timeoutMs,
     tryKeyboard: payload.subtype === 'user_password',
     ...(payload.subtype === 'user_password'
       ? { password }
@@ -61,7 +64,9 @@ function buildConnConfig(payload: SshPayload) {
 }
 
 @Injectable()
-export class SshInputProvider implements IInputProvider {
+export class SshInputProvider
+  implements IInputProvider, IModuleSettingsProvider
+{
   readonly type = 'ssh';
   readonly meta: ProviderMeta = {
     type: 'ssh',
@@ -70,7 +75,27 @@ export class SshInputProvider implements IInputProvider {
     description: 'Fetch files from a remote server via SFTP.',
   };
 
-  constructor(private readonly vault: VaultService) {}
+  readonly moduleSettingsDefinition: ModuleSettingsDefinition = {
+    module: 'ssh-input',
+    labelKey: 'input.type.ssh',
+    descriptionKey: 'input.typeDesc.ssh',
+    fields: [
+      {
+        key: 'connectionTimeoutMs',
+        type: 'number',
+        defaultValue: 30000,
+        labelKey: 'moduleSettings.sshInput.connectionTimeoutMs',
+        descriptionKey: 'moduleSettings.sshInput.connectionTimeoutMsDesc',
+        min: 1000,
+        max: 120000,
+      },
+    ],
+  };
+
+  constructor(
+    private readonly vault: VaultService,
+    private readonly moduleSettings: ModuleSettingsService,
+  ) {}
 
   async fetch(
     input: InputRow,
@@ -79,36 +104,43 @@ export class SshInputProvider implements IInputProvider {
     if (!input.vaultId) throw new Error('SSH Input requires an SSH vault');
     const config = input.config as unknown as SshInputConfig;
     const payload = await this.vault.getSshPayload(input.vaultId);
+    const { values } = await this.moduleSettings.getOne('ssh-input');
+    const timeoutMs =
+      (values.connectionTimeoutMs as number | undefined) ?? 30000;
     const now = new Date();
 
-    return this.withSftp(payload, async (sftp) => {
-      const files: FileToArchive[] = [];
-      for (const source of config.sources ?? []) {
-        const regex = source.namePattern
-          ? resolveDatePattern(source.namePattern, now)
-          : null;
-        if (source.isDirectory) {
-          await this.collectDir(
-            sftp,
-            source.path,
-            source.path,
-            source.recursive,
-            regex,
-            files,
-            context.maxSizeMb,
-          );
-        } else {
-          const buf = await this.readFile(sftp, source.path);
-          if (buf.length <= context.maxSizeMb * 1024 * 1024) {
-            files.push({
-              buffer: buf,
-              arc: source.path.split('/').pop() ?? 'file',
-            });
+    return this.withSftp(
+      payload,
+      async (sftp) => {
+        const files: FileToArchive[] = [];
+        for (const source of config.sources ?? []) {
+          const regex = source.namePattern
+            ? resolveDatePattern(source.namePattern, now)
+            : null;
+          if (source.isDirectory) {
+            await this.collectDir(
+              sftp,
+              source.path,
+              source.path,
+              source.recursive,
+              regex,
+              files,
+              context.maxSizeMb,
+            );
+          } else {
+            const buf = await this.readFile(sftp, source.path);
+            if (buf.length <= context.maxSizeMb * 1024 * 1024) {
+              files.push({
+                buffer: buf,
+                arc: source.path.split('/').pop() ?? 'file',
+              });
+            }
           }
         }
-      }
-      return files;
-    });
+        return files;
+      },
+      timeoutMs,
+    );
   }
 
   async test(
@@ -122,49 +154,56 @@ export class SshInputProvider implements IInputProvider {
 
     try {
       const payload = await this.vault.getSshPayload(input.vaultId);
+      const { values } = await this.moduleSettings.getOne('ssh-input');
+      const timeoutMs =
+        (values.connectionTimeoutMs as number | undefined) ?? 30000;
       const errors: string[] = [];
 
-      await this.withSftp(payload, async (sftp) => {
-        for (const source of config.sources) {
-          const attrs = await this.statAttrs(sftp, source.path).catch(
-            () => null,
-          );
-          if (!attrs) {
-            errors.push(`"${source.path}": not found or not accessible`);
-            continue;
-          }
-          const isDir = ((attrs.mode ?? 0) & 0o170000) === 0o040000;
-          if (source.isDirectory && !isDir) {
-            errors.push(
-              `"${source.path}": expected a directory but found a file`,
+      await this.withSftp(
+        payload,
+        async (sftp) => {
+          for (const source of config.sources) {
+            const attrs = await this.statAttrs(sftp, source.path).catch(
+              () => null,
             );
-            continue;
-          }
-          if (!source.isDirectory && isDir) {
-            errors.push(
-              `"${source.path}": expected a file but found a directory`,
-            );
-            continue;
-          }
-          if (source.isDirectory) {
-            await new Promise<void>((res, rej) =>
-              sftp.readdir(source.path, (e) =>
-                e
-                  ? rej(
-                      new Error(
-                        `"${source.path}": cannot list directory — ${e.message}`,
-                      ),
-                    )
-                  : res(),
-              ),
-            ).catch((e: Error) => errors.push(e.message));
-          } else {
-            if (!((attrs.mode ?? 0) & 0o444)) {
-              errors.push(`"${source.path}": file has no read permissions`);
+            if (!attrs) {
+              errors.push(`"${source.path}": not found or not accessible`);
+              continue;
+            }
+            const dir = ((attrs.mode ?? 0) & 0o170000) === 0o040000;
+            if (source.isDirectory && !dir) {
+              errors.push(
+                `"${source.path}": expected a directory but found a file`,
+              );
+              continue;
+            }
+            if (!source.isDirectory && dir) {
+              errors.push(
+                `"${source.path}": expected a file but found a directory`,
+              );
+              continue;
+            }
+            if (source.isDirectory) {
+              await new Promise<void>((res, rej) =>
+                sftp.readdir(source.path, (e) =>
+                  e
+                    ? rej(
+                        new Error(
+                          `"${source.path}": cannot list directory — ${e.message}`,
+                        ),
+                      )
+                    : res(),
+                ),
+              ).catch((e: Error) => errors.push(e.message));
+            } else {
+              if (!((attrs.mode ?? 0) & 0o444)) {
+                errors.push(`"${source.path}": file has no read permissions`);
+              }
             }
           }
-        }
-      });
+        },
+        timeoutMs,
+      );
 
       if (errors.length > 0)
         return { success: false, error: errors.join(' | ') };
@@ -177,11 +216,12 @@ export class SshInputProvider implements IInputProvider {
   private withSftp<T>(
     payload: SshPayload,
     fn: (sftp: import('ssh2').SFTPWrapper) => Promise<T>,
+    timeoutMs = 30000,
   ): Promise<T> {
     return new Promise((resolve, reject) => {
       void import('ssh2').then(({ Client }) => {
         const conn = new Client();
-        const cfg = buildConnConfig(payload);
+        const cfg = buildConnConfig(payload, timeoutMs);
         const password = (cfg as { onKeyboard?: string }).onKeyboard;
 
         conn

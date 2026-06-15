@@ -40,9 +40,10 @@ import {
 } from "@/components/ui/dialog";
 import { ContactPicker } from "@/components/mail/ContactPicker";
 import { VariableInserter } from "@/components/mail/VariableInserter";
-import type { EmailVaultItem, SshVaultItem } from "@/services/vault";
+import type { EmailVaultItem } from "@/services/vault";
 import type { MailTemplate } from "@/services/templates";
 import type { Contact } from "@/services/contacts";
+import type { SshOutputConfigItem } from "@/services/ssh-output";
 
 export interface OutputFormItem {
   dndId: string;
@@ -56,7 +57,7 @@ export interface OutputFormItem {
   overrideSubject: string;
   overrideBody: string;
   overrideBodyType: "text" | "html";
-  // ssh-specific
+  // ssh-specific (vaultId stores the SshOutputConfig.id for ssh type)
   pathOverride: string;
 }
 
@@ -94,13 +95,13 @@ const COMING_SOON_TYPES: { key: string; icon: React.ElementType }[] = [
 interface StepOutputsProps {
   data: OutputFormItem[];
   vaultItems: EmailVaultItem[];
-  sshVaultItems: SshVaultItem[];
+  sshOutputConfigs: SshOutputConfigItem[];
   templates: MailTemplate[];
   contacts: Contact[];
   onChange: (data: OutputFormItem[]) => void;
 }
 
-export function StepOutputs({ data, vaultItems, sshVaultItems, templates, contacts, onChange }: StepOutputsProps) {
+export function StepOutputs({ data, vaultItems, sshOutputConfigs, templates, contacts, onChange }: StepOutputsProps) {
   const { t } = useTranslation();
   const [typePickerOpen, setTypePickerOpen] = useState(false);
 
@@ -166,7 +167,7 @@ export function StepOutputs({ data, vaultItems, sshVaultItems, templates, contac
                 output={output}
                 idx={idx}
                 vaultItems={vaultItems}
-                sshVaultItems={sshVaultItems}
+                sshOutputConfigs={sshOutputConfigs}
                 templates={templates}
                 contacts={contacts}
                 onUpdate={(partial) => updateOutput(idx, partial)}
@@ -185,7 +186,6 @@ export function StepOutputs({ data, vaultItems, sshVaultItems, templates, contac
           </DialogHeader>
 
           <div className="space-y-2 pt-2">
-            {/* Available types */}
             {OUTPUT_TYPE_DEFS.map(({ key, icon: Icon }) => (
               <button
                 key={key}
@@ -204,7 +204,6 @@ export function StepOutputs({ data, vaultItems, sshVaultItems, templates, contac
               </button>
             ))}
 
-            {/* Coming soon */}
             {COMING_SOON_TYPES.map(({ key, icon: Icon }) => (
               <div
                 key={key}
@@ -233,7 +232,7 @@ interface SortableOutputCardProps {
   output: OutputFormItem;
   idx: number;
   vaultItems: EmailVaultItem[];
-  sshVaultItems: SshVaultItem[];
+  sshOutputConfigs: SshOutputConfigItem[];
   templates: MailTemplate[];
   contacts: Contact[];
   onUpdate: (partial: Partial<OutputFormItem>) => void;
@@ -244,7 +243,7 @@ function SortableOutputCard({
   output,
   idx,
   vaultItems,
-  sshVaultItems,
+  sshOutputConfigs,
   templates,
   contacts,
   onUpdate,
@@ -296,26 +295,41 @@ function SortableOutputCard({
         {output.type === "ssh" ? (
           <FieldGroup>
             <Field>
-              <FieldLabel>{t("output.ssh.vaultLabel")}</FieldLabel>
-              <Select value={output.vaultId} onValueChange={(v) => onUpdate({ vaultId: v })}>
+              <FieldLabel>{t("output.ssh.configLabel")}</FieldLabel>
+              <Select
+                value={output.vaultId}
+                onValueChange={(v) => onUpdate({ vaultId: v })}
+              >
                 <SelectTrigger>
-                  <SelectValue placeholder={t("output.ssh.vaultPlaceholder")} />
+                  <SelectValue placeholder={t("output.ssh.configPlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
-                  {sshVaultItems.map((v) => (
-                    <SelectItem key={v.id} value={v.id}>{v.name} — {v.username}@{v.host}</SelectItem>
+                  {sshOutputConfigs.map((cfg) => (
+                    <SelectItem key={cfg.id} value={cfg.id}>
+                      {cfg.name} — {cfg.destPath}
+                      {!cfg.lastTestStatus && " ⚠"}
+                      {cfg.lastTestStatus === "error" && " ✕"}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </Field>
-            <Field>
-              <FieldLabel>{t("output.ssh.pathOverride")}</FieldLabel>
-              <Input
-                value={output.pathOverride}
-                onChange={(e) => onUpdate({ pathOverride: e.target.value })}
-                placeholder={output.vaultId ? sshVaultItems.find((v) => v.id === output.vaultId)?.defaultPath ?? t("output.ssh.pathOverridePlaceholder") : t("output.ssh.pathOverridePlaceholder")}
-              />
-              <p className="text-xs text-muted-foreground mt-1">{t("output.ssh.pathOverrideHint")}</p>
+              {(() => {
+                const cfg = sshOutputConfigs.find((c) => c.id === output.vaultId);
+                if (!cfg) return null;
+                if (!cfg.lastTestStatus)
+                  return (
+                    <p className="text-xs text-amber-600 mt-1">
+                      {t("output.ssh.notTested")}
+                    </p>
+                  );
+                if (cfg.lastTestStatus === "error")
+                  return (
+                    <p className="text-xs text-destructive mt-1">
+                      {t("output.ssh.testError")}
+                    </p>
+                  );
+                return null;
+              })()}
             </Field>
           </FieldGroup>
         ) : (

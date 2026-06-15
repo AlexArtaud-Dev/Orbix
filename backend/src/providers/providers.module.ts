@@ -1,6 +1,7 @@
 import { Module, OnModuleInit } from '@nestjs/common';
 import { VaultModule } from '../modules/vault/vault.module';
 import { ModuleSettingsModule } from '../modules/module-settings/module-settings.module';
+import { SshOutputModule } from '../modules/output/ssh/ssh-output.module';
 import { ModuleSettingsRegistry } from './module-settings.registry';
 import { hasModuleSettings } from './module-settings.interface';
 import { InputProviderRegistry } from './input/input-provider.registry';
@@ -21,7 +22,7 @@ import { ProvidersController } from './providers.controller';
  *   4. Optionally implement IModuleSettingsProvider to expose configurable settings.
  */
 @Module({
-  imports: [VaultModule, ModuleSettingsModule],
+  imports: [VaultModule, ModuleSettingsModule, SshOutputModule],
   controllers: [ProvidersController],
   providers: [
     InputProviderRegistry,

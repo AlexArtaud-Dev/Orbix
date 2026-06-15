@@ -1,12 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { VaultService } from '../../../modules/vault/vault.service';
 import { LogsWriter } from '../../../modules/logs/logs.writer';
+import { ModuleSettingsService } from '../../../modules/module-settings/module-settings.service';
+import { SshOutputService } from '../../../modules/output/ssh/ssh-output.service';
 import type { IOutputProvider } from '../output-provider.interface';
+import type { IModuleSettingsProvider } from '../../module-settings.interface';
 import type {
   ProviderMeta,
   ArchiveResult,
   OutputRow,
 } from '../../providers.types';
+import type { ModuleSettingsDefinition } from '../../module-settings.types';
 import type {
   SshPayload,
   SshUserPasswordPayload,
@@ -14,7 +18,9 @@ import type {
 import { SshOutputFailedException } from '../../../common/exceptions';
 
 @Injectable()
-export class SshOutputProvider implements IOutputProvider {
+export class SshOutputProvider
+  implements IOutputProvider, IModuleSettingsProvider
+{
   readonly type = 'ssh';
   readonly meta: ProviderMeta = {
     type: 'ssh',
@@ -23,21 +29,44 @@ export class SshOutputProvider implements IOutputProvider {
     description: 'Upload the backup archive to a remote server via SFTP.',
   };
 
+  readonly moduleSettingsDefinition: ModuleSettingsDefinition = {
+    module: 'ssh-output',
+    labelKey: 'output.type.ssh',
+    descriptionKey: 'output.typeDesc.ssh',
+    fields: [
+      {
+        key: 'connectionTimeoutMs',
+        type: 'number',
+        defaultValue: 30000,
+        labelKey: 'moduleSettings.sshOutput.connectionTimeoutMs',
+        descriptionKey: 'moduleSettings.sshOutput.connectionTimeoutMsDesc',
+        min: 1000,
+        max: 120000,
+      },
+    ],
+  };
+
   constructor(
     private readonly vault: VaultService,
     private readonly logs: LogsWriter,
+    private readonly moduleSettings: ModuleSettingsService,
+    private readonly sshOutputConfigs: SshOutputService,
   ) {}
 
   async send(
     output: OutputRow,
     archive: ArchiveResult,
-    backupName: string,
-    backupId: string,
+    _backupName: string,
+    _backupId: string,
+    isValidation = false,
   ): Promise<void> {
-    const payload = await this.vault.getSshPayload(output.vaultId);
-    const remotePath = (
-      output.pathOverride?.trim() || payload.defaultPath
-    ).replace(/\/+$/, '');
+    const { values } = await this.moduleSettings.getOne('ssh-output');
+    const timeoutMs =
+      (values.connectionTimeoutMs as number | undefined) ?? 30000;
+
+    const config = await this.sshOutputConfigs.getOne(output.vaultId);
+    const payload = await this.vault.getSshPayload(config.vaultId);
+    const remotePath = config.destPath.replace(/\/+$/, '');
     const remoteFile = `${remotePath}/${archive.filename}`;
 
     if (payload.useSudo) {
@@ -45,39 +74,89 @@ export class SshOutputProvider implements IOutputProvider {
         payload,
         archive.buffer,
         remoteFile,
-        backupId,
-        backupName,
+        timeoutMs,
       );
     } else {
-      await this.uploadViaSftp(
-        payload,
-        archive.buffer,
-        remoteFile,
-        backupId,
-        backupName,
-      );
+      await this.uploadViaSftp(payload, archive.buffer, remoteFile, timeoutMs);
     }
+
+    if (isValidation) {
+      await this.deleteRemoteFile(payload, remoteFile, timeoutMs);
+    }
+  }
+
+  private deleteRemoteFile(
+    payload: SshPayload,
+    remoteFile: string,
+    timeoutMs: number,
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      void import('ssh2').then(({ Client }) => {
+        const conn = new Client();
+        const password =
+          payload.subtype === 'user_password' ? payload.password : undefined;
+
+        conn.on('ready', () => {
+          const cmd = payload.useSudo
+            ? `sudo -S -p '' rm -f ${JSON.stringify(remoteFile)}`
+            : `rm -f ${JSON.stringify(remoteFile)}`;
+          conn.exec(cmd, (err, stream) => {
+            if (err) {
+              conn.end();
+              return reject(
+                new SshOutputFailedException(payload.host, err.message),
+              );
+            }
+            stream.on('data', () => {});
+            stream.stderr.on('data', () => {});
+            stream.on('close', (code: number) => {
+              conn.end();
+              if (code === 0) resolve();
+              else
+                reject(
+                  new SshOutputFailedException(
+                    payload.host,
+                    `rm exit code ${code}`,
+                  ),
+                );
+            });
+            if (payload.useSudo) stream.write((password ?? '') + '\n');
+            stream.end();
+          });
+        });
+
+        conn.on('error', (err) =>
+          reject(new SshOutputFailedException(payload.host, err.message)),
+        );
+        conn.on('keyboard-interactive', (_n, _i, _l, _p, finish) =>
+          finish([password ?? '']),
+        );
+
+        conn.connect({
+          host: payload.host,
+          port: payload.port,
+          username: payload.username,
+          readyTimeout: timeoutMs,
+          tryKeyboard: payload.subtype === 'user_password',
+          ...(payload.subtype === 'user_password'
+            ? { password }
+            : {
+                privateKey: Buffer.from(payload.privateKey ?? '', 'utf8'),
+                passphrase: payload.passphrase,
+              }),
+        });
+      });
+    });
   }
 
   private uploadViaSftp(
     payload: SshPayload,
     buffer: Buffer,
     remoteFile: string,
-    backupId: string,
-    backupName: string,
+    timeoutMs: number,
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       void import('ssh2').then(({ Client }) => {
-        console.log(
-          `[SSH OUTPUT] Uploading backup "${backupName}" (${backupId})`,
-        );
-        console.log(
-          `[SSH OUTPUT] Target: ${payload.username}@${payload.host}:${payload.port}`,
-        );
-        console.log(`[SSH OUTPUT] Remote file: ${remoteFile}`);
-        console.log(`[SSH OUTPUT] Auth method: ${payload.subtype}`);
-        console.log(`[SSH OUTPUT] Buffer size: ${buffer.length} bytes`);
-
         const conn = new Client();
         const password =
           payload.subtype === 'user_password' ? payload.password : undefined;
@@ -87,8 +166,7 @@ export class SshOutputProvider implements IOutputProvider {
           host: payload.host,
           port: payload.port,
           username: payload.username,
-          readyTimeout: 30000,
-          debug: (msg: string) => console.log('[SSH2 DEBUG]', msg),
+          readyTimeout: timeoutMs,
           tryKeyboard: payload.subtype === 'user_password',
           ...(payload.subtype === 'user_password'
             ? { password }
@@ -101,45 +179,43 @@ export class SshOutputProvider implements IOutputProvider {
         conn.on(
           'keyboard-interactive',
           (_name, _instructions, _lang, _prompts, finish) => {
-            console.log(
-              '[SSH OUTPUT] keyboard-interactive challenge — replying with password',
-            );
             finish([password ?? '']);
           },
         );
 
         conn.on('ready', () => {
-          console.log('[SSH OUTPUT] Connection ready, opening SFTP…');
           conn.sftp((err, sftp) => {
             if (err) {
-              console.error('[SSH OUTPUT] SFTP open error:', err.message, err);
               conn.end();
               return reject(
                 new SshOutputFailedException(payload.host, err.message),
               );
             }
-            console.log('[SSH OUTPUT] SFTP open, writing stream…');
             const writeStream = sftp.createWriteStream(remoteFile);
-            writeStream.on('error', (e: Error) => {
-              console.error('[SSH OUTPUT] Write stream error:', e.message, e);
-              conn.end();
-              reject(new SshOutputFailedException(payload.host, e.message));
-            });
-            writeStream.on('close', () => {
-              console.log('[SSH OUTPUT] Upload complete:', remoteFile);
+            let settled = false;
+            const done = () => {
+              if (settled) return;
+              settled = true;
               conn.end();
               resolve();
-            });
+            };
+            const fail = (e: Error) => {
+              if (settled) return;
+              settled = true;
+              conn.end();
+              reject(new SshOutputFailedException(payload.host, e.message));
+            };
+            writeStream.on('error', fail);
+            writeStream.on('finish', done);
+            writeStream.on('close', done);
             writeStream.end(buffer);
           });
         });
 
         conn.on('error', (err) => {
-          console.error('[SSH OUTPUT] Connection error:', err.message, err);
           reject(new SshOutputFailedException(payload.host, err.message));
         });
 
-        console.log('[SSH OUTPUT] Connecting…');
         conn.connect(connConfig);
       });
     });
@@ -149,14 +225,10 @@ export class SshOutputProvider implements IOutputProvider {
     payload: SshPayload,
     buffer: Buffer,
     remoteFile: string,
-    backupId: string,
-    backupName: string,
+    timeoutMs: number,
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       void import('ssh2').then(({ Client }) => {
-        console.log(
-          `[SSH OUTPUT sudo] Uploading "${backupName}" via sudo tee → ${remoteFile}`,
-        );
         const sudoPassword =
           payload.subtype === 'user_password'
             ? payload.password
@@ -169,8 +241,7 @@ export class SshOutputProvider implements IOutputProvider {
           host: payload.host,
           port: payload.port,
           username: payload.username,
-          readyTimeout: 30000,
-          debug: (msg: string) => console.log('[SSH2 DEBUG]', msg),
+          readyTimeout: timeoutMs,
           tryKeyboard: payload.subtype === 'user_password',
           ...(payload.subtype === 'user_password'
             ? { password: payload.password }
@@ -180,12 +251,11 @@ export class SshOutputProvider implements IOutputProvider {
               }),
         };
 
-        conn.on('keyboard-interactive', (_n, _i, _l, _p, finish) =>
-          finish([(payload as SshUserPasswordPayload).password ?? '']),
-        );
+        conn.on('keyboard-interactive', (_n, _i, _l, _p, finish) => {
+          finish([(payload as SshUserPasswordPayload).password ?? '']);
+        });
 
         conn.on('ready', () => {
-          console.log('[SSH OUTPUT sudo] Connection ready, running sudo tee…');
           const cmd = `sudo -S -p '' tee ${JSON.stringify(remoteFile)} > /dev/null`;
           conn.exec(cmd, (err, stream) => {
             if (err) {
@@ -198,13 +268,13 @@ export class SshOutputProvider implements IOutputProvider {
             stream.stderr.on('data', (d: Buffer) => {
               errOut += d.toString();
             });
-            stream.on('close', (code: number) => {
+            stream.stdout.on('data', () => {});
+            stream.on('close', (code: number, signal: unknown) => {
+              void signal;
               conn.end();
               if (code === 0) {
-                console.log('[SSH OUTPUT sudo] Upload complete:', remoteFile);
                 resolve();
               } else {
-                console.error('[SSH OUTPUT sudo] tee failed:', errOut.trim());
                 reject(
                   new SshOutputFailedException(
                     payload.host,
@@ -213,14 +283,12 @@ export class SshOutputProvider implements IOutputProvider {
                 );
               }
             });
-            // sudo reads password from first line, tee reads the rest as file content
             stream.write(sudoPassword + '\n');
             stream.end(buffer);
           });
         });
 
         conn.on('error', (err) => {
-          console.error('[SSH OUTPUT sudo] Connection error:', err.message);
           reject(new SshOutputFailedException(payload.host, err.message));
         });
 

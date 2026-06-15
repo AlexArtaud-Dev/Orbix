@@ -4,6 +4,7 @@ import { InputService } from './input.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { VaultService } from '../vault/vault.service';
 import { LogsWriter } from '../logs/logs.writer';
+import { ModuleSettingsService } from '../module-settings/module-settings.service';
 import * as inputHttpUtil from './input-http.util';
 
 jest.mock('./input-http.util', () => ({
@@ -83,6 +84,10 @@ describe('InputService', () => {
           },
         },
         { provide: LogsWriter, useValue: mockLogs },
+        {
+          provide: ModuleSettingsService,
+          useValue: { getOne: jest.fn().mockResolvedValue({ values: {} }) },
+        },
       ],
     }).compile();
 

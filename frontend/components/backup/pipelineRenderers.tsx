@@ -16,12 +16,14 @@ import { useState } from "react";
 import {
   Globe, Plug, Mail, Send,
   FileText, Folder, CheckCircle2, XCircle, Clock,
-  ChevronDown, ChevronUp,
+  ChevronDown, ChevronUp, Server, FolderOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { BackupSource, BackupOutput } from "@/services/backups";
 import type { Contact } from "@/services/contacts";
 import type { InputItem } from "@/services/input";
+import type { SshOutputConfigItem } from "@/services/ssh-output";
+import type { SshInputConfig } from "@/components/input/ssh/ssh-input.client-types";
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 
@@ -33,17 +35,19 @@ export interface PipelineVaultInfo {
 }
 
 export interface PipelineContext {
-  contacts:      Map<string, Contact>;
-  inputMap:      Map<string, InputItem>;
-  vaultsMap:     Map<string, PipelineVaultInfo>;
-  templatesMap:  Map<string, string>; // id → name
+  contacts:         Map<string, Contact>;
+  inputMap:         Map<string, InputItem>;
+  vaultsMap:        Map<string, PipelineVaultInfo>;
+  templatesMap:     Map<string, string>;
+  sshOutputConfigs: Map<string, SshOutputConfigItem>;
 }
 
 export const EMPTY_CONTEXT: PipelineContext = {
-  contacts:     new Map(),
-  inputMap:     new Map(),
-  vaultsMap:    new Map(),
-  templatesMap: new Map(),
+  contacts:         new Map(),
+  inputMap:         new Map(),
+  vaultsMap:        new Map(),
+  templatesMap:     new Map(),
+  sshOutputConfigs: new Map(),
 };
 
 // ─── Renderer interfaces ──────────────────────────────────────────────────────
@@ -194,24 +198,83 @@ const INPUT_TYPE_LABELS: Record<string, string> = {
   "sftp":       "SFTP",
 };
 
+function StatusBadge({ status }: { status: string | null | undefined }) {
+  if (status === "ok")
+    return <span className="flex items-center gap-1 text-green-600 dark:text-green-400"><CheckCircle2 className="size-3" /> Operational</span>;
+  if (status === "error")
+    return <span className="flex items-center gap-1 text-red-500"><XCircle className="size-3" /> Error</span>;
+  return <span className="flex items-center gap-1 text-muted-foreground"><Clock className="size-3" /> Never tested</span>;
+}
+
+const SHOWN_SOURCES = 5;
+
+function SshInputDetail({ item }: { item: InputItem }) {
+  const [expanded, setExpanded] = useState(false);
+  const cfg = item.config as unknown as SshInputConfig;
+  const sources = cfg.sources ?? [];
+  const shown  = expanded ? sources : sources.slice(0, SHOWN_SOURCES);
+  const hidden = sources.length - SHOWN_SOURCES;
+
+  return (
+    <div className="space-y-4">
+      <FieldGrid>
+        <Field label="Name"   value={item.name} />
+        <Field label="Status" value={<StatusBadge status={item.lastTestStatus} />} />
+        <Field label="Type"   value={<Chip color="teal">SSH</Chip>} />
+        <Field label="Sources" value={<Chip color="muted">{sources.length} path{sources.length !== 1 ? "s" : ""}</Chip>} />
+      </FieldGrid>
+
+      {sources.length > 0 && (
+        <div>
+          <p className="text-[9px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/65 mb-2">
+            Remote paths
+          </p>
+          <div className="space-y-1.5">
+            {shown.map((s, i) => (
+              <div key={i} className="flex items-start gap-2 min-w-0">
+                {s.isDirectory
+                  ? <FolderOpen className="size-3.5 shrink-0 mt-0.5 text-amber-500" />
+                  : <FileText   className="size-3.5 shrink-0 mt-0.5 text-blue-500" />
+                }
+                <span className="flex-1 min-w-0 text-[11px] font-mono text-foreground/85 truncate">
+                  {s.path}
+                </span>
+                <div className="flex shrink-0 items-center gap-1">
+                  {s.isDirectory && s.recursive && <Chip color="sky" className="text-[9px]">recursive</Chip>}
+                  {s.namePattern && <Chip color="muted" className="text-[9px]">{s.namePattern}</Chip>}
+                </div>
+              </div>
+            ))}
+            {hidden > 0 && (
+              <button
+                type="button"
+                onClick={() => setExpanded((v) => !v)}
+                className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors mt-1"
+              >
+                {expanded
+                  ? <><ChevronUp className="size-3" /> Collapse</>
+                  : <><ChevronDown className="size-3" /> {hidden} more path{hidden > 1 ? "s" : ""}</>}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function InputSourceDetail({ source, ctx }: { source: BackupSource; ctx: PipelineContext }) {
   const item = source.inputId ? ctx.inputMap.get(source.inputId) : undefined;
+
+  if (item?.type === "ssh") return <SshInputDetail item={item} />;
 
   return (
     <FieldGrid>
       {item ? (
         <>
-          <Field label="Name"  value={item.name} />
-          <Field label="Type"  value={
-            <Chip color="teal">{INPUT_TYPE_LABELS[item.type] ?? item.type}</Chip>
-          } />
-          <Field label="Status" value={
-            item.lastTestStatus === "ok"
-              ? <span className="flex items-center gap-1 text-green-600 dark:text-green-400"><CheckCircle2 className="size-3" /> Operational</span>
-              : item.lastTestStatus === "error"
-              ? <span className="flex items-center gap-1 text-red-500"><XCircle className="size-3" /> Error</span>
-              : <span className="flex items-center gap-1 text-muted-foreground"><Clock className="size-3" /> Never tested</span>
-          } />
+          <Field label="Name"   value={item.name} />
+          <Field label="Type"   value={<Chip color="teal">{INPUT_TYPE_LABELS[item.type] ?? item.type}</Chip>} />
+          <Field label="Status" value={<StatusBadge status={item.lastTestStatus} />} />
           <Field label="Transfer" value={
             <Chip color={source.transferMode === "buffer" ? "amber" : "sky"}>
               {source.transferMode ?? "stream"}
@@ -386,6 +449,59 @@ registerOutputRenderer("mail", {
   ring: "ring-sky-400/60",
   label: () => "Mail",
   DetailContent: EmailOutputDetail,
+});
+
+// ─── SSH output renderer ──────────────────────────────────────────────────────
+
+function SshOutputDetail({ output, index, ctx }: {
+  output: BackupOutput;
+  index:  number;
+  ctx:    PipelineContext;
+}) {
+  const config = ctx.sshOutputConfigs.get(output.vaultId);
+
+  return (
+    <div className="space-y-4">
+      {/* ── Config block ── */}
+      <div>
+        <SectionLabel>SSH Configuration</SectionLabel>
+        {config ? (
+          <div className="flex items-start gap-3 rounded-lg bg-muted/40 border border-border/40 px-3 py-2.5">
+            <Server className="size-3.5 shrink-0 text-slate-400 mt-0.5" />
+            <div className="min-w-0 flex-1 space-y-0.5">
+              <p className="text-xs font-semibold text-foreground/90 truncate">{config.name}</p>
+              <p className="text-[11px] font-mono text-muted-foreground truncate">{config.destPath}</p>
+            </div>
+          </div>
+        ) : (
+          <p className="text-xs font-mono text-muted-foreground/60 truncate">
+            {output.vaultId ? output.vaultId.slice(0, 20) + "…" : "—"}
+          </p>
+        )}
+      </div>
+
+      {/* ── Details ── */}
+      <FieldGrid>
+        <Field label="Order"  value={`#${index + 1}`} />
+        <Field label="Status" value={<StatusBadge status={config?.lastTestStatus} />} />
+        {config?.destPath && (
+          <Field label="Destination" value={
+            <span className="font-mono text-[11px]">{config.destPath}</span>
+          } full />
+        )}
+      </FieldGrid>
+    </div>
+  );
+}
+
+registerOutputRenderer("ssh", {
+  icon: Server,
+  bg: "bg-slate-500/18",
+  iconColor: "text-slate-400",
+  glow: "shadow-[0_0_18px_rgba(100,116,139,0.35)]",
+  ring: "ring-slate-400/60",
+  label: () => "SSH",
+  DetailContent: SshOutputDetail,
 });
 
 // ─── Generic fallbacks ────────────────────────────────────────────────────────

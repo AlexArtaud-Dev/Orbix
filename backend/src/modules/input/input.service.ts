@@ -17,6 +17,7 @@ import type {
   InputRow,
 } from './input.types';
 import { OrbixException } from '../../common/exceptions';
+import { ModuleSettingsService } from '../module-settings/module-settings.service';
 
 @Injectable()
 export class InputService {
@@ -26,6 +27,7 @@ export class InputService {
     private readonly prisma: PrismaService,
     private readonly vault: VaultService,
     private readonly logs: LogsWriter,
+    private readonly moduleSettings: ModuleSettingsService,
   ) {}
 
   async create(dto: CreateInputDto): Promise<InputRow> {
@@ -138,7 +140,7 @@ export class InputService {
       try {
         const { SshInputProvider } =
           await import('../../providers/input/ssh/ssh-input.provider');
-        const provider = new SshInputProvider(this.vault);
+        const provider = new SshInputProvider(this.vault, this.moduleSettings);
         const result = await provider.test(
           input as unknown as import('./input.types').InputRow,
         );
