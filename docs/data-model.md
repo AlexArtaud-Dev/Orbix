@@ -26,10 +26,16 @@ Encrypted credential storage. One row per vault entry regardless of type.
 |--------|------|-------|
 | `id` | String (cuid) | Primary key |
 | `name` | String | Unique display name |
-| `type` | String | `"email"` \| `"http"` \| `"variable_set"` |
+| `type` | String | `"email"` \| `"http"` \| `"variable_set"` \| `"ssh-remote"` |
 | `encryptedPayload` | String | AES-256-GCM encrypted JSON blob |
 
-Email vault health check status is stored in the separate `VaultHealthCheck` table (1-1 relation). The raw payload shape depends on `type` — see [modules.md — VaultModule](modules.md#vaultmodule) for the field list per HTTP subtype.
+Payload shape depends on `type`:
+- `"email"` — SMTP config (host, port, user, pass, from address, TLS settings)
+- `"http"` — HTTP credential (see [modules.md — VaultModule](modules.md#vaultmodule) for subtypes)
+- `"variable_set"` — `{ entries: [{ key, value }] }`
+- `"ssh-remote"` — SSH connection (host, port, username, subtype, credentials, defaultPath, useSudo)
+
+Email vault health check status is stored in the separate `VaultHealthCheck` table (1-1 relation).
 
 ---
 
@@ -45,8 +51,6 @@ SMTP connectivity test result for email vault entries. Created or updated on eac
 | `statusMsg` | String? | Error message from last failed test |
 | `checkedAt` | DateTime | Timestamp of last test |
 
-One row per email vault entry at most (upsert on `vaultId`). Non-email vault types do not have a `VaultHealthCheck` row.
-
 ---
 
 ### Input
@@ -57,10 +61,10 @@ A reusable external data source definition.
 |--------|------|-------|
 | `id` | String (cuid) | Primary key |
 | `name` | String | Unique display name |
-| `type` | String | Provider type — currently `"http-rest"` |
-| `vaultId` | String? | Optional vault entry for auth |
+| `type` | String | Provider type — `"http-rest"` \| `"ssh"` |
+| `vaultId` | String? | Optional vault entry for auth / connection |
 | `config` | Json | Provider-specific config blob |
-| `requestParams` | Json | Array of `InputRequestParam` |
+| `requestParams` | Json | Array of `InputRequestParam` (HTTP only) |
 | `enabled` | Boolean | Default `true` |
 | `lastTestAt` | DateTime? | Last test timestamp |
 | `lastTestStatus` | String? | `"ok"` \| `"error"` |
@@ -70,10 +74,10 @@ A reusable external data source definition.
 
 ```typescript
 {
-  baseUrl: string;            // Base URL for single-file download or API root
+  baseUrl: string;
   method?: string;            // GET | POST | PUT | PATCH | DELETE (default: GET)
-  listEndpoint?: string;      // Optional: fetch this endpoint to get a list of items
-  downloadEndpoint?: string;  // Optional: used with list — {id} substituted per item
+  listEndpoint?: string;
+  downloadEndpoint?: string;
   insecureSkipVerify?: boolean;
   body?: {
     type: "none" | "json" | "raw" | "graphql" | "x-www-form-urlencoded" | "form-data";
@@ -82,7 +86,20 @@ A reusable external data source definition.
     graphqlVariables?: string;
     urlEncoded?: Array<{ key: string; value?: string; valueType: "literal" }>;
   };
-  detectedExtension?: string; // Set automatically after a successful test
+  detectedExtension?: string;
+}
+```
+
+**`config` shape for `ssh`:**
+
+```typescript
+{
+  sources: Array<{
+    path: string;           // Absolute remote path (file or directory)
+    isDirectory: boolean;
+    recursive: boolean;
+    namePattern?: string;   // Regex / glob — supports {YYYY} {MM} {DD} {HH} tokens
+  }>;
 }
 ```
 
@@ -93,8 +110,8 @@ Array<{
   key: string;
   in: "header" | "query" | "body";
   valueType: "literal" | "vault";
-  value?: string;     // Used when valueType = "literal"
-  vaultId?: string;   // Used when valueType = "vault"
+  value?: string;
+  vaultId?: string;
   vaultField?: string;
 }>
 ```
@@ -112,7 +129,7 @@ The main pipeline entity.
 | `backupType` | String | `"local"` \| `"input"` |
 | `sources` | Json | `BackupSources` — see below |
 | `scheduleType` | String | `"manual"` \| `"oneshoot"` \| `"recurring"` \| `"interval"` |
-| `scheduleConfig` | Json? | Schedule parameters — shape varies by `scheduleType` (see below) |
+| `scheduleConfig` | Json? | Schedule parameters — shape varies by `scheduleType` |
 | `schedule` | String? | Computed cron expression |
 | `enabled` | Boolean | Whether the scheduler picks it up |
 | `noArchive` | Boolean | Pass-through single file without zipping |
@@ -156,20 +173,20 @@ The main pipeline entity.
 { every: number; unit: "minutes" | "hours"; startDate?: string; endDate?: string }
 ```
 
-Day numbers follow JavaScript `Date.getDay()` convention: 0 = Sunday, 1 = Monday … 6 = Saturday. Display order in the UI is Mon→Tue→Wed→Thu→Fri→Sat→Sun.
+Day numbers follow JavaScript `Date.getDay()` convention: 0 = Sunday, 1 = Monday … 6 = Saturday.
 
 ---
 
 ### BackupRun
 
-One row per execution of a backup, written by `BackupRunner`. Used by the v0.9 dashboard (KPIs, charts, last-runs table).
+One row per execution of a backup, written by `BackupRunner`.
 
 | Column | Type | Notes |
 |--------|------|-------|
 | `id` | String (cuid) | Primary key |
 | `backupId` | String | FK → Backup (cascade delete) |
 | `startedAt` | DateTime | Run start timestamp (indexed) |
-| `finishedAt` | DateTime? | Run end timestamp — null while status is `"running"` |
+| `finishedAt` | DateTime? | Run end timestamp — null while running |
 | `status` | String | `"running"` \| `"success"` \| `"error"` |
 | `archiveSizeBytes` | Int? | Compressed archive size in bytes — set on success |
 | `filesCount` | Int? | Number of files in the archive — set on success |
@@ -181,7 +198,6 @@ Indexes: `(backupId, startedAt desc)`, `(status, startedAt desc)`, `(startedAt d
 
 Rows older than `SystemSettings.backupRetentionDays` are automatically purged hourly by `BackupScheduler.purgeOldRuns()`.
 
-
 ---
 
 ### BackupOutput
@@ -192,16 +208,33 @@ One output destination per backup. A backup can have multiple ordered outputs.
 |--------|------|-------|
 | `id` | String (cuid) | Primary key |
 | `backupId` | String | FK → Backup (cascade delete) |
-| `type` | String | Output provider type — currently `"mail"` |
-| `vaultId` | String | Vault entry used by the provider (SMTP config for mail) |
-| `templateId` | String? | FK → MailTemplate |
-| `recipientsTo` | String[] | Contact IDs |
-| `recipientsCc` | String[] | Contact IDs |
-| `recipientsBcc` | String[] | Contact IDs |
-| `overrideSubject` | String? | Overrides template subject |
-| `overrideBody` | String? | Overrides template body |
-| `overrideBodyType` | String? | `"text"` \| `"html"` |
+| `type` | String | Output provider type — `"mail"` \| `"ssh"` |
+| `vaultId` | String | Vault entry used by the provider |
+| `templateId` | String? | FK → MailTemplate (mail only) |
+| `recipientsTo` | String[] | Contact IDs (mail only) |
+| `recipientsCc` | String[] | Contact IDs (mail only) |
+| `recipientsBcc` | String[] | Contact IDs (mail only) |
+| `overrideSubject` | String? | Overrides template subject (mail only) |
+| `overrideBody` | String? | Overrides template body (mail only) |
+| `overrideBodyType` | String? | `"text"` \| `"html"` (mail only) |
+| `pathOverride` | String? | Override destination path (SSH: overrides `SshOutputConfig.destPath`) |
 | `order` | Int | Execution order (ascending) |
+
+---
+
+### SshOutputConfig
+
+A named, reusable SSH output destination. Must be tested before it can be used in a backup pipeline.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | String (cuid) | Primary key |
+| `name` | String | Unique display name |
+| `vaultId` | String | FK → VaultEntity (type `"ssh-remote"`) |
+| `destPath` | String | Default remote destination directory |
+| `lastTestStatus` | String? | `"ok"` \| `"error"` |
+| `lastTestError` | String? | Error detail from last failed test |
+| `lastTestAt` | DateTime? | Last test timestamp |
 
 ---
 
@@ -221,8 +254,6 @@ Append-only activity log. Never updated after insert.
 | `backupId` | String? | Optional link to a specific backup |
 
 Indexes: `(ts desc)`, `(level, ts desc)`, `(category, ts desc)`, `(backupId, ts desc)`.
-
-Rows older than `SystemSettings.logRetentionHours` are automatically purged by a cron job every 10 minutes.
 
 ---
 
@@ -262,6 +293,22 @@ Send history written by `MailOutputProvider` after each send attempt.
 | `status` | String | `"sent"` \| `"error"` |
 | `errorMsg` | String? | Error details |
 | `sentAt` | DateTime | Send timestamp |
+
+---
+
+### ModuleSetting
+
+Per-provider configurable settings. Each key/value pair is scoped to a module name (the provider type string).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | String (cuid) | Primary key |
+| `module` | String | Provider type (e.g. `"http-rest"`, `"ssh"`) |
+| `key` | String | Setting key |
+| `value` | String | Setting value (always stored as string) |
+| `updatedAt` | DateTime | Last update timestamp |
+
+Unique constraint on `(module, key)`.
 
 ---
 

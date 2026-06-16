@@ -39,6 +39,15 @@ Manages a singleton `SystemSettings` row. Settings include:
 
 ---
 
+## ModuleSettingsModule
+
+**Path:** `modules/module-settings/`  
+**Controller:** `GET /api/settings/modules`, `GET /api/settings/modules/:module`, `PUT /api/settings/modules/:module`
+
+Manages per-provider configurable settings (stored as `ModuleSetting` key/value rows). Each provider that implements `IModuleSettingsProvider` exposes a settings definition (fields with labels, types, defaults) that is discovered at startup and editable from the UI.
+
+---
+
 ## VaultModule
 
 **Path:** `modules/vault/`  
@@ -46,6 +55,7 @@ Manages a singleton `SystemSettings` row. Settings include:
 - `GET|POST|PATCH|DELETE /api/vault/http` — HTTP credential entries
 - `GET|POST|PATCH|DELETE /api/vault/email` — SMTP entries
 - `GET|POST|PATCH|DELETE /api/vault/varset` — Variable set entries
+- `GET|POST|PATCH|DELETE /api/vault/ssh-remote` — SSH connection entries
 
 Stores credentials encrypted with AES-256-GCM. Each entry is a `VaultEntity` row with an `encryptedPayload` field.
 
@@ -65,6 +75,23 @@ Stores credentials encrypted with AES-256-GCM. Each entry is a `VaultEntity` row
 | `cookie` | `value` |
 | `custom_kv` | `entries: [{key, value}]` |
 
+### SSH vault entries
+
+SSH vault entries (type `"ssh-remote"`) store connection parameters for a remote SSH server. They are used by both the SSH Input and SSH Output providers.
+
+| Field | Description |
+|-------|-------------|
+| `subtype` | `"user_password"` \| `"ssh_key"` |
+| `host` | Remote hostname or IP |
+| `port` | SSH port (1–65535) |
+| `username` | SSH username |
+| `defaultPath` | Default remote path shown in the browser |
+| `password` | Password (user_password subtype) |
+| `privateKey` | PEM private key (ssh_key subtype) |
+| `passphrase` | Key passphrase (optional, ssh_key subtype) |
+| `sudoPassword` | sudo password for sudo-tee upload (optional) |
+| `useSudo` | Whether to use sudo-tee instead of SFTP for upload |
+
 ### Variable sets
 
 A variable set is a named collection of key/value pairs. Values are referenced in HTTP body templates and ZIP password fields using the syntax `{{vault.var.<slug>.<key>}}`.
@@ -76,6 +103,7 @@ Example: if a variable set named `db-creds` has key `password`, use `{{vault.var
 ```typescript
 getHttpPayload(id: string): Promise<HttpVaultPayload>
 getEmailPayload(id: string): Promise<EmailVaultPayload>
+getSshPayload(id: string): Promise<SshPayload>
 getVariableSetPayloadBySlug(slug: string): Promise<Record<string, string>>
 ```
 
@@ -86,11 +114,13 @@ getVariableSetPayloadBySlug(slug: string): Promise<Record<string, string>>
 **Path:** `modules/input/`  
 **Controller:** `GET|POST|PATCH|DELETE /api/inputs`, `POST /api/inputs/:id/test`
 
-Manages input source definitions. An `Input` is a named, reusable configuration that points at an external API. Inputs can be:
+Manages input source definitions. An `Input` is a named, reusable configuration that points at an external data source. Supported types: `"http-rest"`, `"ssh"`.
+
+Inputs can be:
 - Tested independently via the UI or API
 - Wired into one or more backup pipelines as sources
 
-The `test()` method calls the real endpoint and records `lastTestStatus` (`ok` | `error`) so the UI can show whether the input is healthy before running a backup.
+The `test()` method calls the real source and records `lastTestStatus` (`ok` | `error`). A backup that references an untested or failed input cannot be enabled.
 
 ---
 
@@ -103,9 +133,23 @@ Core module. Owns:
 
 - **BackupService** — CRUD for backups and their outputs
 - **BackupRunner** — executes a backup: collect files → archive → send outputs
-- **BackupScheduler** — cron tick every minute, triggers due backups
+- **BackupScheduler** — registers cron jobs at startup for all enabled backups; fires them on schedule
 
 Validation runs the same pipeline as a real backup but writes `validationStatus` instead of `lastStatus`. A backup must be validated before it can be enabled for scheduling.
+
+---
+
+## StatsModule
+
+**Path:** `modules/stats/`  
+**Controller:** `GET /api/stats?period=7d|30d|365d`
+
+Returns aggregated statistics for the dashboard:
+
+- KPIs: total backups, active backups, total inputs, vault entries, contacts
+- Time-series: backup runs per day (success/error)
+- Time-series: archive sizes over time
+- Last backup runs table
 
 ---
 
@@ -177,3 +221,14 @@ Simple directory of named email addresses used as backup output recipients. Cont
 **Controller:** `GET /api/files`, `GET /api/files/download`
 
 Read-only file explorer for the configured `filesRoot`. Lists directories and files; provides download endpoints for individual files.
+
+---
+
+## SshOutputModule
+
+**Path:** `modules/output/ssh/`  
+**Controller:** `GET|POST|PATCH|DELETE /api/output/ssh`, `POST /api/output/ssh/:id/test`
+
+Manages SSH output configurations. An `SshOutputConfig` is a named, reusable destination: a vault SSH entry + a default remote destination path.
+
+Before a backup can route its output to SSH, the configuration must be tested (connection + directory + write-access check). An untested or failed SSH output blocks the backup from being validated.

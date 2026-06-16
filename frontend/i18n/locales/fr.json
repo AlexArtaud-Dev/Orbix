@@ -431,6 +431,7 @@
     "add": "Nouvelle sauvegarde",
     "empty": "Aucune sauvegarde. Créez-en une pour commencer.",
     "lastRun": "Dernier run",
+    "nextRun": "Prochain",
     "never": "Jamais",
     "runNow": "Exécuter",
     "manual": "Manuel uniquement",
