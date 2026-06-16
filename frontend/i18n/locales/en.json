@@ -51,6 +51,7 @@
     "sshInputs": "SSH Inputs",
     "variableSets": "Variable Sets",
     "sshRemote": "SSH Remote Servers",
+    "sshOutputs": "SSH Destinations",
     "settingsGlobal": "System Settings",
     "moduleSettings": "Module Settings",
     "categories": {
@@ -121,6 +122,14 @@
     "mail": {
       "maxAttachmentSizeMb": "Max Attachment Size (MB)",
       "maxAttachmentSizeMbDesc": "Maximum size of the backup archive sent as an email attachment. Archives exceeding this limit will not be sent."
+    },
+    "sshInput": {
+      "connectionTimeoutMs": "Connection Timeout (ms)",
+      "connectionTimeoutMsDesc": "Maximum time to wait for the SSH connection to be established before aborting."
+    },
+    "sshOutput": {
+      "connectionTimeoutMs": "Connection Timeout (ms)",
+      "connectionTimeoutMsDesc": "Maximum time to wait for the SSH connection before the upload is aborted."
     }
   },
   "vault": {
@@ -342,11 +351,34 @@
       "ssh": "Upload the archive to a remote server via SFTP"
     },
     "ssh": {
-      "vaultLabel": "SSH Remote Server",
+      "title": "SSH Destinations",
+      "subtitle": "Configure remote folders where backups will be uploaded via SFTP",
+      "add": "New destination",
+      "noItems": "No SSH destinations yet. Create one to get started.",
+      "name": "Name",
+      "namePlaceholder": "e.g. Prod server — backups",
+      "vault": "SSH Remote Server",
       "vaultPlaceholder": "Select a server…",
-      "pathOverride": "Remote path override",
-      "pathOverridePlaceholder": "/custom/path",
-      "pathOverrideHint": "Leave blank to use the server's default path"
+      "destPath": "Destination folder",
+      "destPathPlaceholder": "/backups",
+      "newTitle": "New SSH destination",
+      "newSubtitle": "Choose an SSH server from the vault, browse to pick a destination folder, then test write access.",
+      "editTitle": "Edit SSH destination",
+      "editSubtitle": "Update server or destination folder. Changing either resets the test status.",
+      "createSuccess": "SSH destination created",
+      "updateSuccess": "SSH destination updated",
+      "deleteSuccess": "SSH destination deleted",
+      "test": "Test write access",
+      "testOk": "Write test successful",
+      "testFailed": "Write test failed",
+      "testPrompt": "Save successful. Test write access to the destination folder before use.",
+      "notTested": "Not tested yet — run a write test before using in a backup.",
+      "configLabel": "SSH Destination",
+      "configPlaceholder": "Select a configured destination…",
+      "testError": "Last write test failed. Verify configuration before use.",
+      "pickFolder": "Browse",
+      "selectThisFolder": "Select this folder",
+      "noFolderSelected": "No folder selected"
     }
   },
   "mail": {

@@ -20,6 +20,7 @@ import type { InputItem } from "@/services/input";
 import { contactsService, type Contact } from "@/services/contacts";
 import { vaultService } from "@/services/vault";
 import { templatesService, type MailTemplate } from "@/services/templates";
+import { sshOutputService, type SshOutputConfigItem } from "@/services/ssh-output";
 import {
   getSourceRenderer,
   getOutputRenderer,
@@ -96,6 +97,7 @@ export function BackupPipelineDialog({
   const [contactsMap, setContactsMap] = useState<Map<string, Contact>>(new Map());
   const [vaultsMap, setVaultsMap]     = useState<Map<string, PipelineVaultInfo>>(new Map());
   const [templatesMap, setTemplatesMap] = useState<Map<string, string>>(new Map());
+  const [sshOutputConfigsMap, setSshOutputConfigsMap] = useState<Map<string, SshOutputConfigItem>>(new Map());
 
   useEffect(() => {
     if (!open) return;
@@ -140,14 +142,23 @@ export function BackupPipelineDialog({
       } catch { /* non-blocking */ }
     })();
 
+    // SSH output configs
+    (async () => {
+      try {
+        const items = await sshOutputService.list();
+        if (!cancelled) setSshOutputConfigsMap(new Map(items.map((c) => [c.id, c])));
+      } catch { /* non-blocking */ }
+    })();
+
     return () => { cancelled = true; };
   }, [open]);
 
   const ctx: PipelineContext = {
-    contacts:     contactsMap,
-    inputMap:     inputMap ?? new Map(),
+    contacts:         contactsMap,
+    inputMap:         inputMap ?? new Map(),
     vaultsMap,
     templatesMap,
+    sshOutputConfigs: sshOutputConfigsMap,
   };
 
   return (

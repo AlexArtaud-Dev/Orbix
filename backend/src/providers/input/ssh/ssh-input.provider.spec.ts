@@ -1,12 +1,18 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SshInputProvider } from './ssh-input.provider';
 import { VaultService } from '../../../modules/vault/vault.service';
+import { ModuleSettingsService } from '../../../modules/module-settings/module-settings.service';
 import type { SshUserPasswordPayload } from '../../../modules/vault/vault.types';
 import type { InputRow } from '../../../modules/input/input.types';
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
 const mockVault = { getSshPayload: jest.fn() };
+const mockModuleSettings = {
+  getOne: jest
+    .fn()
+    .mockResolvedValue({ values: { connectionTimeoutMs: 30000 } }),
+};
 
 const SSH_PAYLOAD: SshUserPasswordPayload = {
   subtype: 'user_password',
@@ -56,6 +62,7 @@ type WithSftpInternal = {
   withSftp: (
     p: unknown,
     fn: (s: SftpMock) => Promise<unknown>,
+    timeoutMs?: number,
   ) => Promise<unknown>;
 };
 
@@ -78,6 +85,7 @@ describe('SshInputProvider.test()', () => {
       providers: [
         SshInputProvider,
         { provide: VaultService, useValue: mockVault },
+        { provide: ModuleSettingsService, useValue: mockModuleSettings },
       ],
     }).compile();
 
@@ -297,6 +305,7 @@ describe('SshInputProvider.fetch() — pattern filtering', () => {
       providers: [
         SshInputProvider,
         { provide: VaultService, useValue: mockVault },
+        { provide: ModuleSettingsService, useValue: mockModuleSettings },
       ],
     }).compile();
     provider = module.get(SshInputProvider);

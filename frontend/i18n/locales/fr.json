@@ -51,6 +51,7 @@
     "sshInputs": "Entrées SSH",
     "variableSets": "Jeux de variables",
     "sshRemote": "Serveurs SSH distants",
+    "sshOutputs": "Destinations SSH",
     "settingsGlobal": "Paramètres système",
     "moduleSettings": "Paramètres des modules",
     "categories": {
@@ -121,6 +122,14 @@
     "mail": {
       "maxAttachmentSizeMb": "Taille max des pièces jointes (Mo)",
       "maxAttachmentSizeMbDesc": "Taille maximale de l'archive envoyée en pièce jointe. Les archives dépassant cette limite ne seront pas envoyées."
+    },
+    "sshInput": {
+      "connectionTimeoutMs": "Délai de connexion (ms)",
+      "connectionTimeoutMsDesc": "Durée maximale d'attente pour établir la connexion SSH avant abandon."
+    },
+    "sshOutput": {
+      "connectionTimeoutMs": "Délai de connexion (ms)",
+      "connectionTimeoutMsDesc": "Durée maximale d'attente pour la connexion SSH avant abandon de l'envoi."
     }
   },
   "vault": {
@@ -344,11 +353,34 @@
       "ssh": "Déposer l'archive sur un serveur distant via SFTP"
     },
     "ssh": {
-      "vaultLabel": "Serveur SSH distant",
+      "title": "Destinations SSH",
+      "subtitle": "Configurez les dossiers distants où les sauvegardes seront déposées via SFTP",
+      "add": "Nouvelle destination",
+      "noItems": "Aucune destination SSH configurée. Créez-en une pour commencer.",
+      "name": "Nom",
+      "namePlaceholder": "ex. : Serveur prod — backups",
+      "vault": "Serveur SSH distant",
       "vaultPlaceholder": "Sélectionner un serveur…",
-      "pathOverride": "Chemin distant (override)",
-      "pathOverridePlaceholder": "/chemin/personnalisé",
-      "pathOverrideHint": "Laisser vide pour utiliser le chemin par défaut du serveur"
+      "destPath": "Dossier de destination",
+      "destPathPlaceholder": "/backups",
+      "newTitle": "Nouvelle destination SSH",
+      "newSubtitle": "Choisissez un serveur SSH dans le coffre, parcourez l'arborescence pour sélectionner le dossier cible, puis testez l'accès en écriture.",
+      "editTitle": "Modifier la destination SSH",
+      "editSubtitle": "Modifiez le serveur ou le dossier cible. Toute modification réinitialise le statut du test.",
+      "createSuccess": "Destination SSH créée",
+      "updateSuccess": "Destination SSH mise à jour",
+      "deleteSuccess": "Destination SSH supprimée",
+      "test": "Tester l'écriture",
+      "testOk": "Test d'écriture réussi",
+      "testFailed": "Échec du test d'écriture",
+      "testPrompt": "Enregistrement réussi. Testez l'accès en écriture avant d'utiliser cette destination dans une sauvegarde.",
+      "notTested": "Non testé — lancez un test d'écriture avant d'utiliser dans une sauvegarde.",
+      "configLabel": "Destination SSH",
+      "configPlaceholder": "Sélectionner une destination configurée…",
+      "testError": "Le dernier test d'écriture a échoué. Vérifiez la configuration avant utilisation.",
+      "pickFolder": "Parcourir",
+      "selectThisFolder": "Sélectionner ce dossier",
+      "noFolderSelected": "Aucun dossier sélectionné"
     }
   },
   "mail": {

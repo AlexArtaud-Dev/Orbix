@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
-import { Mail, ChevronRight } from "lucide-react";
+import { Mail, Server, ChevronRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
 interface OutputType {
@@ -13,6 +13,7 @@ interface OutputType {
 
 const OUTPUT_TYPES: OutputType[] = [
   { key: "mail", icon: Mail, href: "/output/mail/contacts", available: true },
+  { key: "ssh", icon: Server, href: "/output/ssh", available: true },
 ];
 
 const COMING_SOON: { key: string; icon: React.ElementType }[] = [

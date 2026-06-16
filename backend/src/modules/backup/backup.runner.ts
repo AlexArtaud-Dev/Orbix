@@ -272,7 +272,7 @@ export class BackupRunner {
       for (const output of (backup.outputs as OutputRow[]).sort(
         (a, b) => a.order - b.order,
       )) {
-        await this.sendOutput(backup.name, backupId, output, archive);
+        await this.sendOutput(backup.name, backupId, output, archive, true);
       }
 
       await this.prisma.backup.update({
@@ -701,12 +701,13 @@ export class BackupRunner {
     backupId: string,
     output: OutputRow,
     archive: ArchiveResult,
+    isValidation = false,
   ): Promise<void> {
     const provider = this.outputRegistry.get(output.type);
     if (!provider) {
       throw new OutputProviderNotFoundException(output.type);
     }
-    await provider.send(output, archive, backupName, backupId);
+    await provider.send(output, archive, backupName, backupId, isValidation);
   }
 
   // ─── Vault helpers (URL sources only) ───────────────────────────────────────

@@ -12,5 +12,6 @@ export interface IOutputProvider {
     archive: ArchiveResult,
     backupName: string,
     backupId: string,
+    isValidation?: boolean,
   ): Promise<void>;
 }

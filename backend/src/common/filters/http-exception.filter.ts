@@ -24,7 +24,12 @@ export class HttpExceptionFilter implements ExceptionFilter {
       const body = exception.getResponse();
       let error: ErrorBody;
 
-      if (typeof body === 'object' && body !== null && 'error' in body) {
+      if (
+        typeof body === 'object' &&
+        body !== null &&
+        'error' in body &&
+        typeof (body as Record<string, unknown>).error === 'object'
+      ) {
         error = (body as { error: ErrorBody }).error;
       } else if (
         typeof body === 'object' &&

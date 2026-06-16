@@ -8,10 +8,11 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { backupsService, type Backup } from "@/services/backups";
-import { vaultService, type EmailVaultItem, type VarSetItem, type SshVaultItem } from "@/services/vault";
+import { vaultService, type EmailVaultItem, type VarSetItem } from "@/services/vault";
 import { templatesService, type MailTemplate } from "@/services/templates";
 import { contactsService, type Contact } from "@/services/contacts";
 import { inputService, type InputItem } from "@/services/input";
+import { sshOutputService, type SshOutputConfigItem } from "@/services/ssh-output";
 import { ApiError } from "@/lib/api";
 
 import { StepBasic } from "./StepBasic";
@@ -62,7 +63,7 @@ export function BackupWizard({ mode, initial }: BackupWizardProps) {
 
   // Lazy-loaded data for step 4 (outputs)
   const [vaultItems, setVaultItems] = useState<EmailVaultItem[]>([]);
-  const [sshVaultItems, setSshVaultItems] = useState<SshVaultItem[]>([]);
+  const [sshOutputConfigs, setSshOutputConfigs] = useState<SshOutputConfigItem[]>([]);
   const [templates, setTemplates] = useState<MailTemplate[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [outputDataLoaded, setOutputDataLoaded] = useState(false);
@@ -89,14 +90,14 @@ export function BackupWizard({ mode, initial }: BackupWizardProps) {
   useEffect(() => {
     if (step !== 4 || outputDataLoaded) return;
     const load = async () => {
-      const [vaultRes, sshRes, tplRes, contactsRes] = await Promise.allSettled([
+      const [vaultRes, sshOutputRes, tplRes, contactsRes] = await Promise.allSettled([
         vaultService.listEmail(undefined, 100),
-        vaultService.listSsh(),
+        sshOutputService.list(),
         templatesService.list(undefined, 100),
         contactsService.list(undefined, 100),
       ]);
       if (vaultRes.status === "fulfilled") setVaultItems(vaultRes.value.data);
-      if (sshRes.status === "fulfilled") setSshVaultItems(sshRes.value);
+      if (sshOutputRes.status === "fulfilled") setSshOutputConfigs(sshOutputRes.value);
       if (tplRes.status === "fulfilled") setTemplates(tplRes.value.data);
       if (contactsRes.status === "fulfilled") {
         const allContacts = contactsRes.value.data;
@@ -268,7 +269,7 @@ export function BackupWizard({ mode, initial }: BackupWizardProps) {
           <StepOutputs
             data={form.outputs}
             vaultItems={vaultItems}
-            sshVaultItems={sshVaultItems}
+            sshOutputConfigs={sshOutputConfigs}
             templates={templates}
             contacts={contacts}
             onChange={(d) => setForm((f) => ({ ...f, outputs: d }))}

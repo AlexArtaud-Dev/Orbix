@@ -49,5 +49,14 @@ registerOutput({
   description: "Send the backup archive as an email attachment via SMTP.",
 });
 
+registerOutput({
+  type: "ssh",
+  label: "SSH / SFTP",
+  icon: Server,
+  description: "Upload the backup archive to a remote server via SFTP.",
+});
+
 registerModuleSettingsNav({ module: "http-rest", labelKey: "input.type.httpRest", icon: Globe });
 registerModuleSettingsNav({ module: "mail", labelKey: "output.type.mail", icon: Mail });
+registerModuleSettingsNav({ module: "ssh-input", labelKey: "input.type.ssh", icon: Server });
+registerModuleSettingsNav({ module: "ssh-output", labelKey: "output.type.ssh", icon: Server });
