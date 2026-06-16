@@ -7,9 +7,9 @@ import { toast } from "sonner";
 import {
   Plus, Play, Pencil, Trash2, Check, X,
   CheckCircle2, XCircle, Clock, Loader2, Power, PowerOff,
-  AlertTriangle, TriangleAlert,
+  AlertTriangle, TriangleAlert, CalendarClock,
 } from "lucide-react";
-import { backupsService, describeSchedule, type Backup } from "@/services/backups";
+import { backupsService, describeSchedule, computeNextRun, formatNextRun, type Backup } from "@/services/backups";
 import { inputService, type InputItem } from "@/services/input";
 import { BackupPipelineDialog } from "@/components/backup/BackupPipeline";
 import { logsService, type LogEntry } from "@/services/logs";
@@ -152,6 +152,8 @@ function BackupCard({ item, inputMap, onUpdated, onRemoved }: BackupCardProps) {
   };
 
   const scheduleLabel = describeSchedule(item);
+  const nextRun = computeNextRun(item);
+  const nextRunLabel = nextRun ? formatNextRun(nextRun) : null;
   const lastRunLabel = item.lastRunAt
     ? new Date(item.lastRunAt).toLocaleString()
     : t("backups.never");
@@ -237,15 +239,25 @@ function BackupCard({ item, inputMap, onUpdated, onRemoved }: BackupCardProps) {
               </Tooltip>
             )}
           </div>
-          <p className="mt-1 truncate text-xs text-muted-foreground">
-            {scheduleLabel}
-            {" · "}
-            {t("backups.lastRun")}: {lastRunLabel}
-            {" · "}
-            {item.sources.sources.length} source(s)
-            {" · "}
-            {item.outputs.length} output(s)
-          </p>
+          <div className="mt-1 space-y-0.5">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <CalendarClock className="size-3 shrink-0 opacity-60" />
+                {scheduleLabel}
+              </span>
+              {nextRunLabel && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary/80">
+                  <Clock className="size-2.5 shrink-0" />
+                  {t("backups.nextRun")}: {nextRunLabel}
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-muted-foreground/60">
+              {t("backups.lastRun")}: {lastRunLabel}
+              {" · "}
+              {item.sources.sources.length} src · {item.outputs.length} out
+            </p>
+          </div>
         </div>
 
         <div className="flex shrink-0 items-center gap-1">

@@ -14,6 +14,8 @@ Orbix uses a registry-based provider pattern to make input sources and output de
 
 Both registries live in `backend/src/providers/`.
 
+Providers can optionally implement `IModuleSettingsProvider` to expose configurable settings (visible in the UI under Settings → Modules).
+
 ---
 
 ## Input providers
@@ -73,7 +75,21 @@ export interface ProviderMeta {
 
 | Type | Class | Description |
 |------|-------|-------------|
-| `http-rest` | `HttpRestInputProvider` | HTTP REST API with full auth support |
+| `http-rest` | `HttpRestInputProvider` | HTTP REST API with full auth support (Bearer, OAuth2, mTLS, …) |
+| `ssh` | `SshInputProvider` | Download files from a remote SSH/SFTP server with optional regex filtering |
+
+**SSH input `config` shape:**
+
+```typescript
+{
+  sources: Array<{
+    path: string;         // Absolute remote path (file or directory)
+    isDirectory: boolean;
+    recursive: boolean;   // Recurse into sub-directories
+    namePattern?: string; // Regex or glob pattern — supports {YYYY} {MM} {DD} {HH} tokens
+  }>;
+}
+```
 
 ---
 
@@ -111,13 +127,14 @@ export interface ArchiveResult {
 
 ### OutputRow
 
-The `output` argument is the raw `BackupOutput` row from the database. Your provider reads whatever fields it needs — typically `vaultId` for credentials.
+The `output` argument is the raw `BackupOutput` row from the database. Providers read whatever fields they need — typically `vaultId` for credentials and `pathOverride` for a custom destination path.
 
 ### Existing output providers
 
 | Type | Class | Description |
 |------|-------|-------------|
 | `mail` | `MailOutputProvider` | Sends archive via SMTP using a vault email config |
+| `ssh` | `SshOutputProvider` | Uploads archive to a remote server via SFTP or `sudo tee` |
 
 ---
 
@@ -126,7 +143,7 @@ The `output` argument is the raw `BackupOutput` row from the database. Your prov
 ### 1. Create the provider class
 
 ```typescript
-// backend/src/providers/input/sftp/sftp.provider.ts
+// backend/src/providers/input/ftp/ftp.provider.ts
 
 import { Injectable } from '@nestjs/common';
 import type { IInputProvider, InputFetchContext } from '../input-provider.interface';
@@ -135,77 +152,65 @@ import type { InputRow } from '../../../modules/input/input.types';
 import { VaultService } from '../../../modules/vault/vault.service';
 
 @Injectable()
-export class SftpInputProvider implements IInputProvider {
-  readonly type = 'sftp';
+export class FtpInputProvider implements IInputProvider {
+  readonly type = 'ftp';
 
   readonly meta: ProviderMeta = {
-    type: 'sftp',
-    label: 'SFTP',
+    type: 'ftp',
+    label: 'FTP',
     icon: 'server',
-    description: 'Download files from a remote SFTP server.',
+    description: 'Download files from an FTP server.',
   };
 
   constructor(private readonly vault: VaultService) {}
 
   async fetch(input: InputRow, { maxSizeMb }: InputFetchContext): Promise<FileToArchive[]> {
     // 1. Load credentials from vault
-    const creds = await this.vault.getHttpPayload(input.vaultId!);
-
-    // 2. Parse provider-specific config
-    const config = input.config as { host: string; port: number; remotePath: string };
-
+    // 2. Parse provider-specific config (input.config)
     // 3. Connect, list files, download
-    // ... SFTP logic here ...
-
-    // 4. Return files
-    return [
-      { buffer: /* downloaded file */, arc: 'export.tar.gz' },
-    ];
+    // 4. Return FileToArchive[]
   }
 }
 ```
 
-### 2. Add Input.type to the database enum
-
-`Input.type` is a plain `String` — no migration needed. Just make sure the value you use in `readonly type` matches what gets stored when the user creates an input of this type.
-
-### 3. Register in ProvidersModule
+### 2. Register in ProvidersModule
 
 ```typescript
 // backend/src/providers/providers.module.ts
 
-import { SftpInputProvider } from './input/sftp/sftp.provider';
+import { FtpInputProvider } from './input/ftp/ftp.provider';
 
 @Module({
   providers: [
     InputProviderRegistry,
     HttpRestInputProvider,
-    SftpInputProvider,           // ← add
+    SshInputProvider,
+    FtpInputProvider,           // ← add
     OutputProviderRegistry,
     MailOutputProvider,
+    SshOutputProvider,
   ],
-  exports: [InputProviderRegistry, OutputProviderRegistry],
+  // ...
 })
 export class ProvidersModule implements OnModuleInit {
   constructor(
-    private readonly inputRegistry: InputProviderRegistry,
-    private readonly httpRest: HttpRestInputProvider,
-    private readonly sftp: SftpInputProvider,              // ← inject
-    private readonly outputRegistry: OutputProviderRegistry,
-    private readonly mail: MailOutputProvider,
+    // ... existing injections
+    private readonly ftp: FtpInputProvider,     // ← inject
   ) {}
 
   onModuleInit() {
     this.inputRegistry.register(this.httpRest);
-    this.inputRegistry.register(this.sftp);               // ← register
+    this.inputRegistry.register(this.sshInput);
+    this.inputRegistry.register(this.ftp);      // ← register
     this.outputRegistry.register(this.mail);
+    this.outputRegistry.register(this.ssh);
   }
 }
 ```
 
-### 4. Add the frontend UI
+### 3. Add the frontend UI
 
-Create a config form for your provider under `frontend/app/(app)/input/` so users can configure inputs of the new type. The form values are stored as `Input.config` (a JSON blob) and `Input.requestParams`.
+Create a config form for your provider under `frontend/app/(app)/input/<type>/` so users can configure inputs of the new type. The form values are stored as `Input.config` (a JSON blob) and `Input.requestParams`.
 
 ---
 
@@ -219,7 +224,6 @@ Create a config form for your provider under `frontend/app/(app)/input/` so user
 import { Injectable } from '@nestjs/common';
 import type { IOutputProvider } from '../output-provider.interface';
 import type { ProviderMeta, ArchiveResult, OutputRow } from '../../providers.types';
-import { VaultService } from '../../../modules/vault/vault.service';
 
 @Injectable()
 export class WebhookOutputProvider implements IOutputProvider {
@@ -232,28 +236,17 @@ export class WebhookOutputProvider implements IOutputProvider {
     description: 'POST backup metadata to a webhook URL.',
   };
 
-  constructor(private readonly vault: VaultService) {}
-
   async send(
     output: OutputRow,
     archive: ArchiveResult,
     backupName: string,
     backupId: string,
   ): Promise<void> {
-    // 1. Load webhook URL from vault (e.g. custom_kv with key "url")
-    const creds = await this.vault.getHttpPayload(output.vaultId);
-
-    // 2. POST to webhook
-    await fetch(/* url */, {
+    const url = output.pathOverride ?? ''; // or read from vault
+    await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        backupName,
-        backupId,
-        filename: archive.filename,
-        size: archive.size,
-        filesCount: archive.filesCount,
-      }),
+      body: JSON.stringify({ backupName, backupId, filename: archive.filename, size: archive.size }),
     });
   }
 }
@@ -264,14 +257,9 @@ export class WebhookOutputProvider implements IOutputProvider {
 ```typescript
 import { WebhookOutputProvider } from './output/webhook/webhook.provider';
 
-// In @Module providers array:
-WebhookOutputProvider,
-
-// In constructor:
-private readonly webhook: WebhookOutputProvider,
-
-// In onModuleInit:
-this.outputRegistry.register(this.webhook);
+// In @Module providers array: WebhookOutputProvider
+// In constructor: private readonly webhook: WebhookOutputProvider
+// In onModuleInit: this.outputRegistry.register(this.webhook);
 ```
 
 ### 3. Expose the new output type in the UI
@@ -280,9 +268,23 @@ Add `webhook` to the output type list in the backup wizard's output step so user
 
 ---
 
+## IModuleSettingsProvider (optional)
+
+Providers can expose configurable settings by implementing `IModuleSettingsProvider`:
+
+```typescript
+export interface IModuleSettingsProvider {
+  readonly moduleSettingsDefinition: ModuleSettingsDefinition;
+}
+```
+
+`ModuleSettingsDefinition` describes the fields (name, type, default, label). Values are stored in `ModuleSetting` rows and retrieved via `ModuleSettingsService`. At startup, `ProvidersModule.onModuleInit()` auto-discovers all providers that implement this interface and registers their definitions.
+
+---
+
 ## Error handling in providers
 
-Providers should throw typed `OrbixException` subclasses for expected failure cases (auth error, size exceeded, etc.) and let unexpected errors propagate as plain `Error`. `BackupRunner` catches both:
+Providers should throw typed `OrbixException` subclasses for expected failure cases (auth error, size exceeded, connection refused, etc.) and let unexpected errors propagate as plain `Error`. `BackupRunner` catches both:
 
 ```typescript
 } catch (err) {
@@ -300,9 +302,9 @@ Custom exception classes live in `backend/src/common/exceptions/`. Extend `Orbix
 ```typescript
 import { OrbixException } from '../../common/exceptions/orbix-exception';
 
-export class SftpConnectionException extends OrbixException {
+export class SshConnectionException extends OrbixException {
   constructor(host: string, cause: string) {
-    super('SFTP_CONNECTION_ERROR', `Cannot connect to ${host}: ${cause}`);
+    super('SSH_CONNECTION_ERROR', `Cannot connect to ${host}: ${cause}`);
   }
 }
 ```

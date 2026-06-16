@@ -2,24 +2,24 @@
 
 ## Overview
 
-Orbix is a two-process application: a **NestJS backend** (API + scheduler + runner) and a **Next.js frontend** (web UI). Both are bundled into a single Docker image for production.
+Orbix is a two-process application: a **NestJS backend** (API + scheduler + runner) and a **Next.js frontend** (web UI). In production they run as **separate Docker containers** and are proxied through a reverse proxy.
 
 ```
 Browser
   │
-  │  HTTP (cookies / JSON)
+  │  HTTPS (reverse proxy)
   ▼
-Next.js (port 3000)          ←── Server-side rendering + API proxy
+Next.js container (port 3000)    ←── SSR + static assets
   │
-  │  HTTP (REST)
+  │  HTTP (REST, /api/*)
   ▼
-NestJS (port 3001)           ←── Business logic, scheduler, runner
+NestJS container (port 3001)     ←── Business logic, scheduler, runner
   │
-  ├── PostgreSQL              ←── All persistent state (backups, vault, logs…)
-  └── File system             ←── Source files root + generated archives
+  ├── PostgreSQL container        ←── All persistent state
+  └── /backups, /data volumes     ←── Archives + source files root
 ```
 
-In the Docker image, NestJS starts first and runs database migrations, then Next.js starts. Both processes share the same container and volumes.
+At startup, the NestJS container runs `prisma migrate deploy` before starting the server (via `docker-entrypoint.sh`).
 
 ---
 
@@ -27,20 +27,26 @@ In the Docker image, NestJS starts first and runs database migrations, then Next
 
 ```
 app.module.ts
-├── PrismaModule         Database client (singleton)
-├── AuthModule           Login, JWT generation / validation
-├── SettingsModule       System-wide configuration (singleton row)
-├── LogsModule           Structured log writer + retention cron
-├── VaultModule          AES-256 encrypted credential storage
-├── FilesModule          File explorer (list, download)
-├── ContactsModule       Email contact directory
-├── MailModule           SMTP sending + mail templates
-├── InputModule          HTTP input source config + test runner
-├── BackupModule         Backup CRUD, scheduler, BackupRunner
-└── ProvidersModule      Input/Output provider registry
+├── PrismaModule          Database client (singleton)
+├── AuthModule            Login, JWT generation / validation
+├── SettingsModule        System-wide configuration (singleton row)
+├── LogsModule            Structured log writer + retention cron
+├── VaultModule           AES-256 encrypted credential storage (HTTP, email, variable sets, SSH)
+├── FilesModule           File explorer (list, download)
+├── ContactsModule        Email contact directory
+├── MailModule            SMTP sending + mail templates
+├── InputModule           Input source config + test runner (HTTP REST, SSH)
+├── BackupModule          Backup CRUD, scheduler, BackupRunner
+├── StatsModule           Dashboard KPIs and time-series charts
+├── ModuleSettingsModule  Per-provider configurable settings
+└── ProvidersModule       Input/Output provider registry
+      ├── HttpRestInputProvider
+      ├── SshInputProvider
+      ├── MailOutputProvider
+      └── SshOutputProvider
 ```
 
-`ProvidersModule` is consumed by `BackupModule`. `VaultModule` is consumed by `ProvidersModule`, `InputModule`, and `BackupModule`.
+`ProvidersModule` is consumed by `BackupModule`. `VaultModule` is consumed by `ProvidersModule`, `InputModule`, `BackupModule`, and `StatsModule`.
 
 ---
 
@@ -79,13 +85,16 @@ BackupService.run(backupId)
 
 ## Scheduler
 
-`BackupScheduler` runs every minute via NestJS `@Cron`. On each tick it:
+`BackupScheduler` registers cron jobs at startup for all enabled backups with a non-manual schedule. It uses `@nestjs/schedule` / the `cron` package.
 
-1. Queries all enabled, validated backups whose next scheduled time is in the past
-2. Calls `BackupRunner.run(backupId)` for each — fire-and-forget (errors are caught and logged)
-3. Updates `lastRunAt` and `lastStatus`
+- `recurring` schedules: one `CronJob` per rule (supports multiple day/time rules per backup)
+- `interval` schedules: a cron expression stored in `Backup.schedule` (e.g. `*/30 * * * *`)
+- `oneshoot` schedules: a `setTimeout` fired once, then the backup is disabled
+- `manual`: no job registered
 
-Schedule expressions are stored as cron strings in `Backup.schedule`.
+Cron jobs call `BackupRunner.run(backupId)` on tick. Errors are caught and written to the `Log` table.
+
+Schedule expressions are stored as cron strings in `Backup.schedule`. Timezone is stored in `Backup.scheduleConfig.timezone`.
 
 ---
 
@@ -100,7 +109,7 @@ Schedule expressions are stored as cron strings in `Backup.schedule`.
 
 ## Vault encryption
 
-Vault credentials (HTTP auth configs, SMTP configs, variable sets) are stored as a single JSON blob per entry, encrypted with AES-256-GCM using `VAULT_ENCRYPTION_KEY`. The encrypted payload is stored in `VaultEntity.encryptedPayload`. Decryption happens in-process at runtime; the raw credential never leaves the server.
+Vault credentials (HTTP auth configs, SMTP configs, SSH credentials, variable sets) are stored as a single JSON blob per entry, encrypted with AES-256-GCM using `VAULT_ENCRYPTION_KEY`. The encrypted payload is stored in `VaultEntity.encryptedPayload`. Decryption happens in-process at runtime; the raw credential never leaves the server.
 
 ---
 
@@ -111,23 +120,45 @@ backend/src/
 ├── app.module.ts
 ├── main.ts
 ├── common/
-│   ├── crypto/         AES service
-│   ├── decorators/     @Public(), @CurrentUser()
-│   ├── exceptions/     OrbixException hierarchy
-│   ├── filters/        Global HTTP exception filter
-│   └── guards/         JwtAuthGuard, RateLimitGuard
-├── modules/            Business modules (see docs/modules.md)
-├── providers/          Input/Output providers (see docs/providers.md)
-└── prisma/             PrismaService
+│   ├── crypto/           AES service
+│   ├── decorators/       @Public(), @CurrentUser()
+│   ├── exceptions/       OrbixException hierarchy
+│   ├── filters/          Global HTTP exception filter
+│   └── guards/           JwtAuthGuard, RateLimitGuard
+├── modules/
+│   ├── auth/
+│   ├── backup/           BackupService, BackupRunner, BackupScheduler
+│   ├── contacts/
+│   ├── files/
+│   ├── input/
+│   ├── logs/
+│   ├── mail/
+│   ├── module-settings/  Per-provider settings storage
+│   ├── output/
+│   │   └── ssh/          SshOutputService, SshOutputController
+│   ├── settings/
+│   ├── stats/
+│   └── vault/
+├── providers/
+│   ├── input/
+│   │   ├── http-rest/    HttpRestInputProvider
+│   │   └── ssh/          SshInputProvider
+│   └── output/
+│       ├── mail/         MailOutputProvider
+│       └── ssh/          SshOutputProvider
+└── prisma/               PrismaService
 
 frontend/
 ├── app/
-│   ├── (app)/          Authenticated pages
-│   └── (auth)/         Login + setup pages
+│   ├── (app)/            Authenticated pages
+│   └── (auth)/           Login + setup pages
 ├── components/
-│   ├── backup/         Backup wizard + step components
-│   ├── ui/             shadcn components
-│   └── vault/          Vault form components
-├── services/           API client functions
-└── lib/                Utilities (api.ts, utils.ts)
+│   ├── backup/           Backup wizard + step components
+│   ├── input/            Input config pages (http-rest, ssh)
+│   ├── output/           Output config pages (ssh)
+│   ├── ssh/              Shared SSH browser components
+│   ├── ui/               shadcn components
+│   └── vault/            Vault form components
+├── services/             API client functions
+└── lib/                  Utilities (api.ts, utils.ts)
 ```

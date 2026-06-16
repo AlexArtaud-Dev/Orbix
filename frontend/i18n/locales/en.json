@@ -429,6 +429,7 @@
     "add": "New backup",
     "empty": "No backups yet. Create one to get started.",
     "lastRun": "Last run",
+    "nextRun": "Next",
     "never": "Never",
     "runNow": "Run now",
     "manual": "Manual only",
