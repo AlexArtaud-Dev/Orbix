@@ -14,36 +14,66 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - bifrost
 
-  orbix:
-    build: .
-    container_name: orbix
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: orbix-backend
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
-    ports:
-      - "${ORBIX_PORT:-3000}:3000"
-    volumes:
-      - ./data:/data:ro
-      - orbix_backups:/backups
-      - orbix_logs:/app/logs
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://orbix:${DB_PASSWORD}@db:5432/orbix
       JWT_SECRET: ${JWT_SECRET}
       VAULT_ENCRYPTION_KEY: ${VAULT_ENCRYPTION_KEY}
+      FRONTEND_URL: ${FRONTEND_URL}
       TZ: ${TZ:-UTC}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      PORT: 3001
       ORBIX_SECURE: ${ORBIX_SECURE:-false}
+    volumes:
+      - ./data:/data:ro
+      - orbix_backups:/backups
+      - orbix_logs:/app/logs
+    ports:
+      - "6667:3001"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/auth/setup-required || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3001/api/auth/setup-required || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 3
       start_period: 30s
+    networks:
+      - bifrost
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    container_name: orbix-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "6666:3000"
+    environment:
+      NODE_ENV: production
+    networks:
+      - bifrost
 
 volumes:
   orbix_db:
   orbix_backups:
   orbix_logs:
+
+networks:
+  bifrost:
+    external: true

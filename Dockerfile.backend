@@ -14,7 +14,10 @@ COPY --from=builder /build/dist ./dist
 COPY --from=builder /build/node_modules ./node_modules
 COPY --from=builder /build/package.json ./
 COPY --from=builder /build/prisma/schema.prisma ./prisma/schema.prisma
-RUN mkdir -p /app/logs /backups
+COPY --from=builder /build/prisma/migrations ./prisma/migrations
+COPY --from=builder /build/prisma.config.ts ./
+COPY --from=builder /build/docker-entrypoint.sh ./
+RUN sed -i 's/\r//' docker-entrypoint.sh && chmod +x docker-entrypoint.sh && mkdir -p /app/logs /backups
 EXPOSE 3001
 ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["node", "dist/main.js"]
+CMD ["./docker-entrypoint.sh"]
