@@ -19,5 +19,6 @@
     "noFallthroughCasesInSwitch": true,
     "strictPropertyInitialization": false,
     "forceConsistentCasingInFileNames": true
-  }
+  },
+  "exclude": ["prisma.config.ts", "node_modules"]
 }

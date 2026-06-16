@@ -1,5 +1,5 @@
 services:
-  postgres:
+  db:
     image: postgres:17-alpine
     container_name: orbix-db
     restart: unless-stopped
@@ -23,21 +23,30 @@ services:
       dockerfile: Dockerfile.backend
     container_name: orbix-backend
     restart: unless-stopped
-    ports:
-      - "3001:3001"
+    depends_on:
+      db:
+        condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://orbix:${DB_PASSWORD}@postgres:5432/orbix
+      NODE_ENV: production
+      DATABASE_URL: postgresql://orbix:${DB_PASSWORD}@db:5432/orbix
       JWT_SECRET: ${JWT_SECRET}
       VAULT_ENCRYPTION_KEY: ${VAULT_ENCRYPTION_KEY}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
-      NODE_ENV: production
+      TZ: ${TZ:-UTC}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
       PORT: 3001
-    depends_on:
-      postgres:
-        condition: service_healthy
+      ORBIX_SECURE: ${ORBIX_SECURE:-false}
     volumes:
       - orbix_backups:/backups
       - orbix_logs:/app/logs
+    ports:
+      - "3001:3001"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3001/api/auth/setup-required || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   frontend:
     build:
@@ -47,6 +56,9 @@ services:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
     container_name: orbix-frontend
     restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
     ports:
       - "3000:3000"
     environment:
