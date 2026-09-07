@@ -85,6 +85,8 @@
     "maxFileSizeMb": "Taille maximale des fichiers (Mo)",
     "logRetentionHours": "Conservation des journaux (heures)",
     "backupRetentionDays": "Conservation des sauvegardes (jours)",
+    "smtpHealthCheckIntervalMinutes": "Intervalle de vérification SMTP",
+    "smtpHealthCheckIntervalMinutesDesc": "Fréquence à laquelle Orbix vérifie automatiquement les identifiants SMTP pour tous les coffres e-mail.",
     "defaultTimezone": "Fuseau horaire par défaut",
     "defaultLanguage": "Langue par défaut",
     "defaultTheme": "Thème par défaut",
@@ -106,7 +108,17 @@
     "zipTestFailed": "Test zip échoué",
     "backupLimits": "Limites de sauvegarde",
     "maxSourceFileSizeMb": "Taille max par source (Mo)",
-    "maxBackupTotalSizeMb": "Taille max de l'archive finale (Mo)"
+    "maxBackupTotalSizeMb": "Taille max de l'archive finale (Mo)",
+    "smtpIntervals": {
+      "5m": "Toutes les 5 minutes",
+      "10m": "Toutes les 10 minutes",
+      "30m": "Toutes les 30 minutes",
+      "1h": "Toutes les 1 heure",
+      "5h": "Toutes les 5 heures",
+      "12h": "Toutes les 12 heures",
+      "24h": "Toutes les 24 heures",
+      "custom": "Personnalisé (minutes)"
+    }
   },
   "moduleSettings": {
     "title": "Paramètres du module",

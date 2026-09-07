@@ -20,6 +20,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+const SMTP_INTERVAL_PRESETS = [5, 10, 30, 60, 300, 720, 1440] as const;
+
 export default function SettingsPage() {
   const { t } = useTranslation();
   const [settings, setSettings] = useState<SystemSettings | null>(null);
@@ -42,6 +44,7 @@ export default function SettingsPage() {
         maxFileSizeMb: settings.maxFileSizeMb,
         logRetentionHours: settings.logRetentionHours,
         backupRetentionDays: settings.backupRetentionDays,
+        smtpHealthCheckIntervalMinutes: settings.smtpHealthCheckIntervalMinutes,
         defaultTimezone: settings.defaultTimezone,
         defaultLanguage: settings.defaultLanguage,
         defaultTheme: settings.defaultTheme,
@@ -75,6 +78,12 @@ export default function SettingsPage() {
 
   if (!settings)
     return <SkeletonForm blocks={3} />;
+
+  const smtpIntervalPreset = SMTP_INTERVAL_PRESETS.includes(
+    settings.smtpHealthCheckIntervalMinutes as (typeof SMTP_INTERVAL_PRESETS)[number],
+  )
+    ? String(settings.smtpHealthCheckIntervalMinutes)
+    : "custom";
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -127,6 +136,54 @@ export default function SettingsPage() {
                   value={settings.backupRetentionDays}
                   onChange={(e) => setSettings({ ...settings, backupRetentionDays: +e.target.value })}
                 />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="smtpHealthCheckIntervalMinutes">
+                  {t("settings.smtpHealthCheckIntervalMinutes")}
+                </FieldLabel>
+                <Select
+                  value={smtpIntervalPreset}
+                  onValueChange={(v) =>
+                    setSettings({
+                      ...settings,
+                      smtpHealthCheckIntervalMinutes:
+                        v === "custom"
+                          ? settings.smtpHealthCheckIntervalMinutes
+                          : +v,
+                    })
+                  }
+                >
+                  <SelectTrigger id="smtpHealthCheckIntervalMinutes">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">{t("settings.smtpIntervals.5m")}</SelectItem>
+                    <SelectItem value="10">{t("settings.smtpIntervals.10m")}</SelectItem>
+                    <SelectItem value="30">{t("settings.smtpIntervals.30m")}</SelectItem>
+                    <SelectItem value="60">{t("settings.smtpIntervals.1h")}</SelectItem>
+                    <SelectItem value="300">{t("settings.smtpIntervals.5h")}</SelectItem>
+                    <SelectItem value="720">{t("settings.smtpIntervals.12h")}</SelectItem>
+                    <SelectItem value="1440">{t("settings.smtpIntervals.24h")}</SelectItem>
+                    <SelectItem value="custom">{t("settings.smtpIntervals.custom")}</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {t("settings.smtpHealthCheckIntervalMinutesDesc")}
+                </p>
+                {smtpIntervalPreset === "custom" && (
+                  <Input
+                    id="smtpHealthCheckIntervalMinutesCustom"
+                    type="number"
+                    min={1}
+                    value={settings.smtpHealthCheckIntervalMinutes}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        smtpHealthCheckIntervalMinutes: +e.target.value,
+                      })
+                    }
+                  />
+                )}
               </Field>
             </FieldGroup>
           </CardContent>

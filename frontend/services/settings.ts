@@ -5,6 +5,7 @@ export interface SystemSettings {
   maxFileSizeMb: number;
   logRetentionHours: number;
   backupRetentionDays: number;
+  smtpHealthCheckIntervalMinutes: number;
   defaultTimezone: string;
   defaultLanguage: string;
   defaultTheme: string;

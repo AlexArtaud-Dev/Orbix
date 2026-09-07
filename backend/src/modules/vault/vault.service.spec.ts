@@ -354,19 +354,30 @@ describe('VaultService', () => {
   });
 
   describe('checkAllEmail', () => {
-    it('calls testEmail for every email entity', async () => {
+    it('calls testEmail for entities that are due and returns count', async () => {
+      const now = new Date();
+      const fourMinutesAgo = new Date(now.getTime() - 4 * 60 * 1000);
+      const sixMinutesAgo = new Date(now.getTime() - 6 * 60 * 1000);
       mockPrisma.vaultEntity.findMany.mockResolvedValue([
         makeRow('id-1', 'a', 'p'),
-        makeRow('id-2', 'b', 'p'),
+        {
+          ...makeRow('id-2', 'b', 'p'),
+          healthCheck: { status: 'ok', statusMsg: null, checkedAt: fourMinutesAgo },
+        },
+        {
+          ...makeRow('id-3', 'c', 'p'),
+          healthCheck: { status: 'error', statusMsg: 'x', checkedAt: sixMinutesAgo },
+        },
       ]);
 
       const spy = jest.spyOn(service, 'testEmail').mockResolvedValue(undefined);
 
-      await service.checkAllEmail();
+      const count = await service.checkAllEmail(5);
 
       expect(spy).toHaveBeenCalledTimes(2);
       expect(spy).toHaveBeenCalledWith('id-1');
-      expect(spy).toHaveBeenCalledWith('id-2');
+      expect(spy).toHaveBeenCalledWith('id-3');
+      expect(count).toBe(2);
     });
   });
 });

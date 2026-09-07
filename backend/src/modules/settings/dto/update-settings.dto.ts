@@ -20,6 +20,12 @@ export class UpdateSettingsDto {
   backupRetentionDays?: number;
 
   @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(525600)
+  smtpHealthCheckIntervalMinutes?: number;
+
+  @IsOptional()
   @IsString()
   defaultTimezone?: string;
 
