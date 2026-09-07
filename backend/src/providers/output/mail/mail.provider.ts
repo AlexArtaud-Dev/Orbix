@@ -47,7 +47,8 @@ export class MailOutputProvider
         type: 'number',
         defaultValue: 5,
         labelKey: 'moduleSettings.mail.smtpHealthCheckIntervalMinutes',
-        descriptionKey: 'moduleSettings.mail.smtpHealthCheckIntervalMinutesDesc',
+        descriptionKey:
+          'moduleSettings.mail.smtpHealthCheckIntervalMinutesDesc',
         min: 1,
         max: 525600,
       },

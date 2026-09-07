@@ -186,7 +186,6 @@ model SystemSettings {
   maxFileSizeMb        Int    @default(500)
   logRetentionHours    Int    @default(720)
   backupRetentionDays  Int    @default(90)
-  smtpHealthCheckIntervalMinutes Int @default(5)
   defaultTimezone      String @default("UTC")
   defaultLanguage      String @default("en")
   defaultTheme         String @default("dark")
