@@ -121,6 +121,7 @@ function SettingField({
   onChange: (v: unknown) => void;
 }) {
   const { t } = useTranslation();
+  const [smtpCustomMode, setSmtpCustomMode] = useState(false);
   const label = t(field.labelKey);
   const description = field.descriptionKey ? t(field.descriptionKey) : undefined;
 
@@ -133,15 +134,20 @@ function SettingField({
           : Number.isFinite(fallback)
             ? fallback
             : 5;
-      const preset = SMTP_INTERVAL_PRESETS.some((p) => p.value === numericValue)
-        ? String(numericValue)
-        : "custom";
+      const isKnownPreset = SMTP_INTERVAL_PRESETS.some(
+        (p) => p.value === numericValue,
+      );
+      const preset = smtpCustomMode || !isKnownPreset ? "custom" : String(numericValue);
       return (
         <div className="space-y-2">
           <Select
             value={preset}
             onValueChange={(v) => {
-              if (v === "custom") return;
+              if (v === "custom") {
+                setSmtpCustomMode(true);
+                return;
+              }
+              setSmtpCustomMode(false);
               onChange(+v);
             }}
           >
