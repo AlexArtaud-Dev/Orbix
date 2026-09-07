@@ -3,28 +3,43 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { LogsWriter } from '../logs/logs.writer';
 import { VaultService } from './vault.service';
 import { OrbixException } from '../../common/exceptions';
+import { ModuleSettingsService } from '../module-settings/module-settings.service';
 
 @Injectable()
 export class VaultScheduler {
   constructor(
     private readonly vaultService: VaultService,
     private readonly logs: LogsWriter,
+    private readonly moduleSettings: ModuleSettingsService,
   ) {}
 
-  @Cron(CronExpression.EVERY_5_MINUTES)
+  @Cron(CronExpression.EVERY_MINUTE)
   async checkSmtpConnections() {
-    this.logs.info(
-      'vault',
-      'VAULT_SMTP_CRON_START',
-      'SMTP health check started',
-    );
     try {
-      await this.vaultService.checkAllEmail();
-      this.logs.info(
-        'vault',
-        'VAULT_SMTP_CRON_DONE',
-        'SMTP health check completed',
-      );
+      const rawSettings = (await this.moduleSettings.getOne('mail'))
+        .values as unknown;
+      let intervalMinutes = 5;
+      if (
+        typeof rawSettings === 'object' &&
+        rawSettings !== null &&
+        'smtpHealthCheckIntervalMinutes' in rawSettings
+      ) {
+        const candidate = (
+          rawSettings as { smtpHealthCheckIntervalMinutes?: unknown }
+        ).smtpHealthCheckIntervalMinutes;
+        if (typeof candidate === 'number' && Number.isFinite(candidate)) {
+          intervalMinutes = Math.max(1, Math.floor(candidate));
+        }
+      }
+      const checkedCount =
+        await this.vaultService.checkAllEmail(intervalMinutes);
+      if (checkedCount > 0) {
+        this.logs.info(
+          'vault',
+          'VAULT_SMTP_CRON_DONE',
+          `SMTP health check completed (${checkedCount} vault(s), interval ${intervalMinutes} minute(s))`,
+        );
+      }
     } catch (err) {
       if (err instanceof OrbixException) {
         this.logs.exception('vault', err, 'SMTP health check failed');

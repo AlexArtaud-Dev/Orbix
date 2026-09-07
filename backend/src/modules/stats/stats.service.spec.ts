@@ -267,6 +267,18 @@ describe('StatsService', () => {
   // ─── recentRuns — UTC date bucketing ─────────────────────────────────────────
 
   describe('recentRuns (UTC bucketing)', () => {
+    // Fixtures below use a fixed date (2026-06-12); freeze the clock nearby so
+    // the '7d' window computed from "today" always contains them, regardless
+    // of when this suite actually runs.
+    beforeAll(() => {
+      jest.useFakeTimers({ advanceTimers: true });
+      jest.setSystemTime(new Date('2026-06-15T00:00:00Z'));
+    });
+
+    afterAll(() => {
+      jest.useRealTimers();
+    });
+
     it('places a success run at 10:00 UTC into the correct date bucket', async () => {
       const runs: RunRow[] = [
         {

@@ -121,7 +121,19 @@
     },
     "mail": {
       "maxAttachmentSizeMb": "Max Attachment Size (MB)",
-      "maxAttachmentSizeMbDesc": "Maximum size of the backup archive sent as an email attachment. Archives exceeding this limit will not be sent."
+      "maxAttachmentSizeMbDesc": "Maximum size of the backup archive sent as an email attachment. Archives exceeding this limit will not be sent.",
+      "smtpHealthCheckIntervalMinutes": "SMTP health-check interval",
+      "smtpHealthCheckIntervalMinutesDesc": "How often Orbix automatically verifies SMTP credentials for all email vaults.",
+      "smtpIntervals": {
+        "5m": "Every 5 minutes",
+        "10m": "Every 10 minutes",
+        "30m": "Every 30 minutes",
+        "1h": "Every 1 hour",
+        "5h": "Every 5 hours",
+        "12h": "Every 12 hours",
+        "24h": "Every 24 hours",
+        "custom": "Custom (minutes)"
+      }
     },
     "sshInput": {
       "connectionTimeoutMs": "Connection Timeout (ms)",

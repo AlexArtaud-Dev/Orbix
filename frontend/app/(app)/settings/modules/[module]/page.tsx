@@ -22,6 +22,16 @@ import {
 } from "@/components/ui/select";
 import { SkeletonForm } from "@/components/ui/skeleton";
 
+const SMTP_INTERVAL_PRESETS = [
+  { value: 5, labelKey: "moduleSettings.mail.smtpIntervals.5m" },
+  { value: 10, labelKey: "moduleSettings.mail.smtpIntervals.10m" },
+  { value: 30, labelKey: "moduleSettings.mail.smtpIntervals.30m" },
+  { value: 60, labelKey: "moduleSettings.mail.smtpIntervals.1h" },
+  { value: 300, labelKey: "moduleSettings.mail.smtpIntervals.5h" },
+  { value: 720, labelKey: "moduleSettings.mail.smtpIntervals.12h" },
+  { value: 1440, labelKey: "moduleSettings.mail.smtpIntervals.24h" },
+] as const;
+
 export default function ModuleSettingsPage() {
   const { module } = useParams<{ module: string }>();
   const { t } = useTranslation();
@@ -111,10 +121,64 @@ function SettingField({
   onChange: (v: unknown) => void;
 }) {
   const { t } = useTranslation();
+  const [smtpCustomMode, setSmtpCustomMode] = useState(false);
   const label = t(field.labelKey);
   const description = field.descriptionKey ? t(field.descriptionKey) : undefined;
 
   const fieldEl = (() => {
+    if (field.key === "smtpHealthCheckIntervalMinutes" && field.type === "number") {
+      const fallback = Number(field.defaultValue);
+      const numericValue =
+        typeof value === "number" && Number.isFinite(value)
+          ? value
+          : Number.isFinite(fallback)
+            ? fallback
+            : 5;
+      const isKnownPreset = SMTP_INTERVAL_PRESETS.some(
+        (p) => p.value === numericValue,
+      );
+      const preset = smtpCustomMode || !isKnownPreset ? "custom" : String(numericValue);
+      return (
+        <div className="space-y-2">
+          <Select
+            value={preset}
+            onValueChange={(v) => {
+              if (v === "custom") {
+                setSmtpCustomMode(true);
+                return;
+              }
+              setSmtpCustomMode(false);
+              onChange(+v);
+            }}
+          >
+            <SelectTrigger id={field.key}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SMTP_INTERVAL_PRESETS.map((opt) => (
+                <SelectItem key={opt.value} value={String(opt.value)}>
+                  {t(opt.labelKey)}
+                </SelectItem>
+              ))}
+              <SelectItem value="custom">
+                {t("moduleSettings.mail.smtpIntervals.custom")}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+          {preset === "custom" && (
+            <Input
+              id={`${field.key}-custom`}
+              type="number"
+              min={field.min}
+              max={field.max}
+              value={numericValue}
+              onChange={(e) => onChange(+e.target.value)}
+            />
+          )}
+        </div>
+      );
+    }
+
     if (field.type === "select" && field.options) {
       return (
         <Select

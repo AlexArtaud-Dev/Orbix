@@ -236,13 +236,26 @@ export class VaultService {
     return JSON.parse(this.decrypt(entity.encryptedPayload)) as EmailPayload;
   }
 
-  async checkAllEmail(): Promise<void> {
+  async checkAllEmail(minIntervalMinutes = 5): Promise<number> {
+    const intervalMinutes =
+      Number.isFinite(minIntervalMinutes) && minIntervalMinutes > 0
+        ? Math.floor(minIntervalMinutes)
+        : 5;
+    const minElapsedMs = intervalMinutes * 60 * 1000;
+    const now = Date.now();
     const entities = await this.prisma.vaultEntity.findMany({
       where: { type: 'email' },
+      include: { healthCheck: true },
     });
-    await Promise.allSettled(
-      entities.map((e) => this.testEmail(e.id).catch(() => {})),
+    const dueEntities = entities.filter(
+      (e) =>
+        !e.healthCheck ||
+        now - e.healthCheck.checkedAt.getTime() >= minElapsedMs,
     );
+    await Promise.allSettled(
+      dueEntities.map((e) => this.testEmail(e.id).catch(() => {})),
+    );
+    return dueEntities.length;
   }
 
   // ─── HTTP vault ──────────────────────────────────────────────────────────────
