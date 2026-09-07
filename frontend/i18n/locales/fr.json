@@ -133,7 +133,19 @@
     },
     "mail": {
       "maxAttachmentSizeMb": "Taille max des pièces jointes (Mo)",
-      "maxAttachmentSizeMbDesc": "Taille maximale de l'archive envoyée en pièce jointe. Les archives dépassant cette limite ne seront pas envoyées."
+      "maxAttachmentSizeMbDesc": "Taille maximale de l'archive envoyée en pièce jointe. Les archives dépassant cette limite ne seront pas envoyées.",
+      "smtpHealthCheckIntervalMinutes": "Intervalle de vérification SMTP",
+      "smtpHealthCheckIntervalMinutesDesc": "Fréquence à laquelle Orbix vérifie automatiquement les identifiants SMTP pour tous les coffres e-mail.",
+      "smtpIntervals": {
+        "5m": "Toutes les 5 minutes",
+        "10m": "Toutes les 10 minutes",
+        "30m": "Toutes les 30 minutes",
+        "1h": "Toutes les 1 heure",
+        "5h": "Toutes les 5 heures",
+        "12h": "Toutes les 12 heures",
+        "24h": "Toutes les 24 heures",
+        "custom": "Personnalisé (minutes)"
+      }
     },
     "sshInput": {
       "connectionTimeoutMs": "Délai de connexion (ms)",

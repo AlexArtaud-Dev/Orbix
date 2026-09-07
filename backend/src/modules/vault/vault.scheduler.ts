@@ -3,20 +3,21 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { LogsWriter } from '../logs/logs.writer';
 import { VaultService } from './vault.service';
 import { OrbixException } from '../../common/exceptions';
-import { SettingsService } from '../settings/settings.service';
+import { ModuleSettingsService } from '../module-settings/module-settings.service';
 
 @Injectable()
 export class VaultScheduler {
   constructor(
     private readonly vaultService: VaultService,
     private readonly logs: LogsWriter,
-    private readonly settings: SettingsService,
+    private readonly moduleSettings: ModuleSettingsService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
   async checkSmtpConnections() {
     try {
-      const rawSettings = (await this.settings.get()) as unknown;
+      const rawSettings = (await this.moduleSettings.getOne('mail'))
+        .values as unknown;
       let intervalMinutes = 5;
       if (
         typeof rawSettings === 'object' &&

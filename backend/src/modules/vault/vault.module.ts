@@ -5,10 +5,10 @@ import { VaultVarSetController } from './vault.varset.controller';
 import { VaultSshController } from './vault.ssh.controller';
 import { VaultService } from './vault.service';
 import { VaultScheduler } from './vault.scheduler';
-import { SettingsModule } from '../settings/settings.module';
+import { ModuleSettingsModule } from '../module-settings/module-settings.module';
 
 @Module({
-  imports: [SettingsModule],
+  imports: [ModuleSettingsModule],
   controllers: [
     VaultController,
     VaultHttpController,
