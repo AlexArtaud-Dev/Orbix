@@ -16,16 +16,22 @@ export class VaultScheduler {
   @Cron(CronExpression.EVERY_MINUTE)
   async checkSmtpConnections() {
     try {
-      const s = await this.settings.get();
-      const intervalRaw = (s as { smtpHealthCheckIntervalMinutes?: number })
-        .smtpHealthCheckIntervalMinutes;
-      const intervalMinutes =
-        typeof intervalRaw === 'number' && Number.isFinite(intervalRaw)
-          ? Math.max(1, Math.floor(intervalRaw))
-          : 5;
-      const checkedCount = await this.vaultService.checkAllEmail(
-        intervalMinutes,
-      );
+      const rawSettings = (await this.settings.get()) as unknown;
+      let intervalMinutes = 5;
+      if (
+        typeof rawSettings === 'object' &&
+        rawSettings !== null &&
+        'smtpHealthCheckIntervalMinutes' in rawSettings
+      ) {
+        const candidate = (
+          rawSettings as { smtpHealthCheckIntervalMinutes?: unknown }
+        ).smtpHealthCheckIntervalMinutes;
+        if (typeof candidate === 'number' && Number.isFinite(candidate)) {
+          intervalMinutes = Math.max(1, Math.floor(candidate));
+        }
+      }
+      const checkedCount =
+        await this.vaultService.checkAllEmail(intervalMinutes);
       if (checkedCount > 0) {
         this.logs.info(
           'vault',

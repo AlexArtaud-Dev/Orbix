@@ -362,11 +362,19 @@ describe('VaultService', () => {
         makeRow('id-1', 'a', 'p'),
         {
           ...makeRow('id-2', 'b', 'p'),
-          healthCheck: { status: 'ok', statusMsg: null, checkedAt: fourMinutesAgo },
+          healthCheck: {
+            status: 'ok',
+            statusMsg: null,
+            checkedAt: fourMinutesAgo,
+          },
         },
         {
           ...makeRow('id-3', 'c', 'p'),
-          healthCheck: { status: 'error', statusMsg: 'x', checkedAt: sixMinutesAgo },
+          healthCheck: {
+            status: 'error',
+            statusMsg: 'x',
+            checkedAt: sixMinutesAgo,
+          },
         },
       ]);
 
