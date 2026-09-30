@@ -122,12 +122,11 @@
     "mail": {
       "maxAttachmentSizeMb": "Max Attachment Size (MB)",
       "maxAttachmentSizeMbDesc": "Maximum size of the backup archive sent as an email attachment. Archives exceeding this limit will not be sent.",
+      "smtpHealthCheckEnabled": "Automatic SMTP health check",
+      "smtpHealthCheckEnabledDesc": "Periodically verify SMTP credentials for all email vaults. Disable this if a provider is throttling or blocking logins from the repeated checks.",
       "smtpHealthCheckIntervalMinutes": "SMTP health-check interval",
-      "smtpHealthCheckIntervalMinutesDesc": "How often Orbix automatically verifies SMTP credentials for all email vaults.",
+      "smtpHealthCheckIntervalMinutesDesc": "How often Orbix automatically verifies SMTP credentials for all email vaults. Capped at a 1-hour minimum to avoid triggering login-rate throttling on providers like Gmail.",
       "smtpIntervals": {
-        "5m": "Every 5 minutes",
-        "10m": "Every 10 minutes",
-        "30m": "Every 30 minutes",
         "1h": "Every 1 hour",
         "5h": "Every 5 hours",
         "12h": "Every 12 hours",

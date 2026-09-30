@@ -18,18 +18,25 @@ export class VaultScheduler {
     try {
       const rawSettings = (await this.moduleSettings.getOne('mail'))
         .values as unknown;
-      let intervalMinutes = 5;
-      if (
-        typeof rawSettings === 'object' &&
-        rawSettings !== null &&
-        'smtpHealthCheckIntervalMinutes' in rawSettings
-      ) {
-        const candidate = (
-          rawSettings as { smtpHealthCheckIntervalMinutes?: unknown }
-        ).smtpHealthCheckIntervalMinutes;
-        if (typeof candidate === 'number' && Number.isFinite(candidate)) {
-          intervalMinutes = Math.max(1, Math.floor(candidate));
-        }
+
+      const settingsObj =
+        typeof rawSettings === 'object' && rawSettings !== null
+          ? (rawSettings as {
+              smtpHealthCheckEnabled?: unknown;
+              smtpHealthCheckIntervalMinutes?: unknown;
+            })
+          : {};
+
+      const enabled =
+        typeof settingsObj.smtpHealthCheckEnabled === 'boolean'
+          ? settingsObj.smtpHealthCheckEnabled
+          : true;
+      if (!enabled) return;
+
+      let intervalMinutes = 60;
+      const candidate = settingsObj.smtpHealthCheckIntervalMinutes;
+      if (typeof candidate === 'number' && Number.isFinite(candidate)) {
+        intervalMinutes = Math.max(1, Math.floor(candidate));
       }
       const checkedCount =
         await this.vaultService.checkAllEmail(intervalMinutes);

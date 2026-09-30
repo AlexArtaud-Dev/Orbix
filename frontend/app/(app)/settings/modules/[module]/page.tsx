@@ -23,9 +23,6 @@ import {
 import { SkeletonForm } from "@/components/ui/skeleton";
 
 const SMTP_INTERVAL_PRESETS = [
-  { value: 5, labelKey: "moduleSettings.mail.smtpIntervals.5m" },
-  { value: 10, labelKey: "moduleSettings.mail.smtpIntervals.10m" },
-  { value: 30, labelKey: "moduleSettings.mail.smtpIntervals.30m" },
   { value: 60, labelKey: "moduleSettings.mail.smtpIntervals.1h" },
   { value: 300, labelKey: "moduleSettings.mail.smtpIntervals.5h" },
   { value: 720, labelKey: "moduleSettings.mail.smtpIntervals.12h" },
@@ -133,7 +130,7 @@ function SettingField({
           ? value
           : Number.isFinite(fallback)
             ? fallback
-            : 5;
+            : 60;
       const isKnownPreset = SMTP_INTERVAL_PRESETS.some(
         (p) => p.value === numericValue,
       );

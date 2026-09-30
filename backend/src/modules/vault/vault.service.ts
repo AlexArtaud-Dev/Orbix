@@ -236,11 +236,11 @@ export class VaultService {
     return JSON.parse(this.decrypt(entity.encryptedPayload)) as EmailPayload;
   }
 
-  async checkAllEmail(minIntervalMinutes = 5): Promise<number> {
+  async checkAllEmail(minIntervalMinutes = 60): Promise<number> {
     const intervalMinutes =
       Number.isFinite(minIntervalMinutes) && minIntervalMinutes > 0
         ? Math.floor(minIntervalMinutes)
-        : 5;
+        : 60;
     const minElapsedMs = intervalMinutes * 60 * 1000;
     const now = Date.now();
     const entities = await this.prisma.vaultEntity.findMany({

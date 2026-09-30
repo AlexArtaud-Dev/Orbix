@@ -122,12 +122,11 @@
     "mail": {
       "maxAttachmentSizeMb": "Taille max des pièces jointes (Mo)",
       "maxAttachmentSizeMbDesc": "Taille maximale de l'archive envoyée en pièce jointe. Les archives dépassant cette limite ne seront pas envoyées.",
+      "smtpHealthCheckEnabled": "Vérification SMTP automatique",
+      "smtpHealthCheckEnabledDesc": "Vérifie périodiquement les identifiants SMTP de tous les coffres e-mail. Désactivez cette option si un fournisseur limite ou bloque les connexions à cause des vérifications répétées.",
       "smtpHealthCheckIntervalMinutes": "Intervalle de vérification SMTP",
-      "smtpHealthCheckIntervalMinutesDesc": "Fréquence à laquelle Orbix vérifie automatiquement les identifiants SMTP pour tous les coffres e-mail.",
+      "smtpHealthCheckIntervalMinutesDesc": "Fréquence à laquelle Orbix vérifie automatiquement les identifiants SMTP pour tous les coffres e-mail. Plafonné à un minimum d'1 heure pour éviter de déclencher une limitation des tentatives de connexion chez des fournisseurs comme Gmail.",
       "smtpIntervals": {
-        "5m": "Toutes les 5 minutes",
-        "10m": "Toutes les 10 minutes",
-        "30m": "Toutes les 30 minutes",
         "1h": "Toutes les 1 heure",
         "5h": "Toutes les 5 heures",
         "12h": "Toutes les 12 heures",
