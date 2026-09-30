@@ -43,13 +43,20 @@ export class MailOutputProvider
         max: 100,
       },
       {
+        key: 'smtpHealthCheckEnabled',
+        type: 'boolean',
+        defaultValue: true,
+        labelKey: 'moduleSettings.mail.smtpHealthCheckEnabled',
+        descriptionKey: 'moduleSettings.mail.smtpHealthCheckEnabledDesc',
+      },
+      {
         key: 'smtpHealthCheckIntervalMinutes',
         type: 'number',
-        defaultValue: 5,
+        defaultValue: 60,
         labelKey: 'moduleSettings.mail.smtpHealthCheckIntervalMinutes',
         descriptionKey:
           'moduleSettings.mail.smtpHealthCheckIntervalMinutesDesc',
-        min: 1,
+        min: 60,
         max: 525600,
       },
     ],
