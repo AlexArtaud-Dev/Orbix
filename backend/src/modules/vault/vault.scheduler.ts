@@ -5,6 +5,12 @@ import { VaultService } from './vault.service';
 import { OrbixException } from '../../common/exceptions';
 import { ModuleSettingsService } from '../module-settings/module-settings.service';
 
+function positiveInt(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.max(1, Math.floor(value))
+    : fallback;
+}
+
 @Injectable()
 export class VaultScheduler {
   constructor(
@@ -24,6 +30,7 @@ export class VaultScheduler {
           ? (rawSettings as {
               smtpHealthCheckEnabled?: unknown;
               smtpHealthCheckIntervalMinutes?: unknown;
+              smtpHealthCheckRetryAfterFailureHours?: unknown;
             })
           : {};
 
@@ -33,13 +40,18 @@ export class VaultScheduler {
           : true;
       if (!enabled) return;
 
-      let intervalMinutes = 60;
-      const candidate = settingsObj.smtpHealthCheckIntervalMinutes;
-      if (typeof candidate === 'number' && Number.isFinite(candidate)) {
-        intervalMinutes = Math.max(1, Math.floor(candidate));
-      }
-      const checkedCount =
-        await this.vaultService.checkAllEmail(intervalMinutes);
+      const intervalMinutes = positiveInt(
+        settingsObj.smtpHealthCheckIntervalMinutes,
+        60,
+      );
+      const retryAfterFailureHours = positiveInt(
+        settingsObj.smtpHealthCheckRetryAfterFailureHours,
+        24,
+      );
+      const checkedCount = await this.vaultService.checkAllEmail(
+        intervalMinutes,
+        retryAfterFailureHours * 60,
+      );
       if (checkedCount > 0) {
         this.logs.info(
           'vault',

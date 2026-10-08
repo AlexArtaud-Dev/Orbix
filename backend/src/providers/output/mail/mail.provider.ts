@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { VaultService } from '../../../modules/vault/vault.service';
+import { SmtpTransportPool } from '../../../modules/vault/smtp-transport.pool';
 import { LogsWriter } from '../../../modules/logs/logs.writer';
 import { ModuleSettingsService } from '../../../modules/module-settings/module-settings.service';
 import type { IOutputProvider } from '../output-provider.interface';
@@ -59,12 +60,23 @@ export class MailOutputProvider
         min: 60,
         max: 525600,
       },
+      {
+        key: 'smtpHealthCheckRetryAfterFailureHours',
+        type: 'number',
+        defaultValue: 24,
+        labelKey: 'moduleSettings.mail.smtpHealthCheckRetryAfterFailureHours',
+        descriptionKey:
+          'moduleSettings.mail.smtpHealthCheckRetryAfterFailureHoursDesc',
+        min: 1,
+        max: 720,
+      },
     ],
   };
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly vault: VaultService,
+    private readonly smtpPool: SmtpTransportPool,
     private readonly logs: LogsWriter,
     private readonly moduleSettings: ModuleSettingsService,
   ) {}
@@ -85,7 +97,9 @@ export class MailOutputProvider
       );
     }
 
-    const smtpPayload = await this.vault.getEmailPayload(output.vaultId);
+    const { transporter, payload: smtpPayload } = await this.smtpPool.get(
+      output.vaultId,
+    );
     const toContacts = await this.resolveContacts(output.recipientsTo);
     const ccContacts = await this.resolveContacts(output.recipientsCc);
     const bccContacts = await this.resolveContacts(output.recipientsBcc);
@@ -126,14 +140,6 @@ export class MailOutputProvider
         /\{\{([^}]+)\}\}/g,
         (_, key: string) => extra[key] ?? baseVars[key] ?? `{{${key}}}`,
       );
-
-    const nodemailer = await import('nodemailer');
-    const transporter = nodemailer.createTransport({
-      host: smtpPayload.host,
-      port: smtpPayload.port,
-      secure: smtpPayload.secure,
-      auth: { user: smtpPayload.user, pass: smtpPayload.password },
-    });
 
     const from = smtpPayload.fromName
       ? `"${smtpPayload.fromName}" <${smtpPayload.fromAddr}>`
@@ -177,6 +183,7 @@ export class MailOutputProvider
             status: 'sent',
           },
         });
+        await this.vault.recordEmailHealthOk(output.vaultId);
       } catch (err) {
         const cause = err instanceof Error ? err.message : 'Send failed';
         const mailErr = new MailSendFailedException(

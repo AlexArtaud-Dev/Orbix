@@ -58,5 +58,5 @@ registerOutput({
 
 registerModuleSettingsNav({ module: "http-rest", labelKey: "input.type.httpRest", icon: Globe });
 registerModuleSettingsNav({ module: "mail", labelKey: "output.type.mail", icon: Mail });
-registerModuleSettingsNav({ module: "ssh-input", labelKey: "input.type.ssh", icon: Server });
-registerModuleSettingsNav({ module: "ssh-output", labelKey: "output.type.ssh", icon: Server });
+registerModuleSettingsNav({ module: "ssh-input", labelKey: "moduleSettings.sshInput.label", icon: Server });
+registerModuleSettingsNav({ module: "ssh-output", labelKey: "moduleSettings.sshOutput.label", icon: Server });

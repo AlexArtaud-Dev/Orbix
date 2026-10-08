@@ -236,26 +236,40 @@ export class VaultService {
     return JSON.parse(this.decrypt(entity.encryptedPayload)) as EmailPayload;
   }
 
-  async checkAllEmail(minIntervalMinutes = 60): Promise<number> {
-    const intervalMinutes =
-      Number.isFinite(minIntervalMinutes) && minIntervalMinutes > 0
-        ? Math.floor(minIntervalMinutes)
-        : 60;
-    const minElapsedMs = intervalMinutes * 60 * 1000;
+  async checkAllEmail(
+    minIntervalMinutes = 60,
+    retryAfterFailureMinutes = 24 * 60,
+  ): Promise<number> {
+    const intervalMs = Math.max(1, Math.floor(minIntervalMinutes)) * 60_000;
+    // After a failure, wait at least as long as the normal interval.
+    const failureMs = Math.max(
+      intervalMs,
+      Math.max(1, Math.floor(retryAfterFailureMinutes)) * 60_000,
+    );
     const now = Date.now();
     const entities = await this.prisma.vaultEntity.findMany({
       where: { type: 'email' },
       include: { healthCheck: true },
     });
-    const dueEntities = entities.filter(
-      (e) =>
-        !e.healthCheck ||
-        now - e.healthCheck.checkedAt.getTime() >= minElapsedMs,
-    );
-    await Promise.allSettled(
-      dueEntities.map((e) => this.testEmail(e.id).catch(() => {})),
-    );
+    const dueEntities = entities.filter((e) => {
+      if (!e.healthCheck) return true;
+      const waitMs = e.healthCheck.status === 'error' ? failureMs : intervalMs;
+      return now - e.healthCheck.checkedAt.getTime() >= waitMs;
+    });
+    // Sequential: several vaults may share one SMTP account.
+    for (const e of dueEntities) {
+      await this.testEmail(e.id).catch(() => {});
+    }
     return dueEntities.length;
+  }
+
+  async recordEmailHealthOk(vaultId: string): Promise<void> {
+    const checkedAt = new Date();
+    await this.prisma.vaultHealthCheck.upsert({
+      where: { vaultId },
+      create: { vaultId, status: 'ok', statusMsg: null, checkedAt },
+      update: { status: 'ok', statusMsg: null, checkedAt },
+    });
   }
 
   // ─── HTTP vault ──────────────────────────────────────────────────────────────

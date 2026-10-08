@@ -380,12 +380,58 @@ describe('VaultService', () => {
 
       const spy = jest.spyOn(service, 'testEmail').mockResolvedValue(undefined);
 
-      const count = await service.checkAllEmail(5);
+      const count = await service.checkAllEmail(5, 5);
 
       expect(spy).toHaveBeenCalledTimes(2);
       expect(spy).toHaveBeenCalledWith('id-1');
       expect(spy).toHaveBeenCalledWith('id-3');
       expect(count).toBe(2);
+    });
+
+    it('waits the retry-after-failure delay before re-checking a failed vault', async () => {
+      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+      mockPrisma.vaultEntity.findMany.mockResolvedValue([
+        {
+          ...makeRow('ok-1', 'a', 'p'),
+          healthCheck: {
+            status: 'ok',
+            statusMsg: null,
+            checkedAt: twoHoursAgo,
+          },
+        },
+        {
+          ...makeRow('err-1', 'b', 'p'),
+          healthCheck: {
+            status: 'error',
+            statusMsg: '454 Too many login attempts',
+            checkedAt: twoHoursAgo,
+          },
+        },
+      ]);
+      const spy = jest.spyOn(service, 'testEmail').mockResolvedValue(undefined);
+
+      const count = await service.checkAllEmail(60, 24 * 60);
+
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(spy).toHaveBeenCalledWith('ok-1');
+      expect(count).toBe(1);
+    });
+  });
+
+  describe('recordEmailHealthOk', () => {
+    it('marks the vault healthy without opening an SMTP connection', async () => {
+      mockNodemailer.createTransport.mockClear();
+      mockPrisma.vaultHealthCheck.upsert.mockResolvedValue({});
+
+      await service.recordEmailHealthOk('id-1');
+
+      expect(mockPrisma.vaultHealthCheck.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { vaultId: 'id-1' },
+          update: expect.objectContaining({ status: 'ok', statusMsg: null }),
+        }),
+      );
+      expect(mockNodemailer.createTransport).not.toHaveBeenCalled();
     });
   });
 });

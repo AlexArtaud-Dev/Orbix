@@ -126,6 +126,8 @@
       "smtpHealthCheckEnabledDesc": "Periodically verify SMTP credentials for all email vaults. Disable this if a provider is throttling or blocking logins from the repeated checks.",
       "smtpHealthCheckIntervalMinutes": "SMTP health-check interval",
       "smtpHealthCheckIntervalMinutesDesc": "How often Orbix automatically verifies SMTP credentials for all email vaults. Capped at a 1-hour minimum to avoid triggering login-rate throttling on providers like Gmail.",
+      "smtpHealthCheckRetryAfterFailureHours": "Retry delay after a failed check (hours)",
+      "smtpHealthCheckRetryAfterFailureHoursDesc": "When a health check fails, Orbix waits this long before trying again. A rate-limited account (e.g. Gmail \"Too many login attempts\") needs quiet time to recover; retrying too often keeps it blocked.",
       "smtpIntervals": {
         "1h": "Every 1 hour",
         "5h": "Every 5 hours",
@@ -135,10 +137,12 @@
       }
     },
     "sshInput": {
+      "label": "SSH / SFTP (input)",
       "connectionTimeoutMs": "Connection Timeout (ms)",
       "connectionTimeoutMsDesc": "Maximum time to wait for the SSH connection to be established before aborting."
     },
     "sshOutput": {
+      "label": "SSH / SFTP (output)",
       "connectionTimeoutMs": "Connection Timeout (ms)",
       "connectionTimeoutMsDesc": "Maximum time to wait for the SSH connection before the upload is aborted."
     }

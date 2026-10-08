@@ -126,6 +126,8 @@
       "smtpHealthCheckEnabledDesc": "Vérifie périodiquement les identifiants SMTP de tous les coffres e-mail. Désactivez cette option si un fournisseur limite ou bloque les connexions à cause des vérifications répétées.",
       "smtpHealthCheckIntervalMinutes": "Intervalle de vérification SMTP",
       "smtpHealthCheckIntervalMinutesDesc": "Fréquence à laquelle Orbix vérifie automatiquement les identifiants SMTP pour tous les coffres e-mail. Plafonné à un minimum d'1 heure pour éviter de déclencher une limitation des tentatives de connexion chez des fournisseurs comme Gmail.",
+      "smtpHealthCheckRetryAfterFailureHours": "Délai avant nouvelle vérification après un échec (heures)",
+      "smtpHealthCheckRetryAfterFailureHoursDesc": "Quand une vérification échoue, Orbix attend ce délai avant de réessayer. Un compte limité (ex. Gmail « Too many login attempts ») a besoin de calme pour se débloquer ; réessayer trop souvent le maintient bloqué.",
       "smtpIntervals": {
         "1h": "Toutes les 1 heure",
         "5h": "Toutes les 5 heures",
@@ -135,10 +137,12 @@
       }
     },
     "sshInput": {
+      "label": "SSH / SFTP (entrée)",
       "connectionTimeoutMs": "Délai de connexion (ms)",
       "connectionTimeoutMsDesc": "Durée maximale d'attente pour établir la connexion SSH avant abandon."
     },
     "sshOutput": {
+      "label": "SSH / SFTP (sortie)",
       "connectionTimeoutMs": "Délai de connexion (ms)",
       "connectionTimeoutMsDesc": "Durée maximale d'attente pour la connexion SSH avant abandon de l'envoi."
     }

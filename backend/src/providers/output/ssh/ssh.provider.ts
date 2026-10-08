@@ -31,7 +31,7 @@ export class SshOutputProvider
 
   readonly moduleSettingsDefinition: ModuleSettingsDefinition = {
     module: 'ssh-output',
-    labelKey: 'output.type.ssh',
+    labelKey: 'moduleSettings.sshOutput.label',
     descriptionKey: 'output.typeDesc.ssh',
     fields: [
       {

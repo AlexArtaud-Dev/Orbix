@@ -77,7 +77,7 @@ export class SshInputProvider
 
   readonly moduleSettingsDefinition: ModuleSettingsDefinition = {
     module: 'ssh-input',
-    labelKey: 'input.type.ssh',
+    labelKey: 'moduleSettings.sshInput.label',
     descriptionKey: 'input.typeDesc.ssh',
     fields: [
       {

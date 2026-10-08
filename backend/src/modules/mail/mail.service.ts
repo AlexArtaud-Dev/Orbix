@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LogsWriter } from '../logs/logs.writer';
 import { VaultService } from '../vault/vault.service';
+import { SmtpTransportPool } from '../vault/smtp-transport.pool';
 import type { SendMailDto } from './dto/send-mail.dto';
 import { MailSendFailedException } from '../../common/exceptions';
 
@@ -10,19 +11,12 @@ export class MailService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly vault: VaultService,
+    private readonly smtpPool: SmtpTransportPool,
     private readonly logs: LogsWriter,
   ) {}
 
   async send(dto: SendMailDto, files: Express.Multer.File[]): Promise<void> {
-    const payload = await this.vault.getEmailPayload(dto.vaultId);
-
-    const nodemailer = await import('nodemailer');
-    const transporter = nodemailer.createTransport({
-      host: payload.host,
-      port: payload.port,
-      secure: payload.secure,
-      auth: { user: payload.user, pass: payload.password },
-    });
+    const { transporter, payload } = await this.smtpPool.get(dto.vaultId);
 
     const from = payload.fromName
       ? `"${payload.fromName}" <${payload.fromAddr}>`
@@ -49,6 +43,7 @@ export class MailService {
           status: 'sent',
         },
       });
+      await this.vault.recordEmailHealthOk(dto.vaultId);
       this.logs.info(
         'mail',
         'MAIL_SENT',
